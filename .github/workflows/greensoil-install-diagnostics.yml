@@ -29,13 +29,17 @@ jobs:
           SDK="$ANDROID_HOME/build-tools/35.0.0"
           "$SDK/aapt" dump badging "$APK" | head -35
           "$SDK/apksigner" verify --verbose --print-certs "$APK"
-      - name: Android 15 emulator fresh-install diagnosis
+      - name: Android 11 lightweight emulator fresh-install diagnosis
         uses: reactivecircus/android-emulator-runner@v2
         with:
-          api-level: 35
+          api-level: 30
           arch: x86_64
           target: google_apis
-          profile: pixel_6
+          profile: pixel_2
+          ram-size: 2048M
+          heap-size: 256M
+          emulator-boot-timeout: 300
+          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -cores 2
           disable-animations: true
           script: |
             set -eux

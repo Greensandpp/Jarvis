@@ -240,6 +240,19 @@ class SettingsService extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Microphone recognition language is independent of the spoken JARVIS voice.
+  /// Indian English is a better default for local accents; Tamil can be selected.
+  String get speechInputLocale {
+    final locale = _prefs?.getString('jarvis_speech_input_locale') ?? 'en-IN';
+    return const ['en-IN', 'ta-IN', 'en-GB'].contains(locale) ? locale : 'en-IN';
+  }
+
+  Future<void> setSpeechInputLocale(String locale) async {
+    if (!const ['en-IN', 'ta-IN', 'en-GB'].contains(locale)) return;
+    await _prefs?.setString('jarvis_speech_input_locale', locale);
+    notifyListeners();
+  }
+
   /// Voice profile: 'paul' (British Jarvis), 'friday' (Irish), 'stark' (US), 'kip' (Deep), 'cortana' (Smooth).
   String get jarvisVoice => _prefs?.getString('jarvis_voice') ?? 'paul';
   Future<void> setJarvisVoice(String value) async {

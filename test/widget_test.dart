@@ -9,9 +9,20 @@ import 'package:private_agent/screens/settings/settings_screen.dart';
 import 'package:private_agent/services/jarvis_tools_service.dart';
 import 'package:private_agent/services/settings_service.dart';
 import 'package:private_agent/services/voice_service.dart';
+import 'package:private_agent/services/polyglot_diplomat_service.dart';
 import 'package:private_agent/services/workflow_service.dart';
 
 void main() {
+  test('Tamil is a supported two-way translation language', () {
+    final service = PolyglotDiplomatService.instance;
+    expect(PolyglotDiplomatService.supportedLanguages, contains('Tamil'));
+    service.sourceLanguage = 'Tamil';
+    service.targetLanguage = 'English';
+    expect(service.sourceLanguage, 'Tamil');
+    service.swapLanguages();
+    expect(service.targetLanguage, 'Tamil');
+  });
+
   group('TaskStep parsing', () {
     test('parses a plain JSON object', () {
       final step = TaskStep.tryParse(

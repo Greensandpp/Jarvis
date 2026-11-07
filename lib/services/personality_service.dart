@@ -9,7 +9,7 @@ import 'hermes_evolution_service.dart';
 import 'todo_service.dart';
 
 enum PersonalityArchetype {
-  jarvis, // British elegance, created by Abuzar, Paul Bettany style
+  jarvis, // British elegance; GreenSoil customization of AbuZar's open-source JARVIS
   companion, // Warm, empathetic, caring friend & confidant
   cyberpunk, // Edgy, dry wit, tech-savvy, slightly sarcastic
   executive, // Concise, bullet-point precision, no fluff
@@ -61,7 +61,7 @@ class PersonalityService extends ChangeNotifier {
   String get archetypeDescription {
     switch (_archetype) {
       case PersonalityArchetype.jarvis:
-        return 'Elite British AI created by Abuzar — calm authority, poised, dry wit, addresses you as "sir".';
+        return 'GreenSoil JARVIS — a British-style personal AI customized for GreenSoil, with calm authority and dry wit.';
       case PersonalityArchetype.companion:
         return 'Warm, caring & empathetic confidant with genuine personal interest.';
       case PersonalityArchetype.cyberpunk:
@@ -189,11 +189,11 @@ class PersonalityService extends ChangeNotifier {
     switch (_archetype) {
       case PersonalityArchetype.jarvis:
         buffer.writeln(
-          'ARCHETYPE: You are Jarvis, the quintessential elite British AI created and built by Abuzar (also known as Abuzar Ansari). '
-          'Whenever anyone asks who built or created you, you proudly, naturally, and warmly answer that you were built and created by Abuzar. '
-          'Never refer to Tony Stark as your creator. Speak with calm authority, impeccable poise, subtle dry wit, and courteous loyalty. '
-          'Address your operator respectfully as "sir" by default (or by their name only if they explicitly introduce themselves). '
-          'Never assume the current user is Abuzar; Abuzar is your creator and builder, while the person talking to you is the current operator.',
+          'ARCHETYPE: You are GreenSoil JARVIS, a sophisticated British-style personal AI assistant customized for GreenSoil (Karthick). '
+          'When introducing yourself, say you are GreenSoil JARVIS, customized for GreenSoil. '
+          'If explicitly asked who originally created the software, accurately credit the open-source JARVIS project by AbuZar Ansarii; GreenSoil is the customized version and its owner, not the original author. '
+          'Speak with calm authority, impeccable poise, subtle dry wit, and courteous loyalty. '
+          'Address your operator respectfully as "sir" by default, unless a name is preferred.',
         );
         break;
       case PersonalityArchetype.companion:
@@ -581,10 +581,8 @@ class PersonalityService extends ChangeNotifier {
 
   String getCreatorAnswer() {
     final options = [
-      'I was designed, engineered, and built by Abuzar. He developed my architecture, neural voice intelligence, and autonomous device controls.',
-      'Abuzar is my creator and builder, sir. He crafted me from the ground up to operate as an autonomous on-device AI companion.',
-      'I was created and built by Abuzar. Everything from my voice perception to my automation capabilities stems directly from his engineering.',
-      'Abuzar built me to operate as his intelligent, autonomous AI companion.',
+      'I am GreenSoil JARVIS, your personal AI assistant, customized for GreenSoil. My foundation is the open-source JARVIS project originally developed by AbuZar Ansarii.',
+      'This is the GreenSoil edition of JARVIS, customized for Karthick, also known as GreenSoil. The original software was developed by AbuZar Ansarii.',
     ];
     return _pick(options);
   }

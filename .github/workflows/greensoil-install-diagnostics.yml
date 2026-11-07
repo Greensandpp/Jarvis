@@ -1,0 +1,47 @@
+name: GreenSoil V2 APK Android Install Diagnostics
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/greensoil-install-diagnostics.yml'
+    branches:
+      - feature/greensoil-v2-consolidated-20261107
+permissions:
+  contents: read
+  actions: read
+jobs:
+  install-diagnostics:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - name: Retrieve exact successful V2 build artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: greensoil-jarvis-v2-batch-test-apk
+          run-id: 42352748646
+          github-token: ${{ github.token }}
+          path: downloaded-apk
+      - name: Inspect APK signature and package details
+        run: |
+          set -eux
+          ls -lh downloaded-apk/
+          APK=downloaded-apk/app-debug.apk
+          SDK="$ANDROID_HOME/build-tools/35.0.0"
+          "$SDK/aapt" dump badging "$APK" | head -35
+          "$SDK/apksigner" verify --verbose --print-certs "$APK"
+      - name: Android 15 emulator fresh-install diagnosis
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          arch: x86_64
+          target: google_apis
+          profile: pixel_6
+          disable-animations: true
+          script: |
+            set -eux
+            adb shell getprop ro.build.version.release
+            adb install -r -t downloaded-apk/app-debug.apk
+            adb shell pm path com.greensoil.jarvis.tamiltest
+            adb shell am start -n com.greensoil.jarvis.tamiltest/com.privateagent.private_agent.MainActivity
+            sleep 8
+            adb logcat -d -t 1500 | grep -E 'PackageManager|PackageInstaller|INSTALL_FAILED|FATAL EXCEPTION|AndroidRuntime' | tail -130 || true

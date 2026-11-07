@@ -472,7 +472,7 @@ class MainActivity : FlutterActivity() {
         } catch (e: Exception) {
             android.util.Log.e("JARVIS_VOICE", "restartRunnable failed: ${e.message}")
             safeCancelAndDestroy()
-            scheduleRestart(150L)
+            scheduleRestart(3000L)
         }
     }
 
@@ -530,15 +530,16 @@ class MainActivity : FlutterActivity() {
                 return
             }
 
-            // For all timeouts, silence, client hiccups, busy signals, audio glitches:
-            // Destroy and re-arm cleanly so listening never stops!
+            // Platform recognition sessions can play an audible start/stop tone.
+            // Avoid an aggressive 50ms re-arm loop on silence; use a paced retry.
+            // The actual system sound is controlled by the Android speech provider.
             safeCancelAndDestroy()
             val delay = when (error) {
                 SpeechRecognizer.ERROR_NO_MATCH,
-                SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> 50L
+                SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> 12000L
                 SpeechRecognizer.ERROR_RECOGNIZER_BUSY,
-                SpeechRecognizer.ERROR_CLIENT -> 120L
-                else -> 250L
+                SpeechRecognizer.ERROR_CLIENT -> 5000L
+                else -> 8000L
             }
             scheduleRestart(delay)
         }
@@ -561,7 +562,7 @@ class MainActivity : FlutterActivity() {
             }
 
             if (isContinuousListening) {
-                scheduleRestart(50L)
+                scheduleRestart(2500L)
             } else {
                 mainHandler.post {
                     speechChannel?.invokeMethod("onSpeechStatus", "notListening")
@@ -605,7 +606,7 @@ class MainActivity : FlutterActivity() {
 
         override fun onEndOfSegmentedSession() {
             if (isContinuousListening) {
-                scheduleRestart(50L)
+                scheduleRestart(2500L)
             }
         }
 

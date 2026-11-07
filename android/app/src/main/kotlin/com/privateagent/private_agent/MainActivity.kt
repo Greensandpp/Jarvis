@@ -50,6 +50,7 @@ class MainActivity : FlutterActivity() {
     private var speechChannel: MethodChannel? = null
     private var speechRecognizer: SpeechRecognizer? = null
     private var recognitionIntent: Intent? = null
+    private var recognitionLocale = "en-GB"
     private var isContinuousListening = false
     private var isRestartPending = false
     private val mainHandler = Handler(Looper.getMainLooper())
@@ -664,6 +665,7 @@ class MainActivity : FlutterActivity() {
     private fun buildRecognitionIntent(): Intent {
         return Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
             putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE, recognitionLocale)
             putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
             putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 5)
             putExtra(RecognizerIntent.EXTRA_CALLING_PACKAGE, packageName)
@@ -684,6 +686,9 @@ class MainActivity : FlutterActivity() {
                 "startListening" -> {
                     val continuous = call.argument<Boolean>("continuous") ?: true
                     val manual = call.argument<Boolean>("manual") ?: false
+                    val requestedLocale = call.argument<String>("locale") ?: "en-GB"
+                    recognitionLocale = if (requestedLocale == "ta-IN") "ta-IN" else "en-GB"
+                    recognitionIntent = null
                     startNativeListening(continuous, manual)
                     result.success(true)
                 }

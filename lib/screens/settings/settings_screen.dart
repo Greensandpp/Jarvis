@@ -783,7 +783,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           GlassTextField(
             controller: _chatsController,
             labelText: 'Allowed Chat IDs',
-            hintText: 'Comma-separated (leave empty for auto-pairing)',
+            hintText: 'Comma-separated authorized chat IDs (required)',
             prefixIcon: const Icon(Icons.group_outlined, size: 20),
           ),
           const SizedBox(height: 14),
@@ -896,7 +896,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           ),
                         ),
                         Text(
-                          'Send /start or /pair to your bot in Telegram to auto-pair, or enter Chat IDs above.',
+                          'For security, enter your authorized numeric Telegram Chat ID above before enabling the bridge. Auto-pair is disabled.',
                           style: TextStyle(
                             fontSize: 11,
                             color: Theme.of(context).colorScheme.onSurfaceVariant,

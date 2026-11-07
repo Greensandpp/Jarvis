@@ -195,6 +195,10 @@ void main() {
       await settings.init();
 
       expect(settings.jarvisAlwaysOn, isFalse);
+      expect(settings.speechInputLocale, 'en-IN');
+      await settings.setSpeechInputLocale('ta-IN');
+      expect(settings.speechInputLocale, 'ta-IN');
+      await settings.setSpeechInputLocale('en-IN');
       expect(settings.jarvisVoice, 'paul');
       expect(settings.jarvisNeuralVoice, 'en-GB-RyanNeural');
       expect(settings.useNeuralVoice, isTrue);

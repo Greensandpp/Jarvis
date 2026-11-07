@@ -65,18 +65,20 @@ void main() {
   });
 
   group('SettingsService', () {
-    test('persists AI settings', () async {
+    test('standalone test locks provider to Gemini', () async {
       SharedPreferences.setMockInitialValues({});
       final settings = SettingsService.instance;
       await settings.init();
 
-      await settings.setProvider('openrouter');
-      expect(settings.provider, 'openrouter');
-      expect(settings.baseUrl, 'https://openrouter.ai/api/v1');
+      expect(settings.provider, 'gemini');
+      expect(settings.baseUrl,
+          'https://generativelanguage.googleapis.com/v1beta/openai');
+      expect(settings.model, 'gemini-2.5-flash');
+      await expectLater(settings.setProvider('openrouter'), throwsStateError);
 
+      await settings.setProvider('gemini');
       await settings.setMaxSteps(25);
       expect(settings.maxSteps, 25);
-
       await settings.setThemeMode(ThemeMode.dark);
       expect(settings.themeMode, ThemeMode.dark);
     });
@@ -118,9 +120,7 @@ void main() {
     expect(find.text('Continue'), findsOneWidget);
   });
 
-  testWidgets('custom Ollama model survives unrelated settings changes', (
-    tester,
-  ) async {
+  testWidgets('standalone settings expose Gemini only', (tester) async {
     SharedPreferences.setMockInitialValues({});
     final settings = SettingsService.instance;
     await settings.init();
@@ -128,31 +128,11 @@ void main() {
     await tester.pumpWidget(const MaterialApp(home: SettingsScreen()));
     await tester.pumpAndSettle();
 
-    // Select the Ollama provider chip (fills the default model).
-    await tester.tap(find.text('Ollama (local)'));
-    await tester.pumpAndSettle();
-    expect(find.text('llama3.2'), findsOneWidget);
-
-    // Type a custom model name into the Model field.
-    await tester.enterText(
-      find.widgetWithText(TextField, 'Model'),
-      'qwen2.5:7b',
-    );
-
-    // Change an unrelated setting — this used to reset the Model field
-    // back to the provider default.
-    await tester.tap(find.text('Send system prompt'));
-    await tester.pumpAndSettle();
-
-    final modelField = tester.widget<TextField>(
-      find.widgetWithText(TextField, 'Model'),
-    );
-    expect(modelField.controller!.text, 'qwen2.5:7b');
-
-    // Saving persists the custom model, not the default.
-    await tester.tap(find.text('Save changes'));
-    await tester.pumpAndSettle();
-    expect(settings.model, 'qwen2.5:7b');
+    expect(find.text('Google Gemini'), findsOneWidget);
+    expect(find.text('Ollama (local)'), findsNothing);
+    expect(find.text('OpenRouter'), findsNothing);
+    expect(settings.provider, 'gemini');
+    expect(settings.model, 'gemini-2.5-flash');
   });
 
   group('JARVIS & Hermes Workflow tests', () {

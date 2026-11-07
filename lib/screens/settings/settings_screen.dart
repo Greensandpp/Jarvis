@@ -346,7 +346,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             spacing: 8,
             runSpacing: 8,
             children: [
-              for (final entry in SettingsService.providers.entries)
+              for (final entry in SettingsService.providers.entries.where((entry) => entry.key == 'gemini'))
                 GlassPill(
                   label: entry.value.label,
                   isSelected: _settings.provider == entry.key,
@@ -380,7 +380,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           GlassTextField(
             controller: _modelController,
             labelText: 'Model',
-            hintText: 'deepseek-chat',
+            hintText: 'gemini-2.5-flash',
             prefixIcon: const Icon(Icons.psychology_outlined, size: 20),
           ),
           const SizedBox(height: 16),

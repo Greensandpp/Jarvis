@@ -1,8 +1,8 @@
-name: GreenSoil JARVIS Tamil Feature QA
+name: GreenSoil JARVIS V2 Consolidated QA
 on:
   workflow_dispatch:
   push:
-    branches: [feature/greensoil-tamil-voice-translator]
+    branches: [feature/greensoil-tamil-voice-translator, feature/greensoil-v2-consolidated-20261107]
 permissions:
   contents: read
 jobs:
@@ -25,6 +25,6 @@ jobs:
       - run: flutter build apk --debug
       - uses: actions/upload-artifact@v4
         with:
-          name: greensoil-jarvis-tamil-test-apk
+          name: greensoil-jarvis-v2-batch-test-apk
           path: build/app/outputs/flutter-apk/app-debug.apk
           if-no-files-found: error

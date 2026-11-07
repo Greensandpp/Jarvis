@@ -28,7 +28,7 @@ jobs:
       - name: Unit tests
         run: flutter test
       - name: Build debug APK
-        run: flutter build apk --debug --target-platform android-x64
+        run: flutter build apk --debug
       - uses: actions/upload-artifact@v4
         if: always()
         with:

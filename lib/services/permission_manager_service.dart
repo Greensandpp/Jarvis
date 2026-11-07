@@ -54,7 +54,6 @@ class PermissionManagerService extends ChangeNotifier {
     notifyListeners();
 
     final micStatus = await Permission.microphone.isGranted;
-    final smsStatus = await Permission.sms.isGranted;
     final contactsStatus = await Permission.contacts.isGranted;
     final notifStatus = await Permission.notification.isGranted;
     final batteryStatus = await Permission.ignoreBatteryOptimizations.isGranted;
@@ -75,13 +74,6 @@ class PermissionManagerService extends ChangeNotifier {
         isGranted: micStatus,
       ),
       AppPermissionInfo(
-        type: AppPermissionType.sms,
-        title: 'SMS Inbox & Messaging',
-        description: 'Allows reading incoming SMS messages, verification codes, and drafting text replies.',
-        icon: Icons.sms_outlined,
-        isGranted: smsStatus,
-      ),
-      AppPermissionInfo(
         type: AppPermissionType.contacts,
         title: 'Contacts Access',
         description: 'Resolves names for voice commands like "Text John" or "Call Mom".',
@@ -99,7 +91,7 @@ class PermissionManagerService extends ChangeNotifier {
       AppPermissionInfo(
         type: AppPermissionType.accessibility,
         title: 'Accessibility Service',
-        description: 'Empowers PrivateAgent to tap, type, scroll, and execute autonomous tasks across apps.',
+        description: 'Allows GreenSoil JARVIS to tap, type and scroll with your approval.',
         icon: Icons.accessibility_new_rounded,
         isGranted: accessibilityStatus,
         isSystemSettingsOnly: true,
@@ -142,9 +134,8 @@ class PermissionManagerService extends ChangeNotifier {
         return status.isGranted;
 
       case AppPermissionType.sms:
-        final status = await Permission.sms.request();
-        await refresh();
-        return status.isGranted;
+        // Removed from this secured build: do not request unmanifested SMS access.
+        return false;
 
       case AppPermissionType.contacts:
         final status = await Permission.contacts.request();
@@ -178,7 +169,6 @@ class PermissionManagerService extends ChangeNotifier {
   Future<void> requestAllCorePermissions() async {
     await [
       Permission.microphone,
-      Permission.sms,
       Permission.contacts,
       Permission.notification,
     ].request();

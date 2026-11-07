@@ -215,9 +215,7 @@ class VoiceService {
       await _nativeSpeechChannel.invokeMethod('startListening', {
         'continuous': continuous,
         'manual': manual,
-        'locale': SettingsService.instance.jarvisNeuralVoice.startsWith('ta-IN-')
-            ? 'ta-IN'
-            : 'en-GB',
+        'locale': SettingsService.instance.speechInputLocale,
       });
       _listening = true;
       listeningNotifier.value = true;

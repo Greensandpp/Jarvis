@@ -50,16 +50,16 @@ class MacroRecorderService extends ChangeNotifier {
       _recordingStartedAt = DateTime.now();
 
       final started = await _channel.invokeMethod<bool>('startMacroRecording');
-      _isRecording = started ?? true;
+      _isRecording = started == true;
       notifyListeners();
       return _isRecording;
     } catch (e) {
       debugPrint('[MacroRecorderService] Start recording error: $e');
-      _isRecording = true; // Fallback state for simulators/tests
-      _activeMacroGoal = macroGoal;
-      _recordingStartedAt = DateTime.now();
+      _isRecording = false;
+      _activeMacroGoal = null;
+      _recordingStartedAt = null;
       notifyListeners();
-      return true;
+      return false;
     }
   }
 

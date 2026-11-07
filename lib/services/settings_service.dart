@@ -58,7 +58,7 @@ class SettingsService extends ChangeNotifier {
     'gemini': (
       label: 'Google Gemini',
       baseUrl: 'https://generativelanguage.googleapis.com/v1beta/openai',
-      model: 'gemini-2.0-flash',
+      model: 'gemini-2.5-flash',
     ),
     'openrouter': (
       label: 'OpenRouter',
@@ -78,8 +78,9 @@ class SettingsService extends ChangeNotifier {
     'custom': (label: 'Custom (OpenAI-compatible)', baseUrl: '', model: ''),
   };
 
-  String get provider => _prefs?.getString('ai_provider') ?? 'deepseek';
+  String get provider => 'gemini';
   Future<void> setProvider(String value) async {
+    if (value != 'gemini') throw StateError('Standalone test is Gemini-only');
     await _prefs?.setString('ai_provider', value);
     final preset = providers[value];
     if (preset != null && preset.baseUrl.isNotEmpty) {
@@ -89,10 +90,7 @@ class SettingsService extends ChangeNotifier {
     notifyListeners();
   }
 
-  String get baseUrl =>
-      _prefs?.getString('ai_base_url') ??
-      providers[provider]?.baseUrl ??
-      providers['deepseek']!.baseUrl;
+  String get baseUrl => providers['gemini']!.baseUrl;
   Future<void> setBaseUrl(String value) async {
     await _prefs?.setString('ai_base_url', value.trim());
     notifyListeners();
@@ -104,10 +102,7 @@ class SettingsService extends ChangeNotifier {
     notifyListeners();
   }
 
-  String get model =>
-      _prefs?.getString('ai_model') ??
-      providers[provider]?.model ??
-      'deepseek-chat';
+  String get model => providers['gemini']!.model;
   Future<void> setModel(String value) async {
     await _prefs?.setString('ai_model', value.trim());
     notifyListeners();

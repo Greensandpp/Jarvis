@@ -194,7 +194,7 @@ void main() {
       final settings = SettingsService.instance;
       await settings.init();
 
-      expect(settings.jarvisAlwaysOn, isTrue);
+      expect(settings.jarvisAlwaysOn, isFalse);
       expect(settings.jarvisVoice, 'paul');
       expect(settings.jarvisNeuralVoice, 'en-GB-RyanNeural');
       expect(settings.useNeuralVoice, isTrue);

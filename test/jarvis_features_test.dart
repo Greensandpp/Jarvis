@@ -87,7 +87,7 @@ void main() {
       await personality.setHumor(HumorLevel.subtle);
 
       final jarvisPrompt = personality.buildPersonaPrompt('Please help me quickly');
-      expect(jarvisPrompt, contains('ARCHETYPE: You are Jarvis'));
+      expect(jarvisPrompt, contains('ARCHETYPE: You are GreenSoil JARVIS'));
       expect(jarvisPrompt, contains('FORMALITY'));
 
       // Emotional state detection
@@ -705,10 +705,10 @@ void main() {
       expect(profile['city'], 'Malibu');
     });
 
-    test('Creator identity accurately declares Abuzar', () {
+    test('GreenSoil attribution credits original developer', () {
       final personality = PersonalityService.instance;
       final answer = personality.getCreatorAnswer();
-      expect(answer, contains('Abuzar'));
+      expect(answer, contains('GreenSoil'));\n      expect(answer.toLowerCase(), contains('abuzar'));
       expect(answer.toLowerCase(), isNot(contains('tony stark')));
     });
 

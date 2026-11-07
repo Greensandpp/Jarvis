@@ -1199,6 +1199,31 @@ class JarvisService extends ChangeNotifier {
       return;
     }
 
+    // GreenSoil built-in capabilities guide; no AI model call needed.
+    // Describe code-supported features without claiming every device integration is verified.
+    if (lower.contains('what can you do') ||
+        lower.contains('your features') ||
+        lower.contains('list your features') ||
+        lower.contains('what are your capabilities') ||
+        lower.contains('enna enna panna mudiyum') ||
+        lower.contains('enna enna option') ||
+        lower.contains('unakku enna panna mudiyum')) {
+      const reply = 'I am GreenSoil JARVIS. I can chat and answer questions, '
+          'listen to voice commands, speak replies, and display the Jarvis hologram or Arc Reactor. '
+          'I have tools for app launching, screen automation, reminders, notes, tasks, web search, '
+          'weather, device controls, macros, routines, and translation including Tamil. '
+          'Additional modules include home automation, camera assistance, security alerts, '
+          'and a Telegram bridge. Some actions need permissions, account setup, '
+          'or further testing. Ask me about one feature, for example: explain macros.';
+      _phase = JarvisPhase.speaking;
+      _lastJarvisSpeech = reply;
+      _statusMessage = 'GREENSOIL // CAPABILITIES';
+      notifyListeners();
+      await _voice.speak(reply);
+      await _startFollowUpListening();
+      return;
+    }
+
     // 3e-2b. GreenSoil customization and upstream attribution
     if (lower.contains('who built you') ||
         lower.contains('who created you') ||

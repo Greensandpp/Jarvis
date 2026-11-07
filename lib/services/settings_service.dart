@@ -234,7 +234,7 @@ class SettingsService extends ChangeNotifier {
   }
 
   /// Whether JARVIS listens continuously like Google Home without tapping.
-  bool get jarvisAlwaysOn => _prefs?.getBool('jarvis_always_on') ?? true;
+  bool get jarvisAlwaysOn => _prefs?.getBool('jarvis_always_on') ?? false;
   Future<void> setJarvisAlwaysOn(bool value) async {
     await _prefs?.setBool('jarvis_always_on', value);
     notifyListeners();

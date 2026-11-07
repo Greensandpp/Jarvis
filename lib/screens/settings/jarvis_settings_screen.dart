@@ -382,6 +382,39 @@ class _JarvisSettingsScreenState extends State<JarvisSettingsScreen> {
             ),
             const Divider(height: 24),
 
+            // Input recognition is independent of the output voice. Users can
+            // speak naturally in Indian English or Tamil and keep British TTS.
+            const Text(
+              'Microphone Speech Input Language',
+              style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+            ),
+            const SizedBox(height: 4),
+            const Text(
+              'Choose how JARVIS recognizes your speech. This does not change his reply voice.',
+              style: TextStyle(fontSize: 12),
+            ),
+            const SizedBox(height: 8),
+            DropdownButtonFormField<String>(
+              key: ValueKey('speech-input-${_settings.speechInputLocale}'),
+              initialValue: _settings.speechInputLocale,
+              isExpanded: true,
+              items: const [
+                DropdownMenuItem(value: 'en-IN', child: Text('Indian English (recommended)')),
+                DropdownMenuItem(value: 'ta-IN', child: Text('Tamil')),
+                DropdownMenuItem(value: 'en-GB', child: Text('British English')),
+              ],
+              onChanged: (locale) async {
+                if (locale == null) return;
+                await _settings.setSpeechInputLocale(locale);
+                await VoiceService.instance.stopListening();
+                if (_settings.jarvisAlwaysOn) {
+                  JarvisService.instance.ensureAlwaysOnRunning();
+                }
+                if (mounted) setState(() {});
+              },
+            ),
+            const Divider(height: 24),
+
             // Ultra-Realistic Neural Voice Toggle & Selector
             SwitchListTile(
               contentPadding: EdgeInsets.zero,

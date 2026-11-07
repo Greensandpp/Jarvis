@@ -13,8 +13,8 @@ import 'settings_service.dart';
 /// messages from authorized chats are executed as agent tasks; status
 /// updates and screenshots are sent back to the chat.
 ///
-/// Authorization model: if [SettingsService.telegramAllowedChats] is empty,
-/// the first chat that writes to the bot becomes the remembered owner.
+/// Authorization model: only explicit allow-listed chat IDs can issue commands.
+/// First-contact auto-pairing is intentionally disabled in GreenSoil builds.
 class TelegramService extends ChangeNotifier {
   TelegramService._();
   static final TelegramService instance = TelegramService._();
@@ -101,20 +101,10 @@ class TelegramService extends ChangeNotifier {
 
     final settings = SettingsService.instance;
     final allowed = settings.telegramAllowedChats;
-    final owner = settings.telegramOwnerChatId;
 
-    // First contact becomes the owner when no allow-list is configured.
-    if (allowed.isEmpty && owner.isEmpty) {
-      await settings.setTelegramOwnerChatId(chatId);
-      await sendMessage(chatId,
-          '👋 PrivateAgent paired with this chat. Send me any task, e.g.\n'
-          '"Open YouTube and search for lofi music".\n\n'
-          'Commands: /status /screenshot /cancel');
-      return;
-    }
-    final isAuthorized =
-        allowed.contains(chatId) || (allowed.isEmpty && chatId == owner);
-    if (!isAuthorized) return;
+    // Fail closed. A token alone must not grant remote-control access.
+    // The operator must manually configure allowed chat IDs in settings.
+    if (allowed.isEmpty || !allowed.contains(chatId)) return;
 
     onCommand?.call(chatId, text.trim());
   }

@@ -120,7 +120,6 @@
             android:enabled="false"
             android:authorities="${applicationId}.shizuku"
             android:multiprocess="false"
-            android:enabled="false"
             android:exported="true"
             android:permission="android.permission.INTERACT_ACROSS_USERS_FULL" />
 

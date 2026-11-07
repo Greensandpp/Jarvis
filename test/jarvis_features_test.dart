@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:private_agent/models/task_step.dart';
@@ -519,6 +520,14 @@ void main() {
       expect(steps[1].action, 'click_text');
       expect(steps[1].params['text'], 'Search');
 
+      // Mock the native Accessibility recorder rather than treating a missing
+      // Android method channel as successful recording.
+      const channel = MethodChannel('com.privateagent/accessibility');
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(channel, (call) async {
+        if (call.method == 'startMacroRecording') return true;
+        return null;
+      });
       await recorder.startRecording('Play Workout Playlist');
       expect(recorder.isRecording, isTrue);
       expect(recorder.activeMacroGoal, 'Play Workout Playlist');
@@ -531,6 +540,8 @@ void main() {
 
       // Clean up
       await recorder.deleteSkill(skill.id);
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(channel, null);
     });
 
     test('Smart Home Service parses voice commands and configures payloads', () async {

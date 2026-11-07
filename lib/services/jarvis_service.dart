@@ -1199,7 +1199,7 @@ class JarvisService extends ChangeNotifier {
       return;
     }
 
-    // 3e-2b. Creator & Builder Identity (Built by Abuzar)
+    // 3e-2b. GreenSoil customization and upstream attribution
     if (lower.contains('who built you') ||
         lower.contains('who created you') ||
         lower.contains('who made you') ||
@@ -1219,7 +1219,7 @@ class JarvisService extends ChangeNotifier {
       final reply = PersonalityService.instance.getCreatorAnswer();
       _lastJarvisSpeech = reply;
       _phase = JarvisPhase.speaking;
-      _statusMessage = 'CREATOR // ABUZAR';
+      _statusMessage = 'GREENSoil // JARVIS';
       notifyListeners();
       await _voice.speak(reply);
       await _startFollowUpListening();

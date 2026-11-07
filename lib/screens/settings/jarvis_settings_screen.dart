@@ -348,6 +348,8 @@ class _JarvisSettingsScreenState extends State<JarvisSettingsScreen> {
       ('en-US-GuyNeural', 'Guy (US Neural - Studio Male)', 'Polished, authoritative US broadcaster tone'),
       ('en-US-ChristopherNeural', 'Christopher (US Neural - Confident)', 'Direct, crisp and focused'),
       ('en-IE-EmilyNeural', 'Emily (Irish Neural - F.R.I.D.A.Y.)', 'Charming, brisk Irish accent'),
+      ('ta-IN-ValluvarNeural', 'Valluvar (Tamil - Male)', 'Natural Tamil male neural voice'),
+      ('ta-IN-PallaviNeural', 'Pallavi (Tamil - Female)', 'Natural Tamil female neural voice'),
     ];
 
     return Card(

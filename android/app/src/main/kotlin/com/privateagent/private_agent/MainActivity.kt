@@ -50,7 +50,7 @@ class MainActivity : FlutterActivity() {
     private var speechChannel: MethodChannel? = null
     private var speechRecognizer: SpeechRecognizer? = null
     private var recognitionIntent: Intent? = null
-    private var recognitionLocale = "en-GB"
+    private var recognitionLocale = "en-IN"
     private var isContinuousListening = false
     private var isRestartPending = false
     private val mainHandler = Handler(Looper.getMainLooper())
@@ -687,8 +687,8 @@ class MainActivity : FlutterActivity() {
                 "startListening" -> {
                     val continuous = call.argument<Boolean>("continuous") ?: true
                     val manual = call.argument<Boolean>("manual") ?: false
-                    val requestedLocale = call.argument<String>("locale") ?: "en-GB"
-                    recognitionLocale = if (requestedLocale == "ta-IN") "ta-IN" else "en-GB"
+                    val requestedLocale = call.argument<String>("locale") ?: "en-IN"
+                    recognitionLocale = if (requestedLocale in setOf("ta-IN", "en-IN", "en-GB")) requestedLocale else "en-IN"
                     recognitionIntent = null
                     startNativeListening(continuous, manual)
                     result.success(true)

@@ -708,7 +708,8 @@ void main() {
     test('GreenSoil attribution credits original developer', () {
       final personality = PersonalityService.instance;
       final answer = personality.getCreatorAnswer();
-      expect(answer, contains('GreenSoil'));\n      expect(answer.toLowerCase(), contains('abuzar'));
+      expect(answer, contains('GreenSoil'));
+      expect(answer.toLowerCase(), contains('abuzar'));
       expect(answer.toLowerCase(), isNot(contains('tony stark')));
     });
 

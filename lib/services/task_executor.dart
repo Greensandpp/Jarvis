@@ -477,27 +477,27 @@ class TaskExecutor extends ChangeNotifier {
       switch (step.action) {
         case TaskStep.actionClickText:
           final text = step.stringParam('text') ?? '';
-          return _automation.clickText(text, nodes: nodes);
+          return await _automation.clickText(text, nodes: nodes);
         case TaskStep.actionClickAt:
           final x = step.intParam('x');
           final y = step.intParam('y');
           if (x == null || y == null) return false;
-          return _automation.clickAt(x, y);
+          return await _automation.clickAt(x, y);
         case TaskStep.actionTypeText:
           final text = step.stringParam('text');
           if (text == null) return false;
-          return _automation.typeText(text);
+          return await _automation.typeText(text);
         case TaskStep.actionPressEnter:
-          return _automation.pressEnter();
+          return await _automation.pressEnter();
         case TaskStep.actionScroll:
-          return _automation.scroll(step.stringParam('direction') ?? 'down');
+          return await _automation.scroll(step.stringParam('direction') ?? 'down');
         case TaskStep.actionSwipe:
           final sx = step.intParam('startX');
           final sy = step.intParam('startY');
           final ex = step.intParam('endX');
           final ey = step.intParam('endY');
           if ([sx, sy, ex, ey].any((v) => v == null)) return false;
-          return _automation.swipe(
+          return await _automation.swipe(
             startX: sx!,
             startY: sy!,
             endX: ex!,
@@ -505,9 +505,9 @@ class TaskExecutor extends ChangeNotifier {
             durationMs: step.intParam('durationMs') ?? 350,
           );
         case TaskStep.actionPressBack:
-          return _automation.pressBack();
+          return await _automation.pressBack();
         case TaskStep.actionPressHome:
-          return _automation.pressHome();
+          return await _automation.pressHome();
         case TaskStep.actionOpenApp:
           final query =
               step.stringParam('app') ?? step.stringParam('package') ?? '';

@@ -98,7 +98,12 @@ class VoiceService {
   Future<void> initTts({String? voiceProfile}) async {
     final profile = voiceProfile ?? SettingsService.instance.jarvisVoice;
     try {
-      switch (profile) {
+      // Tamil neural voice profiles use Tamil local TTS as offline fallback.
+      if (SettingsService.instance.jarvisNeuralVoice.startsWith('ta-IN-')) {
+        await _tts.setLanguage('ta-IN');
+        await _tts.setPitch(1.0);
+        await _tts.setSpeechRate(0.48);
+      } else switch (profile) {
         case 'friday':
           await _tts.setLanguage('en-IE');
           await _tts.setPitch(1.05);
@@ -210,6 +215,9 @@ class VoiceService {
       await _nativeSpeechChannel.invokeMethod('startListening', {
         'continuous': continuous,
         'manual': manual,
+        'locale': SettingsService.instance.jarvisNeuralVoice.startsWith('ta-IN-')
+            ? 'ta-IN'
+            : 'en-GB',
       });
       _listening = true;
       listeningNotifier.value = true;

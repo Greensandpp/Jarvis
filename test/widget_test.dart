@@ -195,6 +195,14 @@ void main() {
       await settings.init();
 
       expect(settings.jarvisAlwaysOn, isFalse);
+      expect(settings.allowCloudAi, isFalse);
+      expect(settings.allowCloudTts, isFalse);
+      await settings.setAllowCloudAi(true);
+      await settings.setAllowCloudTts(true);
+      expect(settings.allowCloudAi, isTrue);
+      expect(settings.allowCloudTts, isTrue);
+      await settings.setAllowCloudAi(false);
+      await settings.setAllowCloudTts(false);
       expect(settings.speechInputLocale, 'en-IN');
       await settings.setSpeechInputLocale('ta-IN');
       expect(settings.speechInputLocale, 'ta-IN');

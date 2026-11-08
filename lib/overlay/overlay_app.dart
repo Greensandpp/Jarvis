@@ -37,6 +37,17 @@ class _OverlayAppState extends State<OverlayApp>
   late final AnimationController _reactorController;
 
   bool _expanded = false;
+  bool _editingShortcuts = false;
+  List<String> _shortcuts = [
+    'open_tradingview', 'toggle_torch', 'payment_safety', 'summarize_screen',
+  ];
+  static const Map<String, String> _actionLabels = {
+    'open_tradingview': 'TradingView',
+    'toggle_torch': 'Torch',
+    'payment_safety': 'Payment Safety',
+    'summarize_screen': 'Summarize',
+  };
+
 
   // JARVIS Real-Time Phase State
   String _jarvisPhase = 'idle'; // 'idle', 'listening', 'thinking', 'speaking', 'executing'
@@ -69,6 +80,7 @@ class _OverlayAppState extends State<OverlayApp>
 
     _subscription =
         FlutterOverlayWindow.overlayListener.listen(_onMainAppEvent);
+    _sendCommand({'command': 'request_shortcuts'});
   }
 
   @override
@@ -85,7 +97,12 @@ class _OverlayAppState extends State<OverlayApp>
       if (decoded is! Map) return;
 
       final type = decoded['type'];
-      if (type == 'jarvis_state') {
+      if (type == 'shortcuts_state') {
+        final raw = decoded['items'];
+        if (raw is List) {
+          setState(() => _shortcuts = raw.whereType<String>().toList());
+        }
+      } else if (type == 'jarvis_state') {
         setState(() {
           _jarvisPhase = decoded['phase']?.toString() ?? _jarvisPhase;
           _jarvisStatus = decoded['status']?.toString() ?? _jarvisStatus;
@@ -236,17 +253,36 @@ class _OverlayAppState extends State<OverlayApp>
               children: [
                 _panelHeader(),
                  const SizedBox(height: 6),
-                 Wrap(
-                   alignment: WrapAlignment.center,
-                   spacing: 4,
-                   runSpacing: 2,
+                 Row(
                    children: [
-                     _quickAction('TradingView', Icons.show_chart, 'open_tradingview'),
-                     _quickAction('Torch', Icons.flashlight_on, 'toggle_torch'),
-                     _quickAction('Payment', Icons.lock_outline, 'payment_safety'),
-                     _quickAction('Summarize', Icons.article_outlined, 'summarize_screen'),
+                     const Expanded(child: Text('QUICK SHORTCUTS',
+                       style: TextStyle(fontSize: 9, color: Colors.white70))),
+                     TextButton.icon(
+                       onPressed: () => setState(() => _editingShortcuts = !_editingShortcuts),
+                       icon: Icon(_editingShortcuts ? Icons.check : Icons.edit, size: 13),
+                       label: Text(_editingShortcuts ? 'Done' : 'Edit',
+                         style: const TextStyle(fontSize: 11)),
+                     ),
                    ],
                  ),
+                 if (_editingShortcuts)
+                   SizedBox(height: 135, child: _buildShortcutEditor())
+                 else
+                   Wrap(
+                     alignment: WrapAlignment.center,
+                     spacing: 4,
+                     runSpacing: 2,
+                     children: [
+                       for (final id in _shortcuts)
+                         _quickAction(_actionLabels[id] ??
+                           (id.startsWith('app:') ? id.substring(4) : id),
+                           id == 'open_tradingview' ? Icons.show_chart :
+                           id == 'toggle_torch' ? Icons.flashlight_on :
+                           id == 'payment_safety' ? Icons.lock_outline :
+                           id == 'summarize_screen' ? Icons.article_outlined :
+                           Icons.apps, id),
+                     ],
+                   ),
                  const SizedBox(height: 6),
                 Expanded(
                   child: _screenSummary != null
@@ -261,13 +297,105 @@ class _OverlayAppState extends State<OverlayApp>
     );
   }
 
+  void _saveShortcuts() {
+    _sendCommand({'command': 'save_shortcuts', 'items': _shortcuts});
+  }
+
+  Future<void> _addQuickApp() async {
+    final controller = TextEditingController();
+    final name = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Add app shortcut'),
+        content: TextField(
+          controller: controller,
+          maxLength: 96,
+          autofocus: true,
+          decoration: const InputDecoration(
+            labelText: 'App name or Android package',
+            hintText: 'e.g. WhatsApp, com.whatsapp',
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+          FilledButton(onPressed: () => Navigator.pop(ctx, controller.text.trim()),
+            child: const Text('Add')),
+        ],
+      ),
+    );
+    controller.dispose();
+    if (name == null || name.isEmpty || name.contains('\n')) return;
+    final id = 'app:$name';
+    if (_shortcuts.contains(id) || _shortcuts.length >= 20) return;
+    setState(() => _shortcuts.add(id));
+    _saveShortcuts();
+  }
+
+  Widget _buildShortcutEditor() {
+    final choices = _actionLabels.entries
+      .where((entry) => !_shortcuts.contains(entry.key)).toList();
+    return Column(children: [
+      Wrap(spacing: 4, children: [
+        PopupMenuButton<String>(
+          tooltip: 'Add action',
+          enabled: choices.isNotEmpty && _shortcuts.length < 20,
+          onSelected: (id) {
+            setState(() => _shortcuts.add(id));
+            _saveShortcuts();
+          },
+          itemBuilder: (context) => [
+            for (final entry in choices)
+              PopupMenuItem(value: entry.key, child: Text(entry.value)),
+          ],
+          child: const Chip(label: Text('+ Add action')),
+        ),
+        ActionChip(label: const Text('+ Quick app'), onPressed: _addQuickApp),
+      ]),
+      Expanded(child: ListView.builder(
+        itemCount: _shortcuts.length,
+        itemBuilder: (context, i) {
+          final id = _shortcuts[i];
+          final label = _actionLabels[id] ??
+            (id.startsWith('app:') ? id.substring(4) : id);
+          return SizedBox(height: 40, child: Row(children: [
+            Expanded(child: Text(label, overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontSize: 12))),
+            IconButton(tooltip: 'Move up', icon: const Icon(Icons.arrow_upward, size: 16),
+              onPressed: i == 0 ? null : () {
+                setState(() {
+                  final item = _shortcuts.removeAt(i);
+                  _shortcuts.insert(i - 1, item);
+                });
+                _saveShortcuts();
+              }),
+            IconButton(tooltip: 'Move down', icon: const Icon(Icons.arrow_downward, size: 16),
+              onPressed: i == _shortcuts.length - 1 ? null : () {
+                setState(() {
+                  final item = _shortcuts.removeAt(i);
+                  _shortcuts.insert(i + 1, item);
+                });
+                _saveShortcuts();
+              }),
+            IconButton(tooltip: 'Remove', icon: const Icon(Icons.close, size: 16),
+              onPressed: () {
+                setState(() => _shortcuts.removeAt(i));
+                _saveShortcuts();
+              }),
+          ]));
+        },
+      )),
+    ]);
+  }
+
   Widget _quickAction(String label, IconData icon, String command) {
     return ActionChip(
       label: Text(label, style: const TextStyle(fontSize: 9)),
       avatar: Icon(icon, size: 14, color: const Color(0xFF00E5FF)),
       backgroundColor: const Color(0xFF112B39),
       side: const BorderSide(color: Color(0xFF28505A)),
-      onPressed: () => _sendCommand({'command': command}),
+      onPressed: () => _sendCommand(command.startsWith('app:')
+        ? {'command': 'open_quick_app', 'app': command.substring(4)}
+        : {'command': command}),
     );
   }
 

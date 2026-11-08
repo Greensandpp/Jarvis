@@ -422,6 +422,22 @@ class _SettingsScreenState extends State<SettingsScreen> {
           const Divider(height: 1),
           const SizedBox(height: 10),
           GlassSwitchTile(
+            title: 'Allow Cloud AI (privacy-sensitive)',
+            subtitle: 'OFF by default. Enabling sends your prompts and possibly screen context to your selected AI provider. Do not use for private apps.',
+            icon: Icons.cloud_off_outlined,
+            value: _settings.allowCloudAi,
+            onChanged: (v) => _settings.setAllowCloudAi(v),
+          ),
+          const SizedBox(height: 8),
+          GlassSwitchTile(
+            title: 'Allow Online Neural Voice',
+            subtitle: 'OFF by default. Enabling may send spoken reply text to an external voice service. Offline Android TTS is used otherwise.',
+            icon: Icons.record_voice_over_outlined,
+            value: _settings.allowCloudTts,
+            onChanged: (v) => _settings.setAllowCloudTts(v),
+          ),
+          const SizedBox(height: 12),
+          GlassSwitchTile(
             title: 'Send system prompt',
             subtitle: 'Recommended — teaches model precise phone action schema',
             icon: Icons.code_rounded,

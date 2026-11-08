@@ -18,7 +18,6 @@ import '../../widgets/brain_dump_dialog.dart';
 import '../../widgets/chat_bubble.dart';
 import '../../widgets/glass_widgets.dart';
 import '../../widgets/jarvis_hud_widget.dart';
-import '../../widgets/liquid_glass_mode_switcher.dart';
 import '../../widgets/status_chip.dart';
 import '../sessions/session_detail_screen.dart';
 import '../settings/settings_screen.dart';
@@ -889,24 +888,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           ],
         ),
       ),
-    );
-  }
-
-  /// Agent / Chat / JARVIS mode switcher with Liquid Glass UI.
-  Widget _modeSwitcher(ThemeData theme) {
-    return LiquidGlassModeSwitcher(
-      selectedMode: _mode,
-      isBusy: _busy,
-      onModeChanged: (mode) {
-        final previousMode = _mode;
-        setState(() => _mode = mode);
-        SettingsService.instance.setAppMode(mode);
-        if (mode == AppMode.jarvis) {
-          JarvisService.instance.speakGreeting(force: true);
-        } else if (previousMode == AppMode.jarvis) {
-          JarvisService.instance.onExitJarvisMode();
-        }
-      },
     );
   }
 

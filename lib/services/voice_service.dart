@@ -103,7 +103,8 @@ class VoiceService {
         await _tts.setLanguage('ta-IN');
         await _tts.setPitch(1.0);
         await _tts.setSpeechRate(0.48);
-      } else switch (profile) {
+      } else {
+        switch (profile) {
         case 'friday':
           await _tts.setLanguage('en-IE');
           await _tts.setPitch(1.05);
@@ -155,6 +156,7 @@ class VoiceService {
             }
           } catch (_) {}
           break;
+        }
       }
 
       await _tts.awaitSpeakCompletion(true);

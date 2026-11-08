@@ -44,6 +44,8 @@
     <application
         android:label="GreenSoil JARVIS Tamil Test"
         android:name="${applicationName}"
+        android:allowBackup="false"
+        android:fullBackupContent="false"
         android:usesCleartextTraffic="true"
         android:requestLegacyExternalStorage="true"
         android:icon="@mipmap/ic_launcher">

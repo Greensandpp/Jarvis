@@ -438,6 +438,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
           const SizedBox(height: 8),
           GlassSwitchTile(
+            title: 'Allow Smart Home Network',
+            subtitle: 'OFF by default. Connect only to a trusted Home Assistant device after you approve its network access.',
+            icon: Icons.home_outlined,
+            value: _settings.allowSmartHomeNetwork,
+            onChanged: (v) => _settings.setAllowSmartHomeNetwork(v),
+          ),
+          const SizedBox(height: 8),
+          GlassSwitchTile(
             title: 'Allow Online Neural Voice',
             subtitle: 'OFF by default. Enabling may send spoken reply text to an external voice service. Offline Android TTS is used otherwise.',
             icon: Icons.record_voice_over_outlined,

@@ -78,6 +78,10 @@ jobs:
             set -euxo pipefail
             adb wait-for-device
             adb shell getprop ro.build.version.release
-            adb install -t downloaded-apk/app-debug.apk 2>&1 | tee install-result.txt
+            APK=$(find downloaded-apk -type f -name app-debug.apk -print -quit)
+            test -n "$APK" || { echo "APK missing from artifact"; find downloaded-apk -maxdepth 8 -type f; exit 2; }
+            echo "Testing APK: $APK"
+            adb install -t "$APK" 2>&1 | tee install-result.txt
+            grep -q '^Success' install-result.txt
             adb shell pm path com.greensoil.jarvis.tamiltest
             adb shell monkey -p com.greensoil.jarvis.tamiltest 1

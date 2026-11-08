@@ -150,6 +150,15 @@ class SettingsService extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Local network smart-home commands can transmit device names and actions.
+  /// Keep disabled until the operator explicitly pairs a trusted controller.
+  bool get allowSmartHomeNetwork =>
+      _prefs?.getBool('privacy_allow_smart_home_network') ?? false;
+  Future<void> setAllowSmartHomeNetwork(bool value) async {
+    await _prefs?.setBool('privacy_allow_smart_home_network', value);
+    notifyListeners();
+  }
+
   /// Deny cloud AI requests by default. A user must explicitly enable them.
   /// This is a partial app-level safeguard, not a complete network firewall.
   bool get allowCloudAi => _prefs?.getBool('privacy_allow_cloud_ai') ?? false;

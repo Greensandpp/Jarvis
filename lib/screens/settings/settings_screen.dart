@@ -430,6 +430,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
           const SizedBox(height: 8),
           GlassSwitchTile(
+            title: 'Allow External Search, Weather & Maps',
+            subtitle: 'OFF by default. If enabled, search terms, location names or coordinates may be sent to third-party services.',
+            icon: Icons.public_off_outlined,
+            value: _settings.allowExternalLookups,
+            onChanged: (v) => _settings.setAllowExternalLookups(v),
+          ),
+          const SizedBox(height: 8),
+          GlassSwitchTile(
             title: 'Allow Online Neural Voice',
             subtitle: 'OFF by default. Enabling may send spoken reply text to an external voice service. Offline Android TTS is used otherwise.',
             icon: Icons.record_voice_over_outlined,

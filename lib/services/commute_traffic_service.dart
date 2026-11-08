@@ -90,7 +90,7 @@ class CommuteTrafficService extends ChangeNotifier {
       int durationSec = 1200; // 20 minutes default
       double distanceMeters = 10000; // 10 km default
 
-      if (startCoords != null && endCoords != null) {
+      if (settings.allowExternalLookups && startCoords != null && endCoords != null) {
         final osrmUri = Uri.parse(
           'https://router.project-osrm.org/route/v1/driving/${startCoords.lon},${startCoords.lat};${endCoords.lon},${endCoords.lat}?overview=false',
         );
@@ -212,6 +212,7 @@ class CommuteTrafficService extends ChangeNotifier {
 
   /// Geocoding helper via OpenStreetMap Nominatim.
   Future<({double lat, double lon})?> _geocode(String query) async {
+    if (!SettingsService.instance.allowExternalLookups) return null;
     try {
       final uri = Uri.parse(
         'https://nominatim.openstreetmap.org/search?q=${Uri.encodeComponent(query)}&format=json&limit=1',

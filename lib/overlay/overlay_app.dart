@@ -235,7 +235,19 @@ class _OverlayAppState extends State<OverlayApp>
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 _panelHeader(),
-                const SizedBox(height: 10),
+                 const SizedBox(height: 6),
+                 Wrap(
+                   alignment: WrapAlignment.center,
+                   spacing: 4,
+                   runSpacing: 2,
+                   children: [
+                     _quickAction('TradingView', Icons.show_chart, 'open_tradingview'),
+                     _quickAction('Torch', Icons.flashlight_on, 'toggle_torch'),
+                     _quickAction('Payment', Icons.lock_outline, 'payment_safety'),
+                     _quickAction('Summarize', Icons.article_outlined, 'summarize_screen'),
+                   ],
+                 ),
+                 const SizedBox(height: 6),
                 Expanded(
                   child: _screenSummary != null
                       ? _buildSummaryContent()
@@ -246,6 +258,16 @@ class _OverlayAppState extends State<OverlayApp>
           ),
         ),
       ),
+    );
+  }
+
+  Widget _quickAction(String label, IconData icon, String command) {
+    return ActionChip(
+      label: Text(label, style: const TextStyle(fontSize: 9)),
+      avatar: Icon(icon, size: 14, color: const Color(0xFF00E5FF)),
+      backgroundColor: const Color(0xFF112B39),
+      side: const BorderSide(color: Color(0xFF28505A)),
+      onPressed: () => _sendCommand({'command': command}),
     );
   }
 

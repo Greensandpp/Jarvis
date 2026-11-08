@@ -9,6 +9,7 @@ import 'overlay/overlay_app.dart';
 import 'services/calendar_reminder_service.dart';
 import 'services/hermes_evolution_service.dart';
 import 'services/jarvis_service.dart';
+import 'services/jarvis_tools_service.dart';
 import 'services/native_bridge_service.dart';
 import 'services/screen_automation_service.dart';
 import 'services/sentry_service.dart';
@@ -100,6 +101,8 @@ void _wireTelegram(TaskExecutor executor, SettingsService settings) {
   }
 }
 
+bool _overlayTorchEnabled = false;
+
 /// Commands coming from the floating overlay bubble/panel.
 void _wireOverlayCommands(TaskExecutor executor) {
   FlutterOverlayWindow.overlayListener.listen((event) async {
@@ -137,6 +140,21 @@ void _wireOverlayCommands(TaskExecutor executor) {
         if (goal.isNotEmpty) {
           unawaited(JarvisService.instance.processCommand(goal));
         }
+        break;
+      case 'open_tradingview':
+        unawaited(JarvisToolsService.instance.launchApp('TradingView'));
+        break;
+      case 'toggle_torch':
+        unawaited(JarvisToolsService.instance.setTorch(!_overlayTorchEnabled).then((ok) {
+          if (ok) _overlayTorchEnabled = !_overlayTorchEnabled;
+        }));
+        break;
+      case 'payment_safety':
+        // Do not bypass the bank's app protection or silently revoke
+        // Accessibility. Close the overlay and let the user turn off the
+        // Accessibility permission in Android settings.
+        unawaited(FlutterOverlayWindow.closeOverlay());
+        unawaited(ScreenAutomationService.instance.openAccessibilitySettings());
         break;
       case 'toggle_sentry':
         unawaited(SentryService.instance.toggleSentry());

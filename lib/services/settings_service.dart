@@ -141,6 +141,15 @@ class SettingsService extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Web search, weather, maps, radar and other third-party lookups can
+  /// disclose queries or locations. Keep them opt-in and independent of AI.
+  bool get allowExternalLookups =>
+      _prefs?.getBool('privacy_allow_external_lookups') ?? false;
+  Future<void> setAllowExternalLookups(bool value) async {
+    await _prefs?.setBool('privacy_allow_external_lookups', value);
+    notifyListeners();
+  }
+
   /// Deny cloud AI requests by default. A user must explicitly enable them.
   /// This is a partial app-level safeguard, not a complete network firewall.
   bool get allowCloudAi => _prefs?.getBool('privacy_allow_cloud_ai') ?? false;

@@ -223,7 +223,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             isJarvis ? const IconThemeData(color: Color(0xFF00E5FF)) : null,
         title: Row(
           children: [
-            Text(
+            GestureDetector(
+              onLongPress: _showModePicker,
+              child: Text(
               isJarvis ? 'JARVIS' : 'PrivateAgent',
               style: isJarvis
                   ? const TextStyle(
@@ -236,12 +238,18 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                       fontWeight: FontWeight.w800,
                       letterSpacing: 0.4,
                     ),
+              ),
             ),
             const SizedBox(width: 10),
             ServiceStatusDot(enabled: _serviceEnabled),
           ],
         ),
         actions: [
+          IconButton(
+            tooltip: 'Change assistant mode',
+            icon: const Icon(Icons.tune_rounded),
+            onPressed: _showModePicker,
+          ),
           IconButton(
             tooltip: _overlayActive
                 ? 'Hide floating bubble'
@@ -264,7 +272,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       ),
       body: Column(
         children: [
-          _modeSwitcher(theme),
+          // Keep the home screen uncluttered. Modes remain available by
+          // long-pressing the title or through the compact menu below.
+
           if (!_serviceEnabled &&
               (_mode == AppMode.agent || _mode == AppMode.jarvis))
             _serviceWarning(theme),
@@ -837,6 +847,46 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               ),
             ),
           ),
+        ),
+      ),
+    );
+  }
+
+  void _selectMode(AppMode mode) {
+    final previousMode = _mode;
+    if (mode == previousMode) return;
+    setState(() => _mode = mode);
+    SettingsService.instance.setAppMode(mode);
+    if (mode == AppMode.jarvis) {
+      JarvisService.instance.speakGreeting(force: true);
+    } else if (previousMode == AppMode.jarvis) {
+      JarvisService.instance.onExitJarvisMode();
+    }
+  }
+
+  void _showModePicker() {
+    showModalBottomSheet<void>(
+      context: context,
+      builder: (context) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.graphic_eq_rounded),
+              title: const Text('JARVIS voice & Arc Reactor'),
+              onTap: () { Navigator.pop(context); _selectMode(AppMode.jarvis); },
+            ),
+            ListTile(
+              leading: const Icon(Icons.chat_bubble_outline),
+              title: const Text('Chat'),
+              onTap: () { Navigator.pop(context); _selectMode(AppMode.chat); },
+            ),
+            ListTile(
+              leading: const Icon(Icons.smart_toy_outlined),
+              title: const Text('Agent actions'),
+              onTap: () { Navigator.pop(context); _selectMode(AppMode.agent); },
+            ),
+          ],
         ),
       ),
     );

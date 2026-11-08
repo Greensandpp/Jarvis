@@ -39,7 +39,7 @@ class SettingsService extends ChangeNotifier {
   }
 
   /// Ordered, user-selected Arc Reactor shortcut keys.
-  /// App shortcuts are represented as app:<Android app label or package>.
+  /// App shortcuts are represented as `app:<Android app label or package>`.
   /// The allowlisted action catalog is rendered in the overlay editor.
   static const List<String> defaultArcShortcuts = [
     'open_tradingview', 'toggle_torch', 'payment_safety', 'summarize_screen',

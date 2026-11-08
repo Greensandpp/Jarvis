@@ -632,6 +632,24 @@ class AiService {
     return host == 'localhost' || host == '127.0.0.1' || host == '[::1]';
   }
 
+  /// Only the loopback interface is considered fully on-device.
+  /// A remote Ollama server on LAN is not phone-local and requires consent.
+  bool _isLoopbackAiUrl(String baseUrl) {
+    final uri = Uri.tryParse(baseUrl);
+    final host = uri?.host.toLowerCase();
+    return host == 'localhost' || host == '127.0.0.1' || host == '::1';
+  }
+
+  void _enforceAiPrivacy(SettingsService settings) {
+    if (!settings.allowCloudAi && !_isLoopbackAiUrl(settings.baseUrl)) {
+      throw const AiException(
+        'Privacy Lock: cloud AI is blocked. Your chat, screen text and device data '
+        'will not be sent to this AI endpoint. Configure a phone-local model '
+        'or explicitly enable cloud AI in Settings.',
+      );
+    }
+  }
+
   /// The system prompt that turns a chat model into a UI automation agent.
   String buildSystemPrompt() {
     final hermes = HermesEvolutionService.instance.buildHermesSystemContext();
@@ -813,6 +831,7 @@ You cannot directly tap the screen in this mode. If the user asks you to perform
       },
     ];
 
+    _enforceAiPrivacy(settings);
     if (settings.apiKey.isEmpty && !_isLocalBackend) {
       throw const AiException(
         'No API key configured. Open Settings and add one first.',
@@ -1269,6 +1288,7 @@ The user is viewing an article or screen on their device and requested an execut
     List<Map<String, dynamic>> messages,
     SettingsService settings,
   ) async {
+    _enforceAiPrivacy(settings);
     if (settings.apiKey.isEmpty && !_isLocalBackend) {
       throw const AiException(
         'No API key configured. Open Settings and add one first.',

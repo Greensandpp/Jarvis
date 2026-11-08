@@ -64,6 +64,7 @@ class SmartHomeService extends ChangeNotifier {
   /// Tests connectivity to the Home Assistant instance.
   Future<({bool success, String message})> checkConnection() async {
     final settings = SettingsService.instance;
+    if (!settings.allowSmartHomeNetwork) return (success: false, message: 'Privacy Lock: Home Assistant network access is disabled.');
     final base = _cleanUrl(settings.homeAssistantUrl);
     final uri = Uri.parse('$base/api/');
 
@@ -98,6 +99,7 @@ class SmartHomeService extends ChangeNotifier {
   /// Refreshes the list of smart home entities from `/api/states`.
   Future<List<SmartDeviceEntity>> refreshEntities() async {
     final settings = SettingsService.instance;
+    if (!settings.allowSmartHomeNetwork) return [];
     final base = _cleanUrl(settings.homeAssistantUrl);
     final uri = Uri.parse('$base/api/states');
 
@@ -168,6 +170,7 @@ class SmartHomeService extends ChangeNotifier {
     required Map<String, dynamic> serviceData,
   }) async {
     final settings = SettingsService.instance;
+    if (!settings.allowSmartHomeNetwork) return false;
     final base = _cleanUrl(settings.homeAssistantUrl);
     final uri = Uri.parse('$base/api/services/$domain/$service');
 

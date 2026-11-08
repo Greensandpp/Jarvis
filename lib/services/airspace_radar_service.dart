@@ -4,6 +4,8 @@ import 'dart:math';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
+import 'settings_service.dart';
+
 /// Aircraft telemetry blip detected in overhead airspace.
 class OverheadAircraft {
   final String callsign;
@@ -73,6 +75,13 @@ class AirspaceRadarService extends ChangeNotifier {
     double lat = 28.6139,
     double lon = 77.2090,
   }) async {
+    if (!SettingsService.instance.allowExternalLookups) {
+      _nearbyFlights = [];
+      _issPass = null;
+      _lastScanTime = DateTime.now();
+      notifyListeners();
+      return _nearbyFlights;
+    }
     _isScanning = true;
     notifyListeners();
 
@@ -138,6 +147,7 @@ class AirspaceRadarService extends ChangeNotifier {
   }
 
   Future<void> _queryIssPosition(double userLat, double userLon) async {
+    if (!SettingsService.instance.allowExternalLookups) return;
     try {
       final res = await http
           .get(Uri.parse('http://api.open-notify.org/iss-now.json'))

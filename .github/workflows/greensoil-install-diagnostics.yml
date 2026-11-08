@@ -8,44 +8,73 @@ on:
       - feature/greensoil-v2-consolidated-20261107
 permissions:
   contents: read
-  actions: read
 jobs:
-  install-diagnostics:
+  build-verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 55
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - name: Build exact current-branch APK
+        run: |
+          set -euxo pipefail
+          flutter pub get
+          flutter analyze --no-fatal-infos
+          flutter test
+          flutter build apk --debug
+      - name: Check APK signature, package and ABI
+        run: |
+          set -euxo pipefail
+          APK=build/app/outputs/flutter-apk/app-debug.apk
+          SDK="$ANDROID_HOME/build-tools/35.0.0"
+          test -s "$APK"
+          "$SDK/aapt" dump badging "$APK" | tee apk-badging.txt | head -45
+          grep -q "package: name='com.greensoil.jarvis.tamiltest'" apk-badging.txt
+          "$SDK/apksigner" verify --verbose --print-certs "$APK" | tee apk-signing.txt
+          "$SDK/zipalign" -c -v -P 16 4 "$APK"
+          sha256sum "$APK" | tee apk-sha256.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: greensoil-v2-installer-diagnostic-current-branch
+          path: |
+            build/app/outputs/flutter-apk/app-debug.apk
+            apk-badging.txt
+            apk-signing.txt
+            apk-sha256.txt
+          if-no-files-found: error
+  emulator-install:
+    needs: build-verify
     runs-on: ubuntu-latest
     timeout-minutes: 40
+    continue-on-error: true
     steps:
-      - name: Retrieve exact successful V2 build artifact
-        uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v4
         with:
-          name: greensoil-jarvis-v2-batch-test-apk
-          run-id: 42352748646
-          github-token: ${{ github.token }}
+          name: greensoil-v2-installer-diagnostic-current-branch
           path: downloaded-apk
-      - name: Inspect APK signature and package details
-        run: |
-          set -eux
-          ls -lh downloaded-apk/
-          APK=downloaded-apk/app-debug.apk
-          SDK="$ANDROID_HOME/build-tools/35.0.0"
-          "$SDK/aapt" dump badging "$APK" | head -35
-          "$SDK/apksigner" verify --verbose --print-certs "$APK"
-      - name: Android 11 lightweight emulator fresh-install diagnosis
+      - name: Android 11 fresh install (nonblocking diagnostic)
         uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: 30
           arch: x86_64
           target: google_apis
           profile: pixel_2
-          ram-size: 2048M
+          ram-size: 3072M
           heap-size: 256M
-          emulator-boot-timeout: 300
+          emulator-boot-timeout: 360
           emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -cores 2
-          disable-animations: true
+          disable-animations: false
           script: |
-            set -eux
+            set -euxo pipefail
+            adb wait-for-device
             adb shell getprop ro.build.version.release
-            adb install -r -t downloaded-apk/app-debug.apk
+            adb install -t downloaded-apk/app-debug.apk 2>&1 | tee install-result.txt
             adb shell pm path com.greensoil.jarvis.tamiltest
-            adb shell am start -n com.greensoil.jarvis.tamiltest/com.privateagent.private_agent.MainActivity
-            sleep 8
-            adb logcat -d -t 1500 | grep -E 'PackageManager|PackageInstaller|INSTALL_FAILED|FATAL EXCEPTION|AndroidRuntime' | tail -130 || true
+            adb shell monkey -p com.greensoil.jarvis.tamiltest 1

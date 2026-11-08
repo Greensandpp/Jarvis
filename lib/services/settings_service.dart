@@ -133,6 +133,14 @@ class SettingsService extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Deny cloud AI requests by default. A user must explicitly enable them.
+  /// This is a partial app-level safeguard, not a complete network firewall.
+  bool get allowCloudAi => _prefs?.getBool('privacy_allow_cloud_ai') ?? false;
+  Future<void> setAllowCloudAi(bool value) async {
+    await _prefs?.setBool('privacy_allow_cloud_ai', value);
+    notifyListeners();
+  }
+
   // ------------------------------------------------------------------
   // Agent loop
   // ------------------------------------------------------------------

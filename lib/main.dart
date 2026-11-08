@@ -128,7 +128,7 @@ void _wireOverlayCommands(TaskExecutor executor) {
         if (raw is List) {
           final allowed = <String>{
             'open_tradingview', 'toggle_torch', 'payment_safety',
-            'summarize_screen', 'open_chat', 'listen', 'open_settings',
+            'summarize_screen',
           };
           final items = raw.whereType<String>()
               .where((item) => allowed.contains(item) ||
@@ -149,16 +149,7 @@ void _wireOverlayCommands(TaskExecutor executor) {
           unawaited(JarvisToolsService.instance.launchApp(app));
         }
         break;
-      case 'open_chat':
-        await SettingsService.instance.setAppMode(AppMode.chat);
-        break;
-      case 'listen':
-        unawaited(JarvisService.instance.processCommand('Start listening to my next voice instruction'));
-        break;
-      case 'open_settings':
-        // Main app settings navigation cannot be safely performed from
-        // the separate overlay isolate without a navigation channel.
-        break;
+
       case 'start':
         final goal = decoded['goal']?.toString().trim() ?? '';
         if (goal.isNotEmpty && !executor.isBusy) {

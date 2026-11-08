@@ -5,6 +5,8 @@ on:
   push:
     paths:
       - '.github/workflows/greensoil-install-diagnostics.yml'
+      - 'lib/**'
+      - 'test/**'
     branches:
       - feature/greensoil-v2-consolidated-20261107
 permissions:

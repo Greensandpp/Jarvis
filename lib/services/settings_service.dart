@@ -133,6 +133,14 @@ class SettingsService extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Neural online TTS sends the exact spoken text outside the phone.
+  /// Keep it disabled unless separately authorized.
+  bool get allowCloudTts => _prefs?.getBool('privacy_allow_cloud_tts') ?? false;
+  Future<void> setAllowCloudTts(bool value) async {
+    await _prefs?.setBool('privacy_allow_cloud_tts', value);
+    notifyListeners();
+  }
+
   /// Deny cloud AI requests by default. A user must explicitly enable them.
   /// This is a partial app-level safeguard, not a complete network firewall.
   bool get allowCloudAi => _prefs?.getBool('privacy_allow_cloud_ai') ?? false;

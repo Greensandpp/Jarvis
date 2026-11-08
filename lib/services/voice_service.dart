@@ -280,7 +280,7 @@ class VoiceService {
 
     try {
       // 1. Try Ultra-Realistic Studio Neural Voice if enabled
-      if (SettingsService.instance.useNeuralVoice) {
+      if (SettingsService.instance.useNeuralVoice && SettingsService.instance.allowCloudTts) {
         try {
           final played = await EdgeTtsService.instance.speak(clean);
           if (played) {

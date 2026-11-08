@@ -75,6 +75,23 @@ void main() {
     });
   });
 
+  test('Arc Reactor shortcuts persist, reorder and remove without duplicates', () async {
+    SharedPreferences.setMockInitialValues({});
+    final settings = SettingsService.instance;
+    await settings.init();
+    expect(settings.arcShortcuts, contains('open_tradingview'));
+    await settings.setArcShortcuts([
+      'app:WhatsApp', 'toggle_torch', 'app:WhatsApp', 'payment_safety',
+    ]);
+    expect(settings.arcShortcuts, [
+      'app:WhatsApp', 'toggle_torch', 'payment_safety',
+    ]);
+    await settings.setArcShortcuts(['payment_safety', 'app:WhatsApp']);
+    expect(settings.arcShortcuts, ['payment_safety', 'app:WhatsApp']);
+    await settings.setArcShortcuts([]);
+    expect(settings.arcShortcuts, isEmpty);
+  });
+
   group('SettingsService', () {
     test('persists AI settings', () async {
       SharedPreferences.setMockInitialValues({});

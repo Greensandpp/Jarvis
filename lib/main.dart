@@ -117,6 +117,48 @@ void _wireOverlayCommands(TaskExecutor executor) {
     }
     if (decoded['type'] != 'command') return;
     switch (decoded['command']) {
+      case 'request_shortcuts':
+        await FlutterOverlayWindow.shareData(jsonEncode({
+          'type': 'shortcuts_state',
+          'items': SettingsService.instance.arcShortcuts,
+        }));
+        break;
+      case 'save_shortcuts':
+        final raw = decoded['items'];
+        if (raw is List) {
+          final allowed = <String>{
+            'open_tradingview', 'toggle_torch', 'payment_safety',
+            'summarize_screen', 'open_chat', 'listen', 'open_settings',
+          };
+          final items = raw.whereType<String>()
+              .where((item) => allowed.contains(item) ||
+                  (item.startsWith('app:') &&
+                   item.length > 4 && item.length <= 100 &&
+                   !item.contains('\n')))
+              .toList();
+          await SettingsService.instance.setArcShortcuts(items);
+          await FlutterOverlayWindow.shareData(jsonEncode({
+            'type': 'shortcuts_state',
+            'items': SettingsService.instance.arcShortcuts,
+          }));
+        }
+        break;
+      case 'open_quick_app':
+        final app = decoded['app']?.toString().trim() ?? '';
+        if (app.isNotEmpty && app.length <= 96) {
+          unawaited(JarvisToolsService.instance.launchApp(app));
+        }
+        break;
+      case 'open_chat':
+        await SettingsService.instance.setAppMode(AppMode.chat);
+        break;
+      case 'listen':
+        unawaited(JarvisService.instance.processCommand('Start listening to my next voice instruction'));
+        break;
+      case 'open_settings':
+        // Main app settings navigation cannot be safely performed from
+        // the separate overlay isolate without a navigation channel.
+        break;
       case 'start':
         final goal = decoded['goal']?.toString().trim() ?? '';
         if (goal.isNotEmpty && !executor.isBusy) {

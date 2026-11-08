@@ -38,6 +38,8 @@ class TelegramService extends ChangeNotifier {
 
   Future<void> start() async {
     if (_running) return;
+    final settings = SettingsService.instance;
+    if (!settings.telegramEnabled || settings.telegramAllowedChats.isEmpty) return;
     if (_token.isEmpty) return;
     _running = true;
     _consecutiveErrors = 0;
@@ -114,6 +116,8 @@ class TelegramService extends ChangeNotifier {
   // ------------------------------------------------------------------
 
   Future<bool> sendMessage(String chatId, String text) async {
+    final settings = SettingsService.instance;
+    if (!settings.telegramEnabled || !settings.telegramAllowedChats.contains(chatId)) return false;
     if (_token.isEmpty) return false;
     try {
       final res = await _client.post(

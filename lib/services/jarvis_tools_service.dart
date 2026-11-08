@@ -11,6 +11,7 @@ import 'app_launcher_service.dart';
 import 'app_usage_service.dart';
 import 'phone_storage_service.dart';
 import 'screen_automation_service.dart';
+import 'settings_service.dart';
 import 'sentry_service.dart';
 import 'sound_radar_service.dart';
 import 'system_control_service.dart';
@@ -40,6 +41,7 @@ class JarvisToolsService {
 
   /// Fetches real-time live breaking news headlines across categories or topics.
   Future<String> getLiveNews([String? topic]) async {
+    if (!SettingsService.instance.allowExternalLookups) return 'Privacy Lock: external news requests are disabled in Settings.';
     final cleanTopic = topic?.trim() ?? '';
     final buffer = StringBuffer();
 
@@ -143,6 +145,7 @@ class JarvisToolsService {
   /// Performs an industrial multi-source live web query to fetch current information,
   /// real-time events, encyclopedic facts, or live news in the background.
   Future<String> searchWeb(String query) async {
+    if (!SettingsService.instance.allowExternalLookups) return 'Privacy Lock: web search is disabled in Settings.';
     var clean = query.trim();
     if (clean.isEmpty) return 'No search query provided, sir.';
 
@@ -292,6 +295,7 @@ class JarvisToolsService {
 
   /// Retrieves real-time weather and temperature for [location].
   Future<String> getWeather(String location) async {
+    if (!SettingsService.instance.allowExternalLookups) return 'Privacy Lock: external weather lookup is disabled in Settings.';
     final loc = location.trim();
     try {
       final url = Uri.parse(

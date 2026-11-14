@@ -738,7 +738,9 @@ void main() {
       await CalendarReminderService.instance.addItem(
         title: 'Jack',
         description: 'Meeting with Jack',
-        dateTime: DateTime.now().add(const Duration(hours: 2)),
+        // Same-day fixture even when CI executes near midnight.
+        dateTime: DateTime(DateTime.now().year, DateTime.now().month,
+            DateTime.now().day, 12, 0),
         durationMinutes: 30,
         isReminder: false,
       );

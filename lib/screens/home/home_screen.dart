@@ -286,7 +286,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             child: _mode == AppMode.jarvis
                 ? JarvisVisualModeHost(
                     onCommand: _submit,
-                    onMicrophone: _toggleListening,
+                    onMicrophone: JarvisService.instance.toggleListening,
                   )
                 : Column(
                     children: [

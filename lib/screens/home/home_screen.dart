@@ -17,7 +17,7 @@ import '../../theme/app_theme.dart';
 import '../../widgets/brain_dump_dialog.dart';
 import '../../widgets/chat_bubble.dart';
 import '../../widgets/glass_widgets.dart';
-import '../../widgets/jarvis_hud_widget.dart';
+import '../../widgets/jarvis_visual_mode_host.dart';
 import '../../widgets/liquid_glass_mode_switcher.dart';
 import '../../widgets/status_chip.dart';
 import '../sessions/session_detail_screen.dart';
@@ -273,7 +273,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             _agentProactiveBanner(theme),
           Expanded(
             child: _mode == AppMode.jarvis
-                ? const JarvisHudWidget()
+                ? JarvisVisualModeHost(
+                    onCommand: _submit,
+                    onMicrophone: _toggleListening,
+                  )
                 : Column(
                     children: [
                       if (_executor.isBusy) _activeTaskBar(theme),

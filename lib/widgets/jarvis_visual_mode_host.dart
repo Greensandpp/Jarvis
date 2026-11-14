@@ -121,7 +121,7 @@ class _JarvisVisualModeHostState extends State<JarvisVisualModeHost> {
           : Stack(children: [
               Positioned.fill(child: WebViewWidget(controller: visual!)),
               const Positioned(right: 6, top: 5,
-                child: Text('VISUAL DEMO · no private data shared',
+                child: Text('ONLINE VISUAL DEMO · chat stays native',
                   style: TextStyle(color: Colors.white70, fontSize: 10))),
             ]),
       }),

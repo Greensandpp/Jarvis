@@ -31,10 +31,83 @@ jobs:
         run: flutter test
       - name: Compile isolated Android debug APK
         run: flutter build apk --debug
+      - name: Capture package, certificate, and 16KB alignment diagnostics
+        shell: bash
+        run: |
+          set -euo pipefail
+          APK="build/app/outputs/flutter-apk/app-debug.apk"
+          TOOLS="$(find "$ANDROID_HOME/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -n 1)"
+          test -s "$APK"
+          "$TOOLS/aapt" dump badging "$APK" | tee apk-badging.txt
+          "$TOOLS/apksigner" verify --verbose --print-certs "$APK" | tee apk-signing.txt
+          "$TOOLS/zipalign" -c -v -P 16 4 "$APK" | tee apk-alignment.txt
+          sha256sum "$APK" | tee apk-sha256.txt
+          grep -q "package: name='com.greensoil.jarvis.tamiltest.visualstaging'" apk-badging.txt
+      - name: Publish install diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: JARVIS-4MODE-INSTALL-EVIDENCE
+          path: |
+            apk-badging.txt
+            apk-signing.txt
+            apk-alignment.txt
+            apk-sha256.txt
+          if-no-files-found: warn
+          retention-days: 7
       - name: Publish isolated debug artifact
         uses: actions/upload-artifact@v4
         with:
           name: JARVIS-CONSOLIDATED-4-MODE-STAGING-NOT-UPDATE
           path: build/app/outputs/flutter-apk/app-debug.apk
           if-no-files-found: error
+          retention-days: 7
+
+  android16-clean-install:
+    needs: verify-and-build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - name: Reclaim disk for Android 16 AVD
+        shell: bash
+        run: |
+          set -euo pipefail
+          df -h "$HOME"
+          for d in /usr/share/dotnet /opt/hostedtoolcache/CodeQL /usr/local/lib/android/sdk/ndk; do
+            if [[ -d "$d" ]]; then sudo rm -rf "$d"; fi
+          done
+          df -h "$HOME"
+      - uses: actions/download-artifact@v4
+        with:
+          name: JARVIS-CONSOLIDATED-4-MODE-STAGING-NOT-UPDATE
+          path: downloaded-apk
+      - name: Fresh APK install on Android 16 emulator
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 36
+          target: google_apis
+          arch: x86_64
+          profile: pixel_2
+          ram-size: 3072M
+          heap-size: 256M
+          emulator-boot-timeout: 480
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -cores 2
+          script: |
+            set -euo pipefail
+            APK="$(find downloaded-apk -name 'app-debug.apk' -print -quit)"
+            test -s "$APK"
+            adb wait-for-device
+            adb shell getprop ro.build.version.release
+            echo "Fresh install on Android API 36; exact PackageManager result:"
+            adb install -t "$APK" 2>&1 | tee android16-install.txt
+            grep -q '^Success' android16-install.txt
+            adb shell pm path com.greensoil.jarvis.tamiltest.visualstaging
+      - name: Publish install result if available
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: JARVIS-ANDROID16-ADB-INSTALL-RESULT
+          path: android16-install.txt
+          if-no-files-found: warn
           retention-days: 7

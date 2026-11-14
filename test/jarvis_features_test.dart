@@ -726,7 +726,9 @@ void main() {
       await CalendarReminderService.instance.addItem(
         title: 'Jack',
         description: 'Meeting with Jack',
-        dateTime: DateTime.now().add(const Duration(hours: 2)),
+        // Keep the fixture on the same calendar day, even when CI runs at 11 PM.
+        dateTime: DateTime(DateTime.now().year, DateTime.now().month,
+            DateTime.now().day, 12, 0),
         durationMinutes: 30,
         isReminder: false,
       );

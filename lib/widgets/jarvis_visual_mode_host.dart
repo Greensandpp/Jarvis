@@ -1,3 +1,4 @@
+// ignore: deprecated_member_use
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:webview_flutter/webview_flutter.dart';
@@ -164,7 +165,7 @@ class _Office extends StatelessWidget {
         Card(color: const Color(0xFF071B20), child: ListTile(
           title: Text(executor.currentGoal ?? 'No active task',
             style: const TextStyle(color: Colors.white)),
-          subtitle: Text('Executor: ' + executor.state.name + ' · Step ' + executor.step.toString(),
+          subtitle: Text('Executor: ${executor.state.name} · Step ${executor.step}',
             style: const TextStyle(color: Colors.white70)),
         )),
         for (final role in ['Chief', 'Developer', 'QA Tester', 'Security', 'Release Manager'])

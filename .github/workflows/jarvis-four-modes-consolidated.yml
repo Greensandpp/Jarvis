@@ -77,6 +77,10 @@ jobs:
           "$TOOLS/apksigner" verify --verbose --print-certs "$APK" | tee release-apk-signing.txt
           "$TOOLS/zipalign" -c -v -P 16 4 "$APK" | tee release-apk-alignment.txt
           sha256sum "$APK" | tee release-apk-sha256.txt
+      - name: Verify ARM64 native ELF 16 KB page alignment
+        shell: bash
+        run: |
+          python3 scripts/check_apk_elf_16kb.py build/app/outputs/flutter-apk/app-release.apk release-elf-16kb-report.json
       - name: Publish distinct release-mode QA APK
         uses: actions/upload-artifact@v4
         with:
@@ -87,6 +91,7 @@ jobs:
             release-apk-signing.txt
             release-apk-alignment.txt
             release-apk-sha256.txt
+            release-elf-16kb-report.json
           if-no-files-found: error
           retention-days: 7
 

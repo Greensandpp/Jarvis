@@ -105,14 +105,13 @@ jobs:
           disable-animations: true
           emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -cores 2
           script: |
-            set -eu
-            APK="$(find downloaded-apk -name 'app-debug.apk' -print -quit)"
-            test -s "$APK"
+            find downloaded-apk -maxdepth 3 -type f -print
+            test -s downloaded-apk/app-debug.apk
             adb wait-for-device
             adb shell getprop ro.build.version.release
-            echo "Fresh install on Android API 36; exact PackageManager result:"
-            adb install -t "$APK" 2>&1 | tee android16-install.txt
-            grep -q '^Success' android16-install.txt
+            adb install -t downloaded-apk/app-debug.apk > android16-install.txt 2>&1
+            cat android16-install.txt
+            grep -q 'Success' android16-install.txt
             adb shell pm path com.greensoil.jarvis.tamiltest.visualstaging
       - name: Publish install result if available
         if: always()

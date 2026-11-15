@@ -63,6 +63,33 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
+      - name: Build distinct release-mode phone QA APK
+        run: flutter build apk --release
+      - name: Validate release-mode package and signing
+        shell: bash
+        run: |
+          set -euo pipefail
+          APK=build/app/outputs/flutter-apk/app-release.apk
+          TOOLS="$(find "$ANDROID_HOME/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -n 1)"
+          test -s "$APK"
+          "$TOOLS/aapt" dump badging "$APK" | tee release-apk-badging.txt
+          grep -q "package: name='com.greensoil.jarvis.tamiltest.visualrelease'" release-apk-badging.txt
+          "$TOOLS/apksigner" verify --verbose --print-certs "$APK" | tee release-apk-signing.txt
+          "$TOOLS/zipalign" -c -v -P 16 4 "$APK" | tee release-apk-alignment.txt
+          sha256sum "$APK" | tee release-apk-sha256.txt
+      - name: Publish distinct release-mode QA APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: JARVIS-4MODE-ARM64-RELEASE-STAGING-NOT-UPDATE
+          path: |
+            build/app/outputs/flutter-apk/app-release.apk
+            release-apk-badging.txt
+            release-apk-signing.txt
+            release-apk-alignment.txt
+            release-apk-sha256.txt
+          if-no-files-found: error
+          retention-days: 7
+
   android16-clean-install:
     needs: verify-and-build
     runs-on: ubuntu-24.04
@@ -92,6 +119,10 @@ jobs:
         with:
           name: JARVIS-CONSOLIDATED-4-MODE-STAGING-NOT-UPDATE
           path: downloaded-apk
+      - uses: actions/download-artifact@v4
+        with:
+          name: JARVIS-4MODE-ARM64-RELEASE-STAGING-NOT-UPDATE
+          path: downloaded-release
       - name: Fresh APK install on Android 16 emulator
         uses: reactivecircus/android-emulator-runner@v2
         with:
@@ -113,6 +144,9 @@ jobs:
             cat android16-install.txt
             grep -q 'Success' android16-install.txt
             adb shell pm path com.greensoil.jarvis.tamiltest.visualstaging
+            test -s downloaded-release/app-release.apk
+            adb install downloaded-release/app-release.apk
+            adb shell pm path com.greensoil.jarvis.tamiltest.visualrelease
       - name: Publish install result if available
         if: always()
         uses: actions/upload-artifact@v4

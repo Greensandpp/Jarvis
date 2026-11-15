@@ -144,8 +144,9 @@ jobs:
             cat android16-install.txt
             grep -q 'Success' android16-install.txt
             adb shell pm path com.greensoil.jarvis.tamiltest.visualstaging
-            test -s downloaded-release/app-release.apk
-            adb install downloaded-release/app-release.apk
+            find downloaded-release -maxdepth 9 -type f -print
+            test -s "$(find downloaded-release -type f -name 'app-release.apk' -print -quit)"
+            adb install "$(find downloaded-release -type f -name 'app-release.apk' -print -quit)"
             adb shell pm path com.greensoil.jarvis.tamiltest.visualrelease
       - name: Publish install result if available
         if: always()

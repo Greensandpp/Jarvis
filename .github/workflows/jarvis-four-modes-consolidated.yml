@@ -105,7 +105,7 @@ jobs:
           disable-animations: true
           emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -cores 2
           script: |
-            set -euo pipefail
+            set -eu
             APK="$(find downloaded-apk -name 'app-debug.apk' -print -quit)"
             test -s "$APK"
             adb wait-for-device

@@ -77,6 +77,17 @@ jobs:
             if [[ -d "$d" ]]; then sudo rm -rf "$d"; fi
           done
           df -h "$HOME"
+      - name: Enable KVM for x86_64 emulator acceleration
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ ! -e /dev/kvm ]]; then
+            echo "::error::Runner lacks /dev/kvm: x86_64 API36 boot is not reliable without acceleration"
+            exit 1
+          fi
+          sudo chmod a+rw /dev/kvm
+          ls -l /dev/kvm
+          test -r /dev/kvm && test -w /dev/kvm
       - uses: actions/download-artifact@v4
         with:
           name: JARVIS-CONSOLIDATED-4-MODE-STAGING-NOT-UPDATE

@@ -1,10 +1,10 @@
 // ignore: deprecated_member_use
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:webview_flutter/webview_flutter.dart';
 
 import '../services/task_executor.dart';
 import 'jarvis_hud_widget.dart';
+import 'jarvis_local_visuals.dart';
 
 /// Visual preference only: phone actions remain in native JARVIS.
 enum JarvisVisualMode { core, office, apex, mira }
@@ -19,12 +19,7 @@ class JarvisVisualModeHost extends StatefulWidget {
 
 class _JarvisVisualModeHostState extends State<JarvisVisualModeHost> {
   static const storageKey = 'jarvis_visual_mode_v1';
-  static const urls = {
-    JarvisVisualMode.apex: 'https://apex-ui-xi.vercel.app/',
-    JarvisVisualMode.mira: 'https://mira-hud.vercel.app/',
-  };
   JarvisVisualMode mode = JarvisVisualMode.core;
-  WebViewController? visual;
   final command = TextEditingController();
 
   @override
@@ -44,32 +39,13 @@ class _JarvisVisualModeHostState extends State<JarvisVisualModeHost> {
   }
 
   void _select(JarvisVisualMode next, {bool persist = true}) {
-    WebViewController? controller;
-    final url = urls[next];
-    if (url != null) {
-      final allowed = Uri.parse(url).host;
-      controller = WebViewController()
-        ..setJavaScriptMode(JavaScriptMode.unrestricted)
-        ..setBackgroundColor(Colors.black)
-        ..setNavigationDelegate(NavigationDelegate(
-          onNavigationRequest: (request) {
-            final uri = Uri.tryParse(request.url);
-            return uri != null && uri.scheme == 'https' && uri.host == allowed
-                ? NavigationDecision.navigate : NavigationDecision.prevent;
-          },
-          onWebResourceError: (error) {
-            if (mounted && error.isForMainFrame == true) {
-              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-                content: Text('Visual demo unavailable. Use JARVIS Core offline.'),
-              ));
-            }
-          },
-        ))
-        ..loadRequest(Uri.parse(url));
+    if (mode != next && mounted) {
+      setState(() { mode = next; });
     }
-    setState(() { mode = next; visual = controller; });
     if (persist) {
-      SharedPreferences.getInstance().then((p) => p.setString(storageKey, next.name));
+      SharedPreferences.getInstance().then(
+        (p) => p.setString(storageKey, next.name),
+      );
     }
   }
 
@@ -77,7 +53,7 @@ class _JarvisVisualModeHostState extends State<JarvisVisualModeHost> {
     final text = command.text.trim();
     if (text.isEmpty) return;
     command.clear();
-    // Commands and secrets NEVER enter APEX/MIRA WebView.
+    // Commands stay inside the native JARVIS router, never a visual site.
     widget.onCommand(text);
   }
 
@@ -117,14 +93,8 @@ class _JarvisVisualModeHostState extends State<JarvisVisualModeHost> {
       Expanded(child: switch (mode) {
         JarvisVisualMode.core => const JarvisHudWidget(),
         JarvisVisualMode.office => const _Office(),
-        JarvisVisualMode.apex || JarvisVisualMode.mira => visual == null
-          ? const Center(child: CircularProgressIndicator())
-          : Stack(children: [
-              Positioned.fill(child: WebViewWidget(controller: visual!)),
-              const Positioned(right: 6, top: 5,
-                child: Text('ONLINE VISUAL DEMO · chat stays native',
-                  style: TextStyle(color: Colors.white70, fontSize: 10))),
-            ]),
+        JarvisVisualMode.apex => const JarvisLocalVisual(apex: true),
+        JarvisVisualMode.mira => const JarvisLocalVisual(apex: false),
       }),
       if (mode != JarvisVisualMode.core)
         Padding(padding: const EdgeInsets.fromLTRB(10, 4, 10, 8),

@@ -95,6 +95,34 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
+      - name: Prepare isolated minimal-permission iQOO install probe
+        run: python3 scripts/make_safe_mobile_staging.py
+      - name: Build visual-safe release candidate
+        run: flutter build apk --release
+      - name: Verify isolated visual-safe identity and signing
+        shell: bash
+        run: |
+          set -euo pipefail
+          APK=build/app/outputs/flutter-apk/app-release.apk
+          TOOLS="$(find "$ANDROID_HOME/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -n 1)"
+          "$TOOLS/aapt" dump badging "$APK" | tee visualsafe-badging.txt
+          grep -q "package: name='com.greensoil.jarvis.tamiltest.visualsafe'" visualsafe-badging.txt
+          "$TOOLS/apksigner" verify --verbose --print-certs "$APK" > visualsafe-signing.txt
+          "$TOOLS/aapt" dump permissions "$APK" | tee visualsafe-permissions.txt
+          sha256sum "$APK" > visualsafe-sha256.txt
+      - name: Publish isolated minimal-permission QA variant
+        uses: actions/upload-artifact@v4
+        with:
+          name: JARVIS-4MODE-VISUALSAFE-DIAGNOSTIC-NOT-RELEASE
+          path: |
+            build/app/outputs/flutter-apk/app-release.apk
+            visualsafe-badging.txt
+            visualsafe-signing.txt
+            visualsafe-permissions.txt
+            visualsafe-sha256.txt
+          if-no-files-found: error
+          retention-days: 7
+
   android16-clean-install:
     needs: verify-and-build
     runs-on: ubuntu-24.04
@@ -128,6 +156,10 @@ jobs:
         with:
           name: JARVIS-4MODE-ARM64-RELEASE-STAGING-NOT-UPDATE
           path: downloaded-release
+      - uses: actions/download-artifact@v4
+        with:
+          name: JARVIS-4MODE-VISUALSAFE-DIAGNOSTIC-NOT-RELEASE
+          path: downloaded-safe
       - name: Fresh APK install on Android 16 emulator
         uses: reactivecircus/android-emulator-runner@v2
         with:
@@ -153,6 +185,9 @@ jobs:
             test -s "$(find downloaded-release -type f -name 'app-release.apk' -print -quit)"
             adb install "$(find downloaded-release -type f -name 'app-release.apk' -print -quit)"
             adb shell pm path com.greensoil.jarvis.tamiltest.visualrelease
+            test -s "$(find downloaded-safe -type f -name 'app-release.apk' -print -quit)"
+            adb install "$(find downloaded-safe -type f -name 'app-release.apk' -print -quit)"
+            adb shell pm path com.greensoil.jarvis.tamiltest.visualsafe
       - name: Publish install result if available
         if: always()
         uses: actions/upload-artifact@v4

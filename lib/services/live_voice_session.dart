@@ -51,8 +51,10 @@ class LiveVoiceSession extends ChangeNotifier {
       return true;
     } catch (_) {
       // Never expose keys, URLs, credentials, or raw provider errors to UI/logs.
-      if (run == _generation) _set(LiveVoiceStatus.failed,
-          'Voice connection unavailable. Check provider and permission settings.');
+      if (run == _generation) {
+        _set(LiveVoiceStatus.failed,
+            'Voice connection unavailable. Check provider and permission settings.');
+      }
       return false;
     }
   }

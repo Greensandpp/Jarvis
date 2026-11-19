@@ -70,6 +70,19 @@ class LiveVoiceSession extends ChangeNotifier {
     }
   }
 
+  /// Transport dropped mid-session (server close, focus loss, GoAway). Releases
+  /// audio and reports a fixed, non-sensitive reason. No automatic restart.
+  Future<void> fail(String reason) async {
+    if (_status != LiveVoiceStatus.listening && _status != LiveVoiceStatus.connecting) {
+      return;
+    }
+    ++_generation;
+    try {
+      await _transport.disconnect();
+    } catch (_) {}
+    _set(LiveVoiceStatus.failed, reason);
+  }
+
   /// Reset only on an explicit owner action after failure.
   void reset() {
     if (_status == LiveVoiceStatus.failed) _set(LiveVoiceStatus.idle);

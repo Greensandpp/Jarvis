@@ -48,6 +48,8 @@ class MainActivity : FlutterActivity() {
     private val speechChannelName = "com.privateagent/speech"
     private var accessibilityChannel: MethodChannel? = null
     private var speechChannel: MethodChannel? = null
+    // Owner-opted-in Gemini Live audio I/O (foreground only).
+    private var liveAudio: LiveAudioBridge? = null
     private var speechRecognizer: SpeechRecognizer? = null
     private var recognitionIntent: Intent? = null
     private var recognitionLocale = "en-IN"
@@ -121,7 +123,15 @@ class MainActivity : FlutterActivity() {
         }
     }
 
+    override fun onStop() {
+        // Live voice is foreground-only: never keep the microphone open in background.
+        liveAudio?.release()
+        super.onStop()
+    }
+
     override fun onDestroy() {
+        liveAudio?.release()
+        liveAudio = null
         stopNativeListening()
         try {
             speechRecognizer?.destroy()
@@ -678,6 +688,8 @@ class MainActivity : FlutterActivity() {
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
+
+        liveAudio = LiveAudioBridge(this, flutterEngine.dartExecutor.binaryMessenger)
 
         // Native Continuous Speech Channel
         val sChannel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, speechChannelName)

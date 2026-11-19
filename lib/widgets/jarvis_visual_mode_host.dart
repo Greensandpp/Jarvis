@@ -150,6 +150,10 @@ class JarvisVisualModeHostState extends State<JarvisVisualModeHost> {
     _aira = AiraPhaseBinding(_phaseSource, _phase);
     _live.load();
     JarvisService.instance.onVisualStyleRequested = (style) {
+      if (style == 'picker') {
+        showVisualPicker();
+        return;
+      }
       for (final visual in JarvisVisualMode.values) {
         if (visual.name == style) {
           select(visual);
@@ -157,18 +161,10 @@ class JarvisVisualModeHostState extends State<JarvisVisualModeHost> {
         }
       }
     };
-    _restore();
+    // New sessions always open the original blue Arc Reactor.
+    // AIRA's model customization remains stored independently.
   }
 
-  Future<void> _restore() async {
-    final prefs = await SharedPreferences.getInstance();
-    if (!mounted) return;
-    final selected = JarvisVisualMode.values.firstWhere(
-      (item) => item.name == prefs.getString(storageKey),
-      orElse: () => JarvisVisualMode.core,
-    );
-    select(selected, persist: false);
-  }
 
   void select(JarvisVisualMode next, {bool persist = true}) {
     if (mode != next && mounted) {

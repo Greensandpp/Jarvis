@@ -1,0 +1,19 @@
+{
+  "mode": "sample",
+  "runId": "example-only-001",
+  "mission": {
+    "title": "JARVIS AI Team - Example Status",
+    "description": "Example input data, not evidence of actual agent execution."
+  },
+  "agents": [
+    {"id":"chief","state":"working","task":"Review mission requirements","message":"Prepare a plan"},
+    {"id":"developer","state":"idle","task":"Wait for assignment","message":"Ready"},
+    {"id":"qa","state":"idle","task":"Wait for assignment","message":"Ready"},
+    {"id":"security","state":"idle","task":"Wait for assignment","message":"Ready"},
+    {"id":"release","state":"idle","task":"Wait for assignment","message":"Ready"}
+  ],
+  "events": [
+    {"time":"sample","agent":"chief","state":"working","message":"Example mission created"}
+  ],
+  "board": {"handoffs":0,"rejects":0,"approval":null}
+}

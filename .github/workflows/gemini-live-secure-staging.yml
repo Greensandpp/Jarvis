@@ -1,0 +1,39 @@
+name: JARVIS Gemini Live secure session staging
+on:
+  push:
+    branches:
+      - feature/gemini-live-secure-fourmode-20261117
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  voice-session-checks:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - name: Resolve Flutter dependencies
+        run: flutter pub get
+      - name: Analyze new voice session
+        run: flutter analyze lib/services/live_voice_session.dart test/live_voice_session_test.dart
+      - name: Execute voice privacy and lifecycle tests
+        run: flutter test test/live_voice_session_test.dart
+      - name: Run existing regression suite
+        run: flutter test
+      - name: Compile isolated debug Android APK (not release)
+        run: flutter build apk --debug
+      - name: Publish CI-only debug artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: JARVIS-GEMINI-LIVE-SESSION-SCAFFOLD-NO-LIVE-CONNECTION
+          path: build/app/outputs/flutter-apk/app-debug.apk
+          if-no-files-found: error
+          retention-days: 3

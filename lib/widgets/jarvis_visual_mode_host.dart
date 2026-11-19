@@ -171,6 +171,38 @@ class JarvisVisualModeHostState extends State<JarvisVisualModeHost> {
     }
   }
 
+  /// The visual gallery is intentionally hidden during normal conversation.
+  /// Long-press anywhere on the HUD, or long-press the JARVIS title.
+  void showVisualPicker() {
+    if (!mounted) return;
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: const Color(0xFF06151B),
+      showDragHandle: true,
+      builder: (sheetContext) => SafeArea(
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          const Padding(
+            padding: EdgeInsets.all(12),
+            child: Text('JARVIS VISUAL STYLES', style: TextStyle(
+              color: Color(0xFF00E5FF), letterSpacing: 2,
+              fontWeight: FontWeight.bold)),
+          ),
+          for (final item in JarvisVisualMode.values)
+            ListTile(
+              key: ValueKey('mode-${item.name}'),
+              leading: Icon(item.icon, color: const Color(0xFF00E5FF)),
+              title: Text(item.label, style: const TextStyle(color: Colors.white)),
+              trailing: mode == item ? const Icon(Icons.check, color: Color(0xFF00E5FF)) : null,
+              onTap: () {
+                Navigator.pop(sheetContext);
+                select(item);
+              },
+            ),
+        ]),
+      ),
+    );
+  }
+
   void _send() {
     final text = command.text.trim();
     if (text.isEmpty) return;
@@ -207,43 +239,17 @@ class JarvisVisualModeHostState extends State<JarvisVisualModeHost> {
 
   @override
   Widget build(BuildContext context) {
-    const cyan = Color(0xFF00E5FF);
     return ColoredBox(color: Colors.black, child: Column(children: [
-      SizedBox(height: 58, child: Row(
-        key: const ValueKey('mode-selector'),
-        children: [
-          for (final item in JarvisVisualMode.values)
-            Expanded(child: Semantics(
-              button: true, selected: mode == item, label: '${item.label} mode',
-              child: InkWell(
-                key: ValueKey('mode-${item.name}'),
-                onTap: () => select(item),
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 160),
-                  margin: const EdgeInsets.symmetric(horizontal: 3, vertical: 5),
-                  decoration: BoxDecoration(
-                    color: mode == item ? const Color(0xFF064C55) : const Color(0xFF06161B),
-                    borderRadius: BorderRadius.circular(14),
-                    border: Border.all(color: mode == item ? cyan : const Color(0xFF27515A)),
-                  ),
-                  child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-                    Icon(item.icon, size: 18, color: mode == item ? cyan : Colors.white70),
-                    Text(item.shortLabel, maxLines: 1, overflow: TextOverflow.fade,
-                      softWrap: false,
-                      style: TextStyle(color: Colors.white, fontSize: 11,
-                        fontWeight: mode == item ? FontWeight.w700 : FontWeight.w500)),
-                  ]),
-                ),
-              ),
-            )),
-        ],
+      Expanded(child: GestureDetector(
+        key: const ValueKey('visual-long-press-surface'),
+        behavior: HitTestBehavior.translucent,
+        onLongPress: showVisualPicker,
+        child: AnimatedSwitcher(
+          duration: const Duration(milliseconds: 180),
+          child: KeyedSubtree(key: ValueKey(mode), child: _body()),
+        ),
       )),
-      Expanded(child: AnimatedSwitcher(
-        duration: const Duration(milliseconds: 180),
-        child: KeyedSubtree(key: ValueKey(mode), child: _body()),
-      )),
-      if (mode != JarvisVisualMode.core)
-        SafeArea(top: false, child: _SharedDock(
+      SafeArea(top: false, child: _SharedDock(
           controller: command,
           phaseSource: _phaseSource,
           phase: _phase,

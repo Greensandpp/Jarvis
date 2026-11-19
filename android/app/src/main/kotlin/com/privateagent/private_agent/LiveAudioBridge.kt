@@ -1,6 +1,7 @@
 package com.privateagent.private_agent
 
 import android.Manifest
+import android.annotation.SuppressLint
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
@@ -143,11 +144,16 @@ class LiveAudioBridge(private val context: Context, messenger: BinaryMessenger) 
             if (preferred != null) audioManager.setCommunicationDevice(preferred)
             emit(mapOf("type" to "route", "value" to (preferred?.type?.toString() ?: "default")))
         } else {
-            @Suppress("DEPRECATION")
-            audioManager.isSpeakerphoneOn = !audioManager.isWiredHeadsetOn
+            legacySpeakerRoute()
         }
     }
 
+    @Suppress("DEPRECATION")
+    private fun legacySpeakerRoute() {
+        audioManager.isSpeakerphoneOn = !audioManager.isWiredHeadsetOn
+    }
+
+    @SuppressLint("MissingPermission") // RECORD_AUDIO is checked explicitly below.
     private fun startCapture(): Boolean {
         if (capturing.get()) return true
         if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO)

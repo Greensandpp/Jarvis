@@ -69,6 +69,7 @@ void main() {
     expect(JarvisService.visualStyleIntent('switch to APEX'), 'apex');
     expect(JarvisService.visualStyleIntent('aira ku maathu'), 'aira');
     expect(JarvisService.visualStyleIntent('show JARVIS core'), 'core');
+    expect(JarvisService.visualStyleIntent('show models'), 'picker');
     expect(JarvisService.visualStyleIntent('what is MIRA?'), isNull);
     expect(JarvisService.visualStyleIntent('hello jarvis'), isNull);
   });
@@ -95,7 +96,7 @@ void main() {
     }
   });
 
-  testWidgets('switching persists and survives restart; returns to Core', (tester) async {
+  testWidgets('visual choice saves but every fresh launch starts with Core', (tester) async {
     tester.view.physicalSize = const Size(1236, 2745);
     tester.view.devicePixelRatio = 3;
     addTearDown(tester.view.reset);
@@ -112,8 +113,11 @@ void main() {
     await tester.pumpWidget(const SizedBox());
     await tester.pumpWidget(_Harness().build());
     await _settle(tester);
-    expect(find.byType(AiraModeView), findsOneWidget);
+    expect(find.byKey(const ValueKey('core-hud')), findsOneWidget);
+    expect(find.byType(AiraModeView), findsNothing);
 
+    await _chooseVisual(tester, 'aira');
+    expect(find.byType(AiraModeView), findsOneWidget);
     await _chooseVisual(tester, 'core');
     await _settle(tester);
     expect(find.byKey(const ValueKey('core-hud')), findsOneWidget);
@@ -121,11 +125,11 @@ void main() {
     await tester.pumpWidget(const SizedBox());
   });
 
-  testWidgets('legacy four-mode values still restore; unknown falls back to Core', (tester) async {
+  testWidgets('saved previous style never overrides the core startup screen', (tester) async {
     SharedPreferences.setMockInitialValues({'jarvis_visual_mode_v1': 'mira'});
     await tester.pumpWidget(_Harness().build());
     await _settle(tester);
-    expect(find.text('MIRA • NEURAL FIELD'), findsOneWidget);
+    expect(find.byKey(const ValueKey('core-hud')), findsOneWidget);
     await tester.pumpWidget(const SizedBox());
 
     SharedPreferences.setMockInitialValues({'jarvis_visual_mode_v1': 'bogus'});

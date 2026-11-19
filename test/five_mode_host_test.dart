@@ -5,7 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:private_agent/services/agent_office/agent_office.dart';
 import 'package:private_agent/services/gemini_live/live_voice_controller.dart';
-import 'package:private_agent/services/jarvis_service.dart' show JarvisPhase;
+import 'package:private_agent/services/jarvis_service.dart' show JarvisPhase, JarvisService;
 import 'package:private_agent/widgets/aira/aira_models.dart';
 import 'package:private_agent/widgets/aira/aira_view.dart';
 import 'package:private_agent/widgets/jarvis_local_visuals.dart';
@@ -63,6 +63,15 @@ Future<void> _chooseVisual(WidgetTester tester, String style) async {
 
 void main() {
   setUp(() => SharedPreferences.setMockInitialValues({}));
+
+  test('voice-style requests change visuals without treating ordinary chat as commands', () {
+    expect(JarvisService.visualStyleIntent('show MIRA'), 'mira');
+    expect(JarvisService.visualStyleIntent('switch to APEX'), 'apex');
+    expect(JarvisService.visualStyleIntent('aira ku maathu'), 'aira');
+    expect(JarvisService.visualStyleIntent('show JARVIS core'), 'core');
+    expect(JarvisService.visualStyleIntent('what is MIRA?'), isNull);
+    expect(JarvisService.visualStyleIntent('hello jarvis'), isNull);
+  });
 
   testWidgets('all five modes are selectable and Core is the default', (tester) async {
     tester.view.physicalSize = const Size(1236, 2745);

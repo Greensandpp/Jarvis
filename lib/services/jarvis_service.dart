@@ -81,6 +81,24 @@ class JarvisService extends ChangeNotifier {
   }
   static final JarvisService instance = JarvisService._();
 
+  /// Active home registers this callback; commands never change AI provider.
+  void Function(String style)? onVisualStyleRequested;
+
+  static String? visualStyleIntent(String speech) {
+    final normalized = speech.toLowerCase().trim().replaceAll(RegExp(r'[^a-z0-9 ]'), ' ')
+        .replaceAll(RegExp(r'\\s+'), ' ').trim();
+    final action = RegExp(r'^(?:hey jarvis |jarvis )?(?:show |switch to |change to |set |open |display |kaatu |maathu |mattu |ku maathu )');
+    final endsInMode = normalized.endsWith(' mode') || normalized.endsWith(' visual');
+    if (!action.hasMatch(normalized) && !endsInMode) return null;
+    for (final style in const ['aira', 'office', 'apex', 'mira']) {
+      if (RegExp('(?:^| )' + style + '(?: |\\$)').hasMatch(normalized)) return style;
+    }
+    if (normalized.contains('jarvis') || normalized.contains('reactor') || normalized.contains('core')) {
+      return 'core';
+    }
+    return null;
+  }
+
   final VoiceService _voice = VoiceService.instance;
   final AiService _ai = AiService.instance;
   final TaskExecutor _executor = TaskExecutor.instance;
@@ -818,6 +836,17 @@ class JarvisService extends ChangeNotifier {
 
     final trimmed = command.trim();
     if (trimmed.isEmpty) return;
+
+    final requestedVisual = visualStyleIntent(trimmed);
+    if (requestedVisual != null && onVisualStyleRequested != null) {
+      onVisualStyleRequested!(requestedVisual);
+      _lastUserSpeech = trimmed;
+      _lastJarvisSpeech = 'Visual style changed to $requestedVisual.';
+      _statusMessage = 'VISUAL STYLE // ${requestedVisual.toUpperCase()}';
+      _phase = JarvisPhase.idle;
+      notifyListeners();
+      return;
+    }
 
     _lastUserSpeech = trimmed;
     _phase = JarvisPhase.thinking;

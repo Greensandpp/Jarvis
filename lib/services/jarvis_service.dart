@@ -85,17 +85,21 @@ class JarvisService extends ChangeNotifier {
   void Function(String style)? onVisualStyleRequested;
 
   static String? visualStyleIntent(String speech) {
-    final normalized = speech.toLowerCase().trim().replaceAll(RegExp(r'[^a-z0-9 ]'), ' ')
-        .replaceAll(RegExp(r'\\s+'), ' ').trim();
-    final action = RegExp(r'^(?:hey jarvis |jarvis )?(?:show |switch to |change to |set |open |display |kaatu |maathu |mattu |ku maathu )');
-    final endsInMode = normalized.endsWith(' mode') || normalized.endsWith(' visual');
+    final normalized = speech.toLowerCase().trim()
+        .replaceAll(RegExp(r'[^a-z0-9 ]'), ' ')
+        .replaceAll(RegExp(r'\s+'), ' ').trim();
+    final action = RegExp(
+      r'^(?:hey jarvis |jarvis )?(?:show |switch to |change to |set |open |display |kaatu |maathu |mattu )',
+    );
+    final endsInMode = normalized.endsWith(' mode') ||
+        normalized.endsWith(' visual');
     if (!action.hasMatch(normalized) && !endsInMode) return null;
+    final words = normalized.split(' ');
     for (final style in const ['aira', 'office', 'apex', 'mira']) {
-      if (RegExp('(?:^| )' + style + '(?: |\\$)').hasMatch(normalized)) return style;
+      if (words.contains(style)) return style;
     }
-    if (normalized.contains('jarvis') || normalized.contains('reactor') || normalized.contains('core')) {
-      return 'core';
-    }
+    if (words.contains('jarvis') || words.contains('reactor') ||
+        words.contains('core')) return 'core';
     return null;
   }
 

@@ -93,8 +93,12 @@ class JarvisService extends ChangeNotifier {
     );
     final endsInMode = normalized.endsWith(' mode') ||
         normalized.endsWith(' visual');
-    if (!action.hasMatch(normalized) && !endsInMode) return null;
     final words = normalized.split(' ');
+    final tanglishSwitch = words.contains('kaatu') || words.contains('maathu') ||
+        words.contains('mattu') || words.contains('change');
+    if (!action.hasMatch(normalized) && !endsInMode && !tanglishSwitch) {
+      return null;
+    }
     for (final style in const ['aira', 'office', 'apex', 'mira']) {
       if (words.contains(style)) return style;
     }

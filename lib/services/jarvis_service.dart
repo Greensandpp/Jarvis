@@ -94,6 +94,12 @@ class JarvisService extends ChangeNotifier {
     final endsInMode = normalized.endsWith(' mode') ||
         normalized.endsWith(' visual');
     final words = normalized.split(' ');
+    final asksGallery = (words.contains('model') || words.contains('models') ||
+            words.contains('styles') || words.contains('visuals')) &&
+        (words.contains('show') || words.contains('open') ||
+            words.contains('kaatu') || words.contains('change'));
+    if (asksGallery && !const ['aira', 'office', 'apex', 'mira', 'core']
+        .any(words.contains)) return 'picker';
     final tanglishSwitch = words.contains('kaatu') || words.contains('maathu') ||
         words.contains('mattu') || words.contains('change');
     if (!action.hasMatch(normalized) && !endsInMode && !tanglishSwitch) {

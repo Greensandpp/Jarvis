@@ -42,7 +42,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   bool _serviceEnabled = false;
   bool _overlayActive = false;
   bool _listening = false;
-  AppMode _mode = AppMode.agent;
+  AppMode _mode = AppMode.jarvis;
+  final _visualHostKey = GlobalKey<JarvisVisualModeHostState>();
 
   /// True while either an agent task or a chat reply is in flight.
   bool get _busy => _executor.isBusy || _executor.isChatBusy;
@@ -52,7 +53,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _executor.addListener(_onExecutorUpdate);
-    _mode = SettingsService.instance.appMode;
+    // Unified home: preserve task/chat engines but always open the JARVIS HUD.
+    _mode = AppMode.jarvis;
+    SettingsService.instance.setAppMode(AppMode.jarvis);
 
     // Connect Google Assistant style wake-word trigger to auto-switch into JARVIS HUD
     JarvisService.instance.onWakeWordTriggered = () {
@@ -225,7 +228,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         title: Row(
           children: [
             GestureDetector(
-              onLongPress: _showModePicker,
+              onLongPress: _showVisualPicker,
               child: Text(
               isJarvis ? 'JARVIS' : 'PrivateAgent',
               style: isJarvis
@@ -247,9 +250,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         ),
         actions: [
           IconButton(
-            tooltip: 'Change assistant mode',
+            tooltip: 'Choose JARVIS visual style',
             icon: const Icon(Icons.tune_rounded),
-            onPressed: _showModePicker,
+            onPressed: _showVisualPicker,
           ),
           IconButton(
             tooltip: _overlayActive
@@ -285,6 +288,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           Expanded(
             child: _mode == AppMode.jarvis
                 ? JarvisVisualModeHost(
+                    key: _visualHostKey,
                     onCommand: _submit,
                     onMicrophone: JarvisService.instance.toggleListening,
                   )
@@ -868,33 +872,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     }
   }
 
-  void _showModePicker() {
-    showModalBottomSheet<void>(
-      context: context,
-      builder: (context) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ListTile(
-              leading: const Icon(Icons.graphic_eq_rounded),
-              title: const Text('JARVIS voice & Arc Reactor'),
-              onTap: () { Navigator.pop(context); _selectMode(AppMode.jarvis); },
-            ),
-            ListTile(
-              leading: const Icon(Icons.chat_bubble_outline),
-              title: const Text('Chat'),
-              onTap: () { Navigator.pop(context); _selectMode(AppMode.chat); },
-            ),
-            ListTile(
-              leading: const Icon(Icons.smart_toy_outlined),
-              title: const Text('Agent actions'),
-              onTap: () { Navigator.pop(context); _selectMode(AppMode.agent); },
-            ),
-          ],
-        ),
-      ),
-    );
-  }
+  void _showVisualPicker() => _visualHostKey.currentState?.showVisualPicker();
 
   Widget _agentProactiveBanner(ThemeData theme) {
     final proactive = ProactiveAgentService.instance;

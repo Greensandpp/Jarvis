@@ -149,18 +149,22 @@ class JarvisVisualModeHostState extends State<JarvisVisualModeHost> {
         () => _live.active ? _live.level : JarvisService.instance.soundLevel.clamp(0.0, 1.0);
     _aira = AiraPhaseBinding(_phaseSource, _phase);
     _live.load();
-    JarvisService.instance.onVisualStyleRequested = (style) {
-      if (style == 'picker') {
-        showVisualPicker();
-        return;
-      }
-      for (final visual in JarvisVisualMode.values) {
-        if (visual.name == style) {
-          select(visual);
-          break;
+    // Injected test controllers must not initialize the real JARVIS singleton:
+    // that starts its periodic proactive-monitor timer outside the test harness.
+    if (widget.phaseSource == null) {
+      JarvisService.instance.onVisualStyleRequested = (style) {
+        if (style == 'picker') {
+          showVisualPicker();
+          return;
         }
-      }
-    };
+        for (final visual in JarvisVisualMode.values) {
+          if (visual.name == style) {
+            select(visual);
+            break;
+          }
+        }
+      };
+    }
     // New sessions always open the original blue Arc Reactor.
     // AIRA's model customization remains stored independently.
   }
@@ -228,7 +232,9 @@ class JarvisVisualModeHostState extends State<JarvisVisualModeHost> {
 
   @override
   void dispose() {
-    JarvisService.instance.onVisualStyleRequested = null;
+    if (widget.phaseSource == null) {
+      JarvisService.instance.onVisualStyleRequested = null;
+    }
     command.dispose();
     _aira.dispose();
     if (_ownsLive) _live.dispose();

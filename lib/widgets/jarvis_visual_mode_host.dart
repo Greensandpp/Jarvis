@@ -1,5 +1,6 @@
 // ignore: deprecated_member_use
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -49,7 +50,21 @@ class AiraPhaseBinding extends ValueNotifier<AiraVisualState> {
         JarvisPhase.speaking => AiraVisualState.speaking,
       };
 
+  /// Phase changes can be notified while a frame is building; applying them
+  /// then would be rejected by listening widgets and the badge would go stale.
   void _sync() {
+    final phase = SchedulerBinding.instance.schedulerPhase;
+    if (phase == SchedulerPhase.persistentCallbacks ||
+        phase == SchedulerPhase.midFrameMicrotasks) {
+      SchedulerBinding.instance.addPostFrameCallback((_) => _apply());
+      SchedulerBinding.instance.scheduleFrame();
+      return;
+    }
+    _apply();
+  }
+
+  void _apply() {
+    if (_disposed) return;
     final p = _read();
     if (p == _last) return;
     final wasWorking = _last == JarvisPhase.executing || _last == JarvisPhase.speaking;
@@ -58,15 +73,18 @@ class AiraPhaseBinding extends ValueNotifier<AiraVisualState> {
     if (p == JarvisPhase.idle && wasWorking) {
       value = AiraVisualState.completed;
       Future.delayed(const Duration(milliseconds: 1800), () {
-        if (g == _gen) value = AiraVisualState.idle;
+        if (g == _gen && !_disposed) value = AiraVisualState.idle;
       });
     } else {
       value = map(p);
     }
   }
 
+  bool _disposed = false;
+
   @override
   void dispose() {
+    _disposed = true;
     _source.removeListener(_sync);
     super.dispose();
   }

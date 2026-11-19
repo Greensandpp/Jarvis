@@ -158,6 +158,30 @@ void main() {
     b.dispose();
   });
 
+  // Coverage for phase notifications arriving during a build. NOTE: this did not
+  // reproduce the emulator badge/dock mismatch; that remains open.
+  testWidgets('phase change notified during a build still reaches the AIRA badge',
+      (tester) async {
+    tester.view.physicalSize = const Size(1236, 2745);
+    tester.view.devicePixelRatio = 3;
+    addTearDown(tester.view.reset);
+    final h = _Harness();
+    await tester.pumpWidget(h.build());
+    await _settle(tester);
+    await tester.tap(find.byKey(const ValueKey('mode-aira')));
+    await _settle(tester);
+    // Simulate JarvisService notifying from inside a frame's build phase.
+    await tester.pumpWidget(Builder(builder: (context) {
+      if (h.phase.value != JarvisPhase.speaking) h.phase.set(JarvisPhase.speaking);
+      return h.build();
+    }));
+    expect(tester.takeException(), isNull);
+    await _settle(tester);
+    expect(find.textContaining('LIVE · SPEAKING'), findsOneWidget);
+    expect(find.text('JARVIS · SPEAKING'), findsOneWidget);
+    await tester.pumpWidget(const SizedBox());
+  });
+
   testWidgets('AIRA model picker shows 10 live cards and persists choice', (tester) async {
     tester.view.physicalSize = const Size(1236, 2745);
     tester.view.devicePixelRatio = 3;

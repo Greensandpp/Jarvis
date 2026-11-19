@@ -64,7 +64,8 @@ Core), `home_screen.dart`, `jarvis_service.dart`, `AndroidManifest.xml`,
 | JARVIS Core unchanged | PASS (source) | 0-line diff of HUD/home/service |
 | AIRA 10 distinct, bright, animated models | PASS (pixel tests) | `aira_render_test.dart`: peak=1.00, mean 0.039–0.083, motion>0.004, min pairwise diff 0.020 |
 | AIRA 6 states distinct | PASS (pixel tests) | each state differs from idle for all 10 models |
-| AIRA on real Android rendering | see CI emulator evidence | screenshots `mode-*.png`, `aira-*.png`, `aira-auroraRibbon.mp4` |
+| AIRA on real Android rendering | PASS (emulator) | Android 15 + 16 screenshots reviewed: 10-model picker, Neural Reactor, Amber Hologram, Electric Web, Jellyfish, Solar Flare, Violet Vortex all render bright on OLED black |
+| Animation over time on device | PASS (emulator) | pixels changed between frames 2 s apart (API 36): Core 561k, AIRA 195k, APEX 141k, MIRA 168k; Office 0 (static list, expected) |
 | Offline visuals never use network | PASS | zero HttpClient creations; banned-import scan |
 | Mobile layout 412×915, keyboard open | PASS (widget) | selector fits; dock stays on screen; compact picker |
 | Agent Office honest data | PASS (unit) | sample≠live, sanitization, tiers, 3-loop cap |
@@ -74,7 +75,10 @@ Core), `home_screen.dart`, `jarvis_service.dart`, `AndroidManifest.xml`,
 | Native audio (AEC/NS, focus, BT) | BUILD PASS, behaviour UNVERIFIED | compiles in CI; needs a physical device |
 | Tamil / English / Tanglish voice | **UNVERIFIED** | needs owner-consented on-device recordings |
 | Wake word, hands-free | unchanged existing feature | not re-tested here |
-| Android 15/16 emulator install + launch | see CI | `scripts/emulator_smoke.sh` |
+| Android 15/16 emulator install + launch | PASS | all 4 APKs install; all 5 modes launch with no FATAL; HOME/background no crash; release, visualsafe, voicesafe launch |
+| AIRA badge matches shared phase | **OPEN** | one API 36 frame showed dock `JARVIS · SPEAKING` with badge `LIVE · IDLE`. Not reproduced in tests; a defensive mid-build guard was added but is unproven. Re-check on device |
+| Frame rate / jank on device | **UNVERIFIED** | `dumpsys gfxinfo` does not count Flutter's own surface frames; software-GPU emulator is not representative. Needs iQOO profiling |
+| Memory (debug APK, AIRA, emulator) | observed | PSS ≈ 430 MB on a JIT debug build; release build not measured |
 | 16 KB ELF alignment (release) | PASS (CI) | `16KB ELF check: PASS` |
 | No credentials in repo | PASS | `security_privacy_test.dart` scan |
 | iQOO 13 physical install / Play Protect | **UNVERIFIED (blocker)** | see below |
@@ -138,8 +142,13 @@ package IDs that install **beside** the working JARVIS, never over it:
 | `…-visualsafe.apk` | `…tamiltest.visualsafe` | visuals + text only (Play Protect differential) |
 | `…-voicesafe.apk` | `…tamiltest.voicesafe` | visuals + text + mic for Live voice test |
 
-All are signed with the CI runner's temporary debug key. SHA-256 values are
-printed in the job log (`SHA256SUMS`).
+All are signed with the CI runner's temporary debug key (APK Signature Scheme
+v2 verified). SHA-256 values are printed in the job log (`SHA256SUMS`).
+
+Effective permissions from `aapt` (CI): **visualsafe** = INTERNET,
+ACCESS_NETWORK_STATE, VIBRATE, POST_NOTIFICATIONS, WAKE_LOCK. **voicesafe** =
+the same plus RECORD_AUDIO and MODIFY_AUDIO_SETTINGS. Full builds = the
+manifest set plus merged REQUEST_DELETE_PACKAGES and Shizuku API_V23.
 
 ## Rollback
 

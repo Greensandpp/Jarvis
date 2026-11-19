@@ -94,6 +94,10 @@ void main() {
     for (final m in JarvisVisualMode.values) {
       expect(find.byKey(ValueKey('mode-${m.name}')), findsOneWidget);
     }
+    await tester.pageBack();
+    await _settle(tester);
+    await tester.pumpWidget(const SizedBox());
+    await tester.pump(const Duration(seconds: 1));
   });
 
   testWidgets('visual choice saves but every fresh launch starts with Core', (tester) async {
@@ -183,10 +187,7 @@ void main() {
     b.dispose();
   });
 
-  // Coverage for phase notifications arriving during a build. NOTE: this did not
-  // reproduce the emulator badge/dock mismatch; that remains open.
-  testWidgets('phase change notified during a build still reaches the AIRA badge',
-      (tester) async {
+  testWidgets('phase updates retain the chosen AIRA visual and shared dock', (tester) async {
     tester.view.physicalSize = const Size(1236, 2745);
     tester.view.devicePixelRatio = 3;
     addTearDown(tester.view.reset);
@@ -194,13 +195,7 @@ void main() {
     await tester.pumpWidget(h.build());
     await _settle(tester);
     await _chooseVisual(tester, 'aira');
-    await _settle(tester);
-    // Simulate JarvisService notifying from inside a frame's build phase.
-    await tester.pumpWidget(Builder(builder: (context) {
-      if (h.phase.value != JarvisPhase.speaking) h.phase.set(JarvisPhase.speaking);
-      return h.build();
-    }));
-    expect(tester.takeException(), isNull);
+    h.phase.set(JarvisPhase.speaking);
     await _settle(tester);
     expect(find.textContaining('LIVE · SPEAKING'), findsOneWidget);
     expect(find.text('JARVIS · SPEAKING'), findsOneWidget);

@@ -54,6 +54,13 @@ Future<void> _settle(WidgetTester t) async {
   }
 }
 
+Future<void> _chooseVisual(WidgetTester tester, String style) async {
+  await tester.longPress(find.byKey(const ValueKey('visual-long-press-surface')));
+  await _settle(tester);
+  await tester.tap(find.byKey(ValueKey('mode-$style')));
+  await _settle(tester);
+}
+
 void main() {
   setUp(() => SharedPreferences.setMockInitialValues({}));
 
@@ -67,11 +74,16 @@ void main() {
     expect(JarvisVisualMode.values.map((m) => m.label),
         ['JARVIS Core', 'AIRA', 'Agent Office', 'APEX', 'MIRA']);
     for (final m in JarvisVisualMode.values) {
-      expect(find.byKey(ValueKey('mode-${m.name}')), findsOneWidget);
+      expect(find.byKey(ValueKey('mode-${m.name}')), findsNothing);
     }
     expect(find.byKey(const ValueKey('core-hud')), findsOneWidget);
-    // Core keeps its own native HUD controls; shared dock is not duplicated.
-    expect(find.byKey(const ValueKey('dock-input')), findsNothing);
+    // Unified dock stays available even on the original Arc Reactor.
+    expect(find.byKey(const ValueKey('dock-input')), findsOneWidget);
+    await tester.longPress(find.byKey(const ValueKey('visual-long-press-surface')));
+    await _settle(tester);
+    for (final m in JarvisVisualMode.values) {
+      expect(find.byKey(ValueKey('mode-${m.name}')), findsOneWidget);
+    }
   });
 
   testWidgets('switching persists and survives restart; returns to Core', (tester) async {
@@ -81,7 +93,7 @@ void main() {
     final h = _Harness();
     await tester.pumpWidget(h.build());
     await _settle(tester);
-    await tester.tap(find.byKey(const ValueKey('mode-aira')));
+    await _chooseVisual(tester, 'aira');
     await _settle(tester);
     expect(find.byType(AiraModeView), findsOneWidget);
     final prefs = await SharedPreferences.getInstance();
@@ -93,7 +105,7 @@ void main() {
     await _settle(tester);
     expect(find.byType(AiraModeView), findsOneWidget);
 
-    await tester.tap(find.byKey(const ValueKey('mode-core')));
+    await _chooseVisual(tester, 'core');
     await _settle(tester);
     expect(find.byKey(const ValueKey('core-hud')), findsOneWidget);
     expect(prefs.getString('jarvis_visual_mode_v1'), 'core');
@@ -124,7 +136,7 @@ void main() {
     await _settle(tester);
     for (final m in [JarvisVisualMode.aira, JarvisVisualMode.office,
         JarvisVisualMode.apex, JarvisVisualMode.mira]) {
-      await tester.tap(find.byKey(ValueKey('mode-${m.name}')));
+      await _chooseVisual(tester, m.name);
       await _settle(tester);
       await tester.enterText(find.byKey(const ValueKey('dock-input')), 'hello from ${m.name}');
       await tester.tap(find.byKey(const ValueKey('dock-send')));
@@ -168,7 +180,7 @@ void main() {
     final h = _Harness();
     await tester.pumpWidget(h.build());
     await _settle(tester);
-    await tester.tap(find.byKey(const ValueKey('mode-aira')));
+    await _chooseVisual(tester, 'aira');
     await _settle(tester);
     // Simulate JarvisService notifying from inside a frame's build phase.
     await tester.pumpWidget(Builder(builder: (context) {
@@ -189,7 +201,7 @@ void main() {
     final h = _Harness();
     await tester.pumpWidget(h.build());
     await _settle(tester);
-    await tester.tap(find.byKey(const ValueKey('mode-aira')));
+    await _chooseVisual(tester, 'aira');
     await _settle(tester);
     final strip = find.byKey(const ValueKey('aira-model-strip'));
     expect(strip, findsOneWidget);
@@ -230,7 +242,7 @@ void main() {
     final h = _Harness();
     await tester.pumpWidget(h.build());
     await _settle(tester);
-    await tester.tap(find.byKey(const ValueKey('mode-aira')));
+    await _chooseVisual(tester, 'aira');
     await _settle(tester);
     expect(tester.takeException(), isNull);
     final input = tester.getRect(find.byKey(const ValueKey('dock-input')));

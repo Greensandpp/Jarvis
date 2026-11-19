@@ -860,18 +860,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     );
   }
 
-  void _selectMode(AppMode mode) {
-    final previousMode = _mode;
-    if (mode == previousMode) return;
-    setState(() => _mode = mode);
-    SettingsService.instance.setAppMode(mode);
-    if (mode == AppMode.jarvis) {
-      JarvisService.instance.speakGreeting(force: true);
-    } else if (previousMode == AppMode.jarvis) {
-      JarvisService.instance.onExitJarvisMode();
-    }
-  }
-
   void _showVisualPicker() => _visualHostKey.currentState?.showVisualPicker();
 
   Widget _agentProactiveBanner(ThemeData theme) {

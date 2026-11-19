@@ -183,26 +183,37 @@ class JarvisVisualModeHostState extends State<JarvisVisualModeHost> {
       context: context,
       backgroundColor: const Color(0xFF06151B),
       showDragHandle: true,
+      isScrollControlled: true,
       builder: (sheetContext) => SafeArea(
-        child: Column(mainAxisSize: MainAxisSize.min, children: [
-          const Padding(
-            padding: EdgeInsets.all(12),
-            child: Text('JARVIS VISUAL STYLES', style: TextStyle(
-              color: Color(0xFF00E5FF), letterSpacing: 2,
-              fontWeight: FontWeight.bold)),
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.sizeOf(sheetContext).height * .72,
           ),
-          for (final item in JarvisVisualMode.values)
-            ListTile(
-              key: ValueKey('mode-${item.name}'),
-              leading: Icon(item.icon, color: const Color(0xFF00E5FF)),
-              title: Text(item.label, style: const TextStyle(color: Colors.white)),
-              trailing: mode == item ? const Icon(Icons.check, color: Color(0xFF00E5FF)) : null,
-              onTap: () {
-                Navigator.pop(sheetContext);
-                select(item);
-              },
-            ),
-        ]),
+          child: ListView(
+            shrinkWrap: true,
+            children: [
+              const Padding(
+                padding: EdgeInsets.all(12),
+                child: Text('JARVIS VISUAL STYLES', style: TextStyle(
+                  color: Color(0xFF00E5FF), letterSpacing: 2,
+                  fontWeight: FontWeight.bold)),
+              ),
+              for (final item in JarvisVisualMode.values)
+                ListTile(
+                  key: ValueKey('mode-${item.name}'),
+                  leading: Icon(item.icon, color: const Color(0xFF00E5FF)),
+                  title: Text(item.label, style: const TextStyle(color: Colors.white)),
+                  trailing: mode == item
+                      ? const Icon(Icons.check, color: Color(0xFF00E5FF))
+                      : null,
+                  onTap: () {
+                    Navigator.pop(sheetContext);
+                    select(item);
+                  },
+                ),
+            ],
+          ),
+        ),
       ),
     );
   }

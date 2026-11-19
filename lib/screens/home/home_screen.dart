@@ -279,8 +279,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           // Keep the home screen uncluttered. Modes remain available by
           // long-pressing the title or through the compact menu below.
 
-          if (!_serviceEnabled &&
-              (_mode == AppMode.agent || _mode == AppMode.jarvis))
+          // The minimal-permission visual-first APK deliberately has no
+          // accessibility service. Do not show an impossible enable prompt
+          // on the JARVIS Arc home; agent workflows retain their own gate.
+          if (!_serviceEnabled && _mode == AppMode.agent)
             _serviceWarning(theme),
           if (_mode != AppMode.jarvis &&
               ProactiveAgentService.instance.currentSuggestion != null)

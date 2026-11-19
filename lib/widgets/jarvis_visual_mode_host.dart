@@ -149,6 +149,14 @@ class JarvisVisualModeHostState extends State<JarvisVisualModeHost> {
         () => _live.active ? _live.level : JarvisService.instance.soundLevel.clamp(0.0, 1.0);
     _aira = AiraPhaseBinding(_phaseSource, _phase);
     _live.load();
+    JarvisService.instance.onVisualStyleRequested = (style) {
+      for (final visual in JarvisVisualMode.values) {
+        if (visual.name == style) {
+          select(visual);
+          break;
+        }
+      }
+    };
     _restore();
   }
 
@@ -213,6 +221,7 @@ class JarvisVisualModeHostState extends State<JarvisVisualModeHost> {
 
   @override
   void dispose() {
+    JarvisService.instance.onVisualStyleRequested = null;
     command.dispose();
     _aira.dispose();
     if (_ownsLive) _live.dispose();

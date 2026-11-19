@@ -12,7 +12,7 @@ Variants (default: visualsafe, unchanged from the four-mode baseline):
               contacts, package listing, settings writes, notification
               listener, usage stats, camera, storage or Shizuku.
 
-Usage: make_safe_mobile_staging.py [--variant visualsafe|voicesafe] [--root DIR]
+Usage: make_safe_mobile_staging.py [--variant visualsafe|voicesafe|unifiedsafe] [--root DIR]
 """
 from pathlib import Path
 import argparse
@@ -22,6 +22,15 @@ VARIANTS = {
     "visualsafe": {
         "label": "GreenSoil JARVIS SAFE QA",
         "keep": {"android.permission.INTERNET", "android.permission.ACCESS_NETWORK_STATE"},
+    },
+    "unifiedsafe": {
+        "label": "GreenSoil JARVIS UNIFIED QA",
+        "keep": {
+            "android.permission.INTERNET",
+            "android.permission.ACCESS_NETWORK_STATE",
+            "android.permission.RECORD_AUDIO",
+            "android.permission.MODIFY_AUDIO_SETTINGS",
+        },
     },
     "voicesafe": {
         "label": "GreenSoil JARVIS VOICE QA",

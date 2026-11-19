@@ -26,9 +26,9 @@ jobs:
         run: flutter analyze --no-fatal-infos
       - name: Full Flutter regression suite
         run: flutter test --reporter expanded
-      - name: Generate minimal-permission voice-safe staging
+      - name: Generate minimal-permission unified-safe staging
         run: |
-          python3 scripts/make_safe_mobile_staging.py --variant voicesafe
+          python3 scripts/make_safe_mobile_staging.py --variant unifiedsafe
           flutter build apk --release
       - name: Verify signed APK identity and permission guard
         shell: bash
@@ -39,18 +39,18 @@ jobs:
           "$TOOLS/apksigner" verify --verbose --print-certs "$APK" > signing.txt
           "$TOOLS/aapt" dump badging "$APK" > badging.txt
           "$TOOLS/aapt" dump permissions "$APK" > permissions.txt
-          grep -q "package: name='com.greensoil.jarvis.tamiltest.voicesafe'" badging.txt
+          grep -q "package: name='com.greensoil.jarvis.tamiltest.unifiedsafe'" badging.txt
           if grep -E "QUERY_ALL_PACKAGES|SYSTEM_ALERT_WINDOW|READ_CONTACTS|WRITE_SETTINGS|PACKAGE_USAGE_STATS|CAMERA|REQUEST_INSTALL_PACKAGES|REQUEST_DELETE_PACKAGES" permissions.txt; then
-            echo "Unsafe permission in voice-safe staging"; exit 1
+            echo "Unsafe permission in unified-safe staging"; exit 1
           fi
           "$TOOLS/zipalign" -c -P 16 4 "$APK"
           sha256sum "$APK" > SHA256SUMS.txt
           mkdir -p out
-          cp "$APK" out/GreenSoil-JARVIS-UNIFIED-HOME-voicesafe-NOT-UPDATE.apk
+          cp "$APK" out/GreenSoil-JARVIS-UNIFIED-HOME-unifiedsafe-NOT-UPDATE.apk
       - name: Upload isolated signed staging APK
         uses: actions/upload-artifact@v4
         with:
-          name: JARVIS-UNIFIED-HOME-VOICESAFE-NOT-UPDATE
+          name: JARVIS-UNIFIED-HOME-UNIFIEDSAFE-NOT-UPDATE
           path: out/*.apk
           if-no-files-found: error
           retention-days: 14

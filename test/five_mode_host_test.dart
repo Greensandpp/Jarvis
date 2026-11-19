@@ -94,7 +94,8 @@ void main() {
     for (final m in JarvisVisualMode.values) {
       expect(find.byKey(ValueKey('mode-${m.name}')), findsOneWidget);
     }
-    await tester.pageBack();
+    // Dismiss bottom-sheet barrier before the test ends (no pending route timer).
+    await tester.tapAt(const Offset(10, 10));
     await _settle(tester);
     await tester.pumpWidget(const SizedBox());
     await tester.pump(const Duration(seconds: 1));

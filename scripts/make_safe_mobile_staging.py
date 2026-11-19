@@ -89,6 +89,8 @@ for perm in [
     "android.permission.READ_EXTERNAL_STORAGE",
     "android.permission.WRITE_EXTERNAL_STORAGE",
     "android.permission.REQUEST_INSTALL_PACKAGES",
+    "android.permission.REQUEST_DELETE_PACKAGES",
+    "moe.shizuku.manager.permission.API_V23",
 ]:
     if perm in cfg["keep"]:
         continue

@@ -56,6 +56,9 @@ jobs:
             "$TOOLS/apksigner" verify --verbose --print-certs "$a" > "evidence/$n-signing.txt"
             "$TOOLS/zipalign" -c -P 16 4 "$a" > "evidence/$n-zipalign.txt" && echo "zipalign16 PASS" >> "evidence/$n-zipalign.txt"
           done
+          for f in evidence/*-permissions.txt; do echo "== $f"; cat "$f"; done
+          for f in evidence/*-signing.txt; do echo "== $f"; grep -E "Verified using|Signer #1 certificate (DN|SHA-256)" "$f"; done
+          for f in evidence/*-badging.txt; do echo "== $f"; grep -E "^package:|sdkVersion|targetSdkVersion|native-code|application-label:" "$f"; done
           grep -q "package: name='com.greensoil.jarvis.tamiltest.visualstaging'" evidence/GreenSoil-JARVIS-5MODE-STAGING-debug-badging.txt
           grep -q "package: name='com.greensoil.jarvis.tamiltest.visualrelease'" evidence/GreenSoil-JARVIS-5MODE-STAGING-visualrelease-badging.txt
           python3 scripts/check_apk_elf_16kb.py out/GreenSoil-JARVIS-5MODE-STAGING-visualrelease.apk evidence/visualrelease-elf-16kb.json
@@ -73,9 +76,10 @@ jobs:
             "$TOOLS/aapt" dump badging "$a" > "evidence/$v-badging.txt"
             "$TOOLS/aapt" dump permissions "$a" | tee "evidence/$v-permissions.txt"
             "$TOOLS/apksigner" verify --verbose --print-certs "$a" > "evidence/$v-signing.txt"
+            grep -E "Verified using|Signer #1 certificate (DN|SHA-256)" "evidence/$v-signing.txt"
             grep -q "package: name='com.greensoil.jarvis.tamiltest.$v'" "evidence/$v-badging.txt"
             # Fail if any sensitive permission survived manifest merging.
-            if grep -E "QUERY_ALL_PACKAGES|SYSTEM_ALERT_WINDOW|READ_CONTACTS|WRITE_SETTINGS|PACKAGE_USAGE_STATS|CAMERA|BIND_ACCESSIBILITY" "evidence/$v-permissions.txt"; then
+            if grep -E "QUERY_ALL_PACKAGES|SYSTEM_ALERT_WINDOW|READ_CONTACTS|WRITE_SETTINGS|PACKAGE_USAGE_STATS|CAMERA|BIND_ACCESSIBILITY|REQUEST_DELETE_PACKAGES|REQUEST_INSTALL_PACKAGES|shizuku" "evidence/$v-permissions.txt"; then
               echo "::error::sensitive permission present in $v"; exit 1
             fi
           done

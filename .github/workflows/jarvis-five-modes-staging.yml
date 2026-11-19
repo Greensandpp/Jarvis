@@ -148,6 +148,27 @@ jobs:
           disable-animations: false
           emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -cores 3
           script: bash scripts/emulator_smoke.sh emulator-evidence-api${{ matrix.api-level }} apks/GreenSoil-JARVIS-5MODE-STAGING-debug.apk apks/GreenSoil-JARVIS-5MODE-STAGING-visualrelease.apk apks/GreenSoil-JARVIS-5MODE-STAGING-visualsafe.apk apks/GreenSoil-JARVIS-5MODE-STAGING-voicesafe.apk
+      - name: Contact sheet of real emulator screenshots (printed for review)
+        if: always()
+        shell: bash
+        run: |
+          set -uo pipefail
+          D=emulator-evidence-api${{ matrix.api-level }}
+          cd "$D" || exit 0
+          ls -la
+          shots=$(ls mode-*-a.png mode-aira-b.png aira-*.png 2>/dev/null | tr '\n' ' ')
+          [ -n "$shots" ] || exit 0
+          montage $shots -tile 6x -geometry 270x600+4+4 -background black -fill white -label '%t' contact-sheet.jpg || exit 0
+          convert contact-sheet.jpg -quality 72 contact-sheet.jpg
+          ls -la contact-sheet.jpg
+          echo "-----BEGIN CONTACT SHEET-----"; base64 -w 0 contact-sheet.jpg; echo; echo "-----END CONTACT SHEET-----"
+          for m in core aira office apex mira; do
+            if [ -f "mode-$m-a.png" ] && [ -f "mode-$m-b.png" ]; then
+              echo "animation-diff $m: $(compare -metric AE mode-$m-a.png mode-$m-b.png null: 2>&1) changed pixels"
+            fi
+          done
+          grep -h "TOTAL" meminfo-aira.txt 2>/dev/null | head -2 || true
+          grep -hE "Total frames rendered|Janky frames|50th percentile|90th percentile" gfxinfo-aira.txt 2>/dev/null | head -5 || true
       - name: Upload emulator evidence
         if: always()
         uses: actions/upload-artifact@v4

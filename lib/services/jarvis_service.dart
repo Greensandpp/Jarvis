@@ -2240,13 +2240,16 @@ Mastering the boundless road.
         lower.startsWith('search for ') ||
         lower.startsWith('look up ') ||
         lower.startsWith('google ') ||
-        lower.startsWith('find out ') ||
-        lower.startsWith('tell me about ') ||
         lower.startsWith('check online ') ||
-        lower.startsWith('who is ') ||
-        lower.startsWith('what is ') ||
-        lower.startsWith('where is ') ||
-        lower.startsWith('how much is ') ||
+        // Open questions go to the tool-calling brain (it has its own
+        // web_search tool) when enabled; otherwise the original shortcut.
+        (!SettingsService.instance.brainToolCalling &&
+            (lower.startsWith('find out ') ||
+                lower.startsWith('tell me about ') ||
+                lower.startsWith('who is ') ||
+                lower.startsWith('what is ') ||
+                lower.startsWith('where is ') ||
+                lower.startsWith('how much is '))) ||
         lower.contains('search the web') ||
         lower.contains('search online');
 

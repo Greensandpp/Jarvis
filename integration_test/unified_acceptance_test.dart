@@ -43,6 +43,15 @@ Future<void> scrollTo(WidgetTester t, Finder f) async {
     await t.drag(find.byType(Scrollable).first, const Offset(0, -300));
     await pumpFor(t, const Duration(milliseconds: 400));
   }
+  if (f.evaluate().isEmpty && find.byType(Scrollable).evaluate().isNotEmpty) {
+    // Target may be above: go back to the top and search downwards again.
+    await t.fling(find.byType(Scrollable).first, const Offset(0, 6000), 5000);
+    await pumpFor(t, const Duration(seconds: 1));
+    for (var i = 0; i < 25 && f.evaluate().isEmpty; i++) {
+      await t.drag(find.byType(Scrollable).first, const Offset(0, -300));
+      await pumpFor(t, const Duration(milliseconds: 400));
+    }
+  }
   if (f.evaluate().isNotEmpty) {
     await t.ensureVisible(f.first);
     await pumpFor(t, const Duration(milliseconds: 400));
@@ -148,8 +157,10 @@ void main() {
         final secs = DateTime.now().difference(started).inSeconds;
         await pumpFor(t, const Duration(seconds: 2));
         await shot(t, 'i-command-result');
-        report('I03', stuck ? 'FAIL' : 'PASS',
-            '${stuck ? "still THINKING" : "left THINKING"} after ${secs}s; phase=${js.phase.name}; '
+        final viaBrain = js.statusMessage.contains('OFFLINE') || js.statusMessage.contains('ANSWERED') ||
+            js.statusMessage.contains('AGENTS') || js.lastJarvisSpeech.contains('Privacy Lock') || js.lastJarvisSpeech.contains('No AI key');
+        report('I03', stuck || !viaBrain ? 'FAIL' : 'PASS',
+            '${stuck ? "still THINKING" : "left THINKING"} after ${secs}s via ${viaBrain ? "brain" : "legacy path"}; phase=${js.phase.name}; '
             'status="${js.statusMessage}"; reply="${js.lastJarvisSpeech.replaceAll('\n', ' ')}"');
         // Let any spoken reply finish before navigating.
         await pumpFor(t, const Duration(seconds: 4));
@@ -215,6 +226,9 @@ void main() {
     await t.tap(tradeBtn);
     await pumpFor(t, const Duration(seconds: 2));
     Future<String> gate(String entry, String sl, String conf, String time) async {
+      // The form is in a lazy ListView: scroll back to the top so the fields exist.
+      await t.fling(find.byType(Scrollable).first, const Offset(0, 4000), 4000);
+      await pumpFor(t, const Duration(seconds: 1));
       await t.enterText(find.byKey(const ValueKey('t-entry')), entry);
       await t.enterText(find.byKey(const ValueKey('t-sl')), sl);
       await t.enterText(find.byKey(const ValueKey('t-conf')), conf);

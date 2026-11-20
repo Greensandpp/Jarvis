@@ -103,7 +103,7 @@ class SerpentGuardianPainter extends CustomPainter {
         tint.withValues(alpha: 0),
         tint.withValues(alpha: 0.10 * list.backgroundPower),
         tint.withValues(alpha: 0),
-      ]);
+      ], const [0.0, 0.5, 1.0]);
       canvas.drawRect(Rect.fromLTWH(x - 1.5, size.height * 0.15, 3, size.height * 0.7), bar);
     }
   }

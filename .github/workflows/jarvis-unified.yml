@@ -71,7 +71,14 @@ jobs:
             fi
           done
           grep -q "SYSTEM_ALERT_WINDOW" evidence/JARVIS-UNIFIED-full-debug-permissions.txt
-          python3 scripts/check_apk_elf_16kb.py out/JARVIS-UNIFIED-standard-debug.apk evidence/standard-debug-elf-16kb.json
+          for f in standard full; do
+            if grep -E "QUERY_ALL_PACKAGES|READ_EXTERNAL_STORAGE|WRITE_EXTERNAL_STORAGE|MANAGE_EXTERNAL_STORAGE|WRITE_CONTACTS|REQUEST_INSTALL_PACKAGES|REQUEST_DELETE_PACKAGES|shizuku" "evidence/JARVIS-UNIFIED-$f-debug-permissions.txt"; then
+              echo "::error::removed permission returned through a dependency in $f"; exit 1
+            fi
+          done
+          for f in standard full; do
+            python3 scripts/check_apk_elf_16kb.py "out/JARVIS-UNIFIED-$f-debug.apk" "evidence/$f-debug-elf-16kb.json"
+          done
           (cd out && sha256sum *.apk) | tee evidence/SHA256SUMS.txt
           echo "commit=${GITHUB_SHA} run=${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID} signing=CI debug key (test only)" > evidence/PROVENANCE.txt
           cp analyze.txt flutter-test.txt evidence/
@@ -186,7 +193,7 @@ jobs:
           done
           grep -q "name='com.greensoil.jarvis.unified.visualrelease'" evidence/standard-badging.txt
           grep -q "name='com.greensoil.jarvis.unified.full.visualrelease'" evidence/full-badging.txt
-          if grep -E "QUERY_ALL_PACKAGES|MANAGE_EXTERNAL_STORAGE|WRITE_CONTACTS|REQUEST_INSTALL_PACKAGES|REQUEST_DELETE_PACKAGES|shizuku" evidence/*-permissions.txt; then exit 1; fi
+          if grep -E "QUERY_ALL_PACKAGES|READ_EXTERNAL_STORAGE|WRITE_EXTERNAL_STORAGE|MANAGE_EXTERNAL_STORAGE|WRITE_CONTACTS|REQUEST_INSTALL_PACKAGES|REQUEST_DELETE_PACKAGES|shizuku" evidence/*-permissions.txt; then exit 1; fi
           (cd out && sha256sum *.apk) > evidence/SHA256SUMS.txt
           echo "commit=$GITHUB_SHA; signing=ephemeral CI debug key, QA only; Play Protect=UNVERIFIED" > evidence/PROVENANCE.txt
       - uses: actions/upload-artifact@v4

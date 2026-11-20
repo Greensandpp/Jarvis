@@ -77,6 +77,25 @@ void main() {
   });
 
   test(
+    'broad plugin permissions are explicitly removed during manifest merging',
+    () {
+      for (final permission in [
+        'QUERY_ALL_PACKAGES',
+        'READ_EXTERNAL_STORAGE',
+        'WRITE_EXTERNAL_STORAGE',
+      ]) {
+        expect(
+          RegExp(
+            '<uses-permission[^>]*android:name="android.permission\\.$permission"[^>]*tools:node="remove"[^>]*/>',
+          ).hasMatch(manifest),
+          isTrue,
+          reason: '$permission must not return through a plugin manifest',
+        );
+      }
+    },
+  );
+
+  test(
     'sensitive components are protected, disabled by default or not exported',
     () {
       expect(manifest, contains('android:allowBackup="false"'));

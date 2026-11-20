@@ -6,6 +6,11 @@
     <uses-permission android:name="android.permission.REQUEST_DELETE_PACKAGES" tools:node="remove" />
     <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE" tools:node="remove" />
     <uses-permission android:name="moe.shizuku.manager.permission.API_V23" tools:node="remove" />
+    <!-- Deny transitive plugin requests too; launcher-intent queries below
+         provide only the visibility needed to open user-facing apps. -->
+    <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES" tools:node="remove" />
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" tools:node="remove" />
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" tools:node="remove" />
     <!-- Network -->
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />

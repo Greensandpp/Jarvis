@@ -36,12 +36,29 @@ jobs:
         run: flutter analyze --no-fatal-infos
       - name: Run Flutter tests
         run: flutter test
-      - name: Build development APK
-        run: flutter build apk --debug
-      - name: Upload DEVELOPMENT APK (not release)
+      - name: Build Standard development APK
+        run: flutter build apk --debug --flavor standard
+      - name: Verify Standard APK output
+        run: |
+          find build/app/outputs -type f -name '*.apk' -print
+          test -f build/app/outputs/flutter-apk/app-standard-debug.apk
+      - name: Upload Standard DEVELOPMENT APK
         uses: actions/upload-artifact@v4
         with:
-          name: jarvis-voice-p0-debug-apk
-          path: build/app/outputs/flutter-apk/app-debug.apk
+          name: jarvis-voice-p0-standard-debug
+          path: build/app/outputs/flutter-apk/app-standard-debug.apk
+          if-no-files-found: error
+          retention-days: 7
+      - name: Build Full Control development APK
+        run: flutter build apk --debug --flavor full
+      - name: Verify Full APK output
+        run: |
+          find build/app/outputs -type f -name '*.apk' -print
+          test -f build/app/outputs/flutter-apk/app-full-debug.apk
+      - name: Upload Full Control DEVELOPMENT APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: jarvis-voice-p0-full-debug
+          path: build/app/outputs/flutter-apk/app-full-debug.apk
           if-no-files-found: error
           retention-days: 7

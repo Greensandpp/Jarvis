@@ -3,12 +3,14 @@
 // SharedPreferences, no mocks). No API key is present, so live Gemini answers
 // are not tested here and stay UNVERIFIED.
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:private_agent/core/build_profile.dart';
 import 'package:private_agent/main.dart' as app;
+import 'package:private_agent/services/conversational_memory_service.dart';
 import 'package:private_agent/services/jarvis_service.dart';
 
 const expectFlavor = String.fromEnvironment('EXPECT_FLAVOR', defaultValue: 'standard');
@@ -52,6 +54,37 @@ String textOf(Finder f) {
   if (w is Text) return w.data ?? '';
   if (w is SelectableText) return w.data ?? '';
   return '';
+}
+
+Future<void> home(WidgetTester t) async {
+  t.state<NavigatorState>(find.byType(Navigator).first).popUntil((r) => r.isFirst);
+  await pumpFor(t, const Duration(seconds: 2));
+}
+
+Future<void> openCc(WidgetTester t, String name, {bool fromCc = false}) async {
+  if (!fromCc) {
+    await home(t);
+    await t.tap(find.byTooltip('Settings').first);
+    await pumpFor(t, const Duration(seconds: 2));
+    final cc = find.byKey(const ValueKey('open-control-center'));
+    await scrollTo(t, cc);
+    await t.tap(cc);
+    await pumpFor(t, const Duration(seconds: 2));
+  }
+  final tile = find.byKey(ValueKey('cc-$name'));
+  await scrollTo(t, tile);
+  await t.tap(tile);
+  await pumpFor(t, const Duration(seconds: 2));
+}
+
+/// Runs one acceptance section; an exception is a FAIL, never a crash of the run.
+Future<void> section(String id, Future<(bool, String)> Function() body) async {
+  try {
+    final (ok, detail) = await body();
+    report(id, ok ? 'PASS' : 'FAIL', detail);
+  } catch (e) {
+    report(id, 'FAIL', 'exception: ${'$e'.split('\n').first}');
+  }
 }
 
 void main() {
@@ -211,5 +244,164 @@ void main() {
     final saved = (await SharedPreferences.getInstance()).getString('trading_journal_csv_v1') ?? '';
     report('I08', r.contains('before 09:30') && r.contains('70%') && saved == csv ? 'PASS' : 'FAIL',
         'audit: "${r.replaceAll('\n', ' / ')}" ; journal persisted=${saved == csv}');
-  }, timeout: const Timeout(Duration(minutes: 10)));
+
+    // I09 indicators + OI from pasted data on device
+    await section('I09', () async {
+      final b = StringBuffer();
+      var px = 100.0;
+      for (var i = 0; i < 40; i++) {
+        px += i % 5 < 3 ? 2.0 : -1.5;
+        b.writeln('t$i,${px - 0.3},${px + 1},${px - 1},$px,${1000 + i * 10}');
+      }
+      final c = find.byKey(const ValueKey('t-candles'));
+      await scrollTo(t, c);
+      await t.enterText(c, b.toString());
+      await scrollTo(t, find.byKey(const ValueKey('t-ind')));
+      await t.tap(find.byKey(const ValueKey('t-ind')));
+      await pumpFor(t, const Duration(seconds: 1));
+      final ir = find.byKey(const ValueKey('t-ind-report'));
+      await scrollTo(t, ir);
+      final ind = ir.evaluate().isEmpty ? '' : textOf(ir);
+      final o = find.byKey(const ValueKey('t-oi'));
+      await scrollTo(t, o);
+      await t.enterText(o, '24000,100,500\n24100,300,400\n24200,600,200\n24300,900,50');
+      await scrollTo(t, find.byKey(const ValueKey('t-oi-run')));
+      await t.tap(find.byKey(const ValueKey('t-oi-run')));
+      await pumpFor(t, const Duration(seconds: 1));
+      final or = find.byKey(const ValueKey('t-oi-report'));
+      await scrollTo(t, or);
+      final oi = or.evaluate().isEmpty ? '' : textOf(or);
+      await shot(t, 'i-trading-indicators');
+      return (ind.contains('BULLISH') && ind.contains('Supertrend UP') && oi.contains('PCR'),
+          'indicators: "${ind.split('\n').take(3).join(' / ')}" · OI: "${oi.split('\n').first}"');
+    });
+
+    // I10 Control Center: every section opens
+    await section('I10', () async {
+      await home(t);
+      await t.tap(find.byTooltip('Settings').first);
+      await pumpFor(t, const Duration(seconds: 2));
+      final cc = find.byKey(const ValueKey('open-control-center'));
+      await scrollTo(t, cc);
+      await t.tap(cc);
+      await pumpFor(t, const Duration(seconds: 2));
+      await shot(t, 'i-control-center');
+      const sections = ['AI Brain', 'API key & Models', 'Diagnostics', 'Voice', 'Memory & Backup', 'Learning', 'Trading (paper)',
+        'Agents & Audit', 'Tools', 'Visuals', 'Permissions', 'Automation', 'Device & PC', 'Security & Privacy'];
+      final opened = <String>[], failed = <String>[];
+      for (final name in sections) {
+        final tile = find.byKey(ValueKey('cc-$name'));
+        await scrollTo(t, tile);
+        if (tile.evaluate().isEmpty) {
+          failed.add(name);
+          continue;
+        }
+        await t.tap(tile);
+        await pumpFor(t, const Duration(milliseconds: 1500));
+        final ok = find.byType(AppBar).evaluate().length >= 2 || find.byType(BackButton).evaluate().isNotEmpty;
+        (ok ? opened : failed).add(name);
+        if (name == 'Agents & Audit') await shot(t, 'i-agents');
+        if (name == 'Tools') await shot(t, 'i-tools');
+        await t.pageBack();
+        await pumpFor(t, const Duration(milliseconds: 800));
+      }
+      return (failed.isEmpty, '${opened.length}/${sections.length} sections opened${failed.isEmpty ? '' : '; failed: $failed'}');
+    });
+
+    // I11 voice diagnostics shows real microphone/TTS facts
+    await section('I11', () async {
+      await openCc(t, 'Diagnostics');
+      await t.tap(find.byKey(const ValueKey('diag-voice')));
+      final ok = await waitFor(t, find.byKey(const ValueKey('diag-voice-result')), const Duration(seconds: 20));
+      await pumpFor(t, const Duration(seconds: 1));
+      await shot(t, 'i-voice-diagnostics');
+      final rows = find.descendant(of: find.byKey(const ValueKey('diag-voice-result')), matching: find.byType(ListTile))
+          .evaluate().map((e) {
+        final lt = e.widget as ListTile;
+        return '${(lt.title as Text).data}=${(lt.subtitle as Text).data}';
+      }).join('; ');
+      return (ok && rows.contains('Microphone permission'), rows);
+    });
+
+    // I12 memory: add, correct (history), undo, encrypted backup, wrong passphrase, restore
+    await section('I12', () async {
+      final mem = ConversationalMemoryService.instance;
+      await mem.wipeAll();
+      await openCc(t, 'Memory & Backup');
+      await t.enterText(find.byKey(const ValueKey('mem-add-text')), 'My trading capital is 50000 rupees');
+      await t.tap(find.byKey(const ValueKey('mem-add')));
+      await pumpFor(t, const Duration(seconds: 1));
+      await t.tap(find.byTooltip('Correct').first);
+      await pumpFor(t, const Duration(seconds: 1));
+      await t.enterText(find.byType(TextField).last, 'My trading capital is 75000 rupees');
+      await t.tap(find.text('OK'));
+      await pumpFor(t, const Duration(seconds: 2));
+      final corrected = mem.facts.first.fact.contains('75000') && mem.facts.first.history.length == 1;
+      await shot(t, 'i-memory-corrected');
+      await t.tap(find.byTooltip('Undo correction').first);
+      await pumpFor(t, const Duration(seconds: 1));
+      final undone = mem.facts.first.fact.contains('50000');
+      await t.tap(find.byTooltip('Correct').first);
+      await pumpFor(t, const Duration(seconds: 1));
+      await t.enterText(find.byType(TextField).last, 'My trading capital is 75000 rupees');
+      await t.tap(find.text('OK'));
+      await pumpFor(t, const Duration(seconds: 2));
+      // export
+      await t.tap(find.byKey(const ValueKey('mem-export')));
+      await pumpFor(t, const Duration(seconds: 1));
+      await t.enterText(find.byType(TextField).last, 'owner-pass-1');
+      await t.tap(find.text('OK'));
+      await pumpFor(t, const Duration(seconds: 6)); // PBKDF2 on device
+      final clip = (await Clipboard.getData(Clipboard.kTextPlain))?.text ?? '';
+      final exported = clip.contains('jarvis-memory-backup') && !clip.contains('75000');
+      await mem.clearAllFacts();
+      await t.pageBack();
+      await pumpFor(t, const Duration(seconds: 1));
+      await openCc(t, 'Memory & Backup', fromCc: true);
+      Future<void> restore(String pass) async {
+        await t.tap(find.byKey(const ValueKey('mem-import')));
+        await pumpFor(t, const Duration(seconds: 1));
+        await t.tap(find.text('OK')); // backup text pre-filled from clipboard
+        await pumpFor(t, const Duration(seconds: 1));
+        await t.enterText(find.byType(TextField).last, pass);
+        await t.tap(find.text('OK'));
+        await pumpFor(t, const Duration(seconds: 6));
+      }
+      await restore('wrong-pass');
+      final rejected = mem.facts.isEmpty && find.textContaining('Wrong passphrase').evaluate().isNotEmpty;
+      await shot(t, 'i-memory-wrong-pass');
+      await pumpFor(t, const Duration(seconds: 4));
+      await restore('owner-pass-1');
+      final restored = mem.facts.length == 1 && mem.facts.first.fact.contains('75000') && mem.facts.first.history.length == 1;
+      await shot(t, 'i-memory-restored');
+      final stored = (await SharedPreferences.getInstance()).getString('jarvis_memory_facts_v1') ?? '';
+      return (corrected && undone && exported && rejected && restored && stored.contains('75000'),
+          'corrected=$corrected undo=$undone exportEncrypted=$exported wrongPassRejected=$rejected restored=$restored persisted=${stored.contains('75000')}');
+    });
+
+    // I13 offline visual switching through the same command path as voice
+    await section('I13', () async {
+      await home(t);
+      final input = find.byKey(const ValueKey('dock-input'));
+      if (!await waitFor(t, input, const Duration(seconds: 8))) return (false, 'dock not visible');
+      await t.enterText(input, 'switch to apex');
+      await t.tap(find.byKey(const ValueKey('dock-send')));
+      await pumpFor(t, const Duration(seconds: 4));
+      final p1 = (await SharedPreferences.getInstance()).getString('jarvis_visual_mode_v1');
+      await shot(t, 'i-voice-switch-apex');
+      final reply = JarvisService.instance.lastJarvisSpeech;
+      await pumpFor(t, const Duration(seconds: 3));
+      final input2 = find.byKey(const ValueKey('dock-input'));
+      if (input2.evaluate().isNotEmpty) {
+        await t.enterText(input2, 'aira jellyfish mode');
+        await t.tap(find.byKey(const ValueKey('dock-send')));
+        await pumpFor(t, const Duration(seconds: 5));
+      }
+      final p = await SharedPreferences.getInstance();
+      await shot(t, 'i-voice-switch-aira-jellyfish');
+      return (p1 == 'apex' && p.getString('jarvis_visual_mode_v1') == 'aira' && p.getString('aira_model_v1') == 'jellyfish',
+          'after "switch to apex": $p1 (reply "$reply"); after "aira jellyfish mode": '
+          '${p.getString('jarvis_visual_mode_v1')}/${p.getString('aira_model_v1')}');
+    });
+  }, timeout: const Timeout(Duration(minutes: 15)));
 }

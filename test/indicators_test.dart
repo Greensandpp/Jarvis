@@ -60,4 +60,17 @@ void main() {
     expect(r.pcr, closeTo(1150 / 1900, 1e-9));
     expect(analyzeOi('1,2'), isNull);
   });
+
+  test('chart reading: visible values drive the verdict, missing ones lower confidence', () {
+    final full = judgeChartReading('{"readable":true,"last_price":150,"ema9":148,"ma9":147,"vwap":145,'
+        '"supertrend_dir":"up","trend":"up","notes":""}');
+    expect(full.verdict, 'BULLISH (CE) candidate');
+    expect(full.score, 100);
+    final sparse = judgeChartReading('Here: {"readable":true,"last_price":150,"ema9":null,"ma9":null,"vwap":null,'
+        '"supertrend_dir":null,"trend":"up"}');
+    expect(sparse.verdict, 'NO TRADE');
+    expect(sparse.reasons.join(), contains('EMA9 not visible'));
+    expect(judgeChartReading('{"readable":false,"notes":"blurry"}').verdict, 'NO TRADE');
+    expect(judgeChartReading('no json').verdict, 'UNREADABLE');
+  });
 }

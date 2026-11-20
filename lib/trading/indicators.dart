@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:math' as math;
 
 /// Indicator engine for owner-supplied candles (pasted, exported from
@@ -198,3 +199,59 @@ OiReport? analyzeOi(String csv) {
       : 'Balanced OI — no edge from OI alone.';
   return OiReport(pcr, mp, sup, res, read);
 }
+
+/// Turns the AI's chart reading (JSON, values may be null) into a confluence
+/// verdict with the same rules as [analyzeCandles]. Missing values lower the
+/// score; nothing is filled in.
+({String verdict, int score, List<String> reasons, Map<String, dynamic> read}) judgeChartReading(String json) {
+  Map<String, dynamic> j;
+  try {
+    final start = json.indexOf('{'), end = json.lastIndexOf('}');
+    j = Map<String, dynamic>.from(jsonDecodeSafe(json.substring(start, end + 1)));
+  } catch (_) {
+    return (verdict: 'UNREADABLE', score: 0, reasons: ['The AI reply was not valid JSON.'], read: const {});
+  }
+  if (j['readable'] != true) {
+    return (verdict: 'NO TRADE', score: 0, reasons: ['Chart not readable: ${j['notes'] ?? ''}'], read: j);
+  }
+  double? n(String k) => j[k] is num ? (j[k] as num).toDouble() : null;
+  final px = n('last_price');
+  var bull = 0, bear = 0, possible = 0;
+  final why = <String>[];
+  void vote(String name, double? v, int w) {
+    possible += w;
+    if (px == null || v == null) {
+      why.add('$name not visible');
+      return;
+    }
+    if (px > v) {
+      bull += w;
+    } else {
+      bear += w;
+    }
+    why.add('Price ${px > v ? 'above' : 'below'} $name');
+  }
+
+  vote('EMA9', n('ema9'), 20);
+  vote('MA9', n('ma9'), 15);
+  vote('VWAP', n('vwap'), 20);
+  possible += 25;
+  if (j['supertrend_dir'] == 'up') {
+    bull += 25;
+    why.add('Supertrend up');
+  } else if (j['supertrend_dir'] == 'down') {
+    bear += 25;
+    why.add('Supertrend down');
+  } else {
+    why.add('Supertrend not visible');
+  }
+  possible += 20;
+  if (j['trend'] == 'up') bull += 20;
+  if (j['trend'] == 'down') bear += 20;
+  final score = ((math.max(bull, bear) / possible) * 100).round();
+  final verdict = score < 70 ? 'NO TRADE' : bull > bear ? 'BULLISH (CE) candidate' : 'BEARISH (PE) candidate';
+  if (score < 70) why.add('Confluence $score < 70 → NO TRADE');
+  return (verdict: verdict, score: score, reasons: why, read: j);
+}
+
+dynamic jsonDecodeSafe(String s) => const JsonDecoder().convert(s);

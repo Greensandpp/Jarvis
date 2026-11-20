@@ -1229,6 +1229,25 @@ HUMAN SPOKEN DELIVERY GUIDELINES:
 
   /// Multimodal vision completion using standard OpenAI / OpenRouter / Ollama format.
   /// Used by "Jarvis Eye" to inspect physical objects, circuits, documents, and receipts.
+  /// Reads a TradingView/broker chart screenshot. Returns the model's JSON
+  /// text (values it cannot read must be null — never guessed).
+  Future<String> readTradingChart(String base64Image) async {
+    final settings = SettingsService.instance;
+    const sys = 'You read trading chart screenshots for a PAPER-only analysis tool. Report ONLY values that are '
+        'clearly visible on the image. If a value is not visible or not legible, use null. Never estimate prices. '
+        'Reply with one JSON object and nothing else: {"readable":bool,"instrument":str|null,"timeframe":str|null,'
+        '"last_price":num|null,"ema9":num|null,"ma9":num|null,"vwap":num|null,"supertrend":num|null,'
+        '"supertrend_dir":"up"|"down"|null,"trend":"up"|"down"|"range"|null,"structure":str|null,'
+        '"oi_or_volume_note":str|null,"visible_indicators":[str],"notes":str}';
+    return _postChatCompletion([
+      {'role': 'system', 'content': sys},
+      {'role': 'user', 'content': [
+        {'type': 'text', 'text': 'Read this chart.'},
+        {'type': 'image_url', 'image_url': {'url': base64Image.startsWith('data:image') ? base64Image : 'data:image/jpeg;base64,$base64Image'}},
+      ]},
+    ], settings);
+  }
+
   Future<String> completeMultimodal({
     required String prompt,
     required String base64Image,

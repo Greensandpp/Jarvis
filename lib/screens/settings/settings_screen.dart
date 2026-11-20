@@ -7,6 +7,7 @@ import '../../services/telegram_service.dart';
 import '../../widgets/glass_widgets.dart';
 import '../brain/ai_diagnostics_screen.dart';
 import '../brain/trading_ai_screen.dart';
+import '../brain/control_center_screen.dart';
 import 'jarvis_settings_screen.dart';
 import 'permissions_screen.dart';
 import '../../core/build_profile.dart';
@@ -412,6 +413,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
           ),
           const SizedBox(height: 10),
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton.icon(
+              key: const ValueKey('open-control-center'),
+              icon: const Icon(Icons.dashboard_customize),
+              label: const Text('JARVIS Control Center (all settings)'),
+              onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const ControlCenterScreen())),
+            ),
+          ),
+          const SizedBox(height: 8),
           Text(BuildProfile.label, key: const ValueKey('build-profile'),
             style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
           if (BuildProfile.isStandard) Text(BuildProfile.standardNotice,

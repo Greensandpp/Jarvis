@@ -41,10 +41,19 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p out evidence
+          # Retry only Gradle dependency-download outages (plugin portal), never compile/test failures.
+          gbuild() {
+            for i in 1 2 3; do
+              if flutter build apk "$@" 2>&1 | tee gradle-attempt.txt; then return 0; fi
+              grep -qE "Could not resolve all artifacts|Could not resolve|Read timed out|status code 50[0-9]" gradle-attempt.txt || return 1
+              echo "::warning::Gradle download outage, retry $i"; sleep 45
+            done
+            return 1
+          }
           for f in standard full; do
-            flutter build apk --debug --flavor $f
+            gbuild --debug --flavor $f
             cp build/app/outputs/flutter-apk/app-$f-debug.apk out/JARVIS-UNIFIED-$f-debug.apk
-            flutter build apk --release --flavor $f
+            gbuild --release --flavor $f
             cp build/app/outputs/flutter-apk/app-$f-release.apk out/JARVIS-UNIFIED-$f-release.apk
           done
           ls -la out
@@ -126,6 +135,9 @@ jobs:
           emulator-boot-timeout: 600
           disable-animations: false
           emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -cores 3
+          pre-emulator-launch-script: |
+            # Warm the Gradle cache before the emulator starts (retried on download outages).
+            for i in 1 2 3; do flutter build apk --debug --flavor standard && break || sleep 45; done
           script: |
             bash scripts/unified_acceptance.sh ev-api${{ matrix.api-level }} apks/JARVIS-UNIFIED-standard-debug.apk apks/JARVIS-UNIFIED-full-debug.apk || echo "device checks reported failures" > ev-api${{ matrix.api-level }}/device-failed
             adb uninstall com.greensoil.jarvis.unified.visualstaging || true

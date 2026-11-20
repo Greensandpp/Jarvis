@@ -151,6 +151,12 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   }
 
   Future<void> _toggleListening() async {
+    // JARVIS HUD and its composer must share one speech owner. The generic
+    // dictation callback below would overwrite JarvisService.onSpeechResult.
+    if (_mode == AppMode.jarvis) {
+      await JarvisService.instance.toggleListening();
+      return;
+    }
     if (_listening) {
       await _voice.stopListening();
       setState(() => _listening = false);

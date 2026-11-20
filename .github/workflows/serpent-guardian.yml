@@ -181,9 +181,9 @@ jobs:
           for d in dl/JARVIS-UNIFIED-EMULATOR-API*; do
             [ -d "$d" ] || continue
             n=$(basename "$d" | sed 's/JARVIS-UNIFIED-EMULATOR-//')
-            [ -f "$d/summary.txt" ] && cp "$d/summary.txt" "rel/device-summary-$n.txt"
-            [ -f "$d/in-app-summary.txt" ] && cp "$d/in-app-summary.txt" "rel/in-app-summary-$n.txt"
-            [ -f "$d/serpent-perf.txt" ] && cp "$d/serpent-perf.txt" "rel/serpent-perf-$n.txt"
+            [ -s "$d/summary.txt" ] && cp "$d/summary.txt" "rel/device-summary-$n.txt"
+            [ -s "$d/in-app-summary.txt" ] && cp "$d/in-app-summary.txt" "rel/in-app-summary-$n.txt"
+            [ -s "$d/serpent-perf.txt" ] && cp "$d/serpent-perf.txt" "rel/serpent-perf-$n.txt"
             for f in "$d"/serpent-*.png; do [ -f "$f" ] && cp "$f" "rel/$n-$(basename "$f")"; done
             for f in "$d"/mode-*-a.png "$d"/i-*.png; do [ -f "$f" ] && cp "$f" "rel/$n-$(basename "$f")"; done
           done
@@ -194,6 +194,7 @@ jobs:
           cp $ev/PERMISSION_AUDIT.md rel/PERMISSION_AUDIT.md || true
           cp $ev/PROVENANCE.txt rel/PROVENANCE.txt || true
           for f in $ev/JARVIS-UNIFIED-*-release-permissions.txt $ev/JARVIS-UNIFIED-*-release-badging.txt; do [ -f "$f" ] && cp "$f" rel/; done
+          find rel -type f -size 0 -delete   # GitHub rejects empty release assets
           ls -la rel
       - name: Create test-only prerelease
         env:

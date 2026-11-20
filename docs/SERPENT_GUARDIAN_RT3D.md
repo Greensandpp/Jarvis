@@ -101,3 +101,27 @@ camera now fits a 3.8-unit tall view instead of 3.25. The Avatar size slider sti
 1. Add Thermion (Filament) behind the existing `JarvisVisualMode.serpent` slot, gated by a feature flag. Load a test glTF and measure on the iQOO 13.
 2. Map `RigDrive`, `SerpentRig` spine samples and `ProceduralFaceRig` values to bones and morph weights.
 3. Replace the estimated viseme timing with real timings (Edge TTS word boundaries or Gemini Live audio) for Tamil.
+
+---
+
+# Update 2026-11-20 (evening): Gemini model handling, voices, framing, permission audit
+
+All of the following is on the same branch and in the same Standard and Full builds.
+
+| # | Item | Where | Evidence |
+|---|---|---|---|
+| 1 | Gemini model discovery → ranking (stable Flash → Flash-Lite → Pro → previews, newest first) → automatic selection → persisted (`ai_model`, `ai_discovered_models`, `ai_models_discovered_at`, `ai_model_auto`). Runs at app start (throttled to 12 h), after saving a key, and from Diagnostics. A model chosen by hand is pinned (manual) until "Automatic" is re-enabled. No network call while the Privacy Lock blocks cloud AI | `brain/model_selector.dart`, `AiService.discoverAndSelectModels` | `model_fallback_test.dart` (TEST DOUBLE server) |
+| 2 | HTTP 429 / 503 / timeout fallback through the ranked models: at most 4 requests per call, one same-model retry for 5xx with backoff, per-model cool-down (429: 60 s, 503: 30 s, 404: 6 h), 75 s overall deadline. Key, DNS, TLS and parse errors are not retried. A temporary fallback keeps the selected model; a 404 persists the working one. Only the chat request is repeated. Device actions run at most once per request and are not repeated within 12 s (`JarvisBrain._runOnce`) | `model_selector.dart`, `ai_service.dart`, `brain/brain.dart` | `model_fallback_test.dart` |
+| 3 | Gemini is preferred: it is the default provider for new installs, and Google `AIza…` keys select Gemini automatically. Existing saved providers are kept (migration in `SettingsService.init`) | `settings_service.dart`, onboarding | `model_fallback_test.dart` |
+| 4 | One model line everywhere: Settings (auto switch + label), Diagnostics, Control Center status, AI Brain page, chat screen and visual dock. All read `SettingsService.modelLabel` and rebuild on change | screens + `jarvis_visual_mode_host.dart` | widget test; in-app I15 on the Android 15 emulator |
+| 5 | Voice auto-selection per language (ta-IN, en-IN). Female is taken only from what the engine reports, offline voices come first, and there is an owner override in Control Center → Voice. If nothing is installed, the engine default for the language is used. Female neural voices (Pallavi / Neerja) are used when cloud TTS is allowed | `services/voice_selection.dart`, `VoiceService.autoSelectVoices` | `voice_language_test.dart`; in-app I14 (442 emulator voices; Google TTS reports no gender) |
+| 6 | Tamil + English + Tanglish input. The default mic language is "auto": Indian English, plus Tamil language detection and switching extras on Android 14+. Gemini voice input (push-to-talk WAV → transcript in Tamil script / English / Tanglish) is used on a mic tap when the phone recogniser is missing or failed repeatedly, or when the engine is set to Gemini. It never runs for always-on listening. Output: Tamil → ta-IN voice, Tanglish/English → en-IN voice | `services/gemini_dictation.dart`, `voice_service.dart`, `MainActivity.kt` | `voice_language_test.dart` (scripted mic + TEST DOUBLE server) |
+| 7 | Serpent Guardian framing: the whole figure, hands, orbs and serpent head stay on screen | `avatar_scene.dart` | in-app I16: meshes inside the 411×648 canvas; `serpent-*.png` |
+| 8 | Permission + Play Protect audit generated from the real `aapt` output of each release APK | `scripts/permission_audit.py` → `PERMISSION_AUDIT.md` (release asset) | CI build step |
+
+Remaining limitations:
+
+* Live Gemini (real key): model discovery, 429/503 behaviour against Google and voice transcription quality are UNVERIFIED. CI has no key.
+* Google TTS does not report voice gender, so on the iQOO the automatic local voice may not be female. Use the Voice page to pick one, or allow cloud TTS for Pallavi / Neerja.
+* Always-on wake word still needs the phone recogniser. If that fails on the iQOO, only tap-to-talk (Gemini voice input) works.
+* The APKs are signed with the CI debug key. An install may be refused over an existing install of the same package ID that has a different signature; uninstall the old test build first. A stable release key is still needed.

@@ -84,9 +84,10 @@ class VoiceService {
 
   /// Android SpeechRecognizer errors that mean "this recogniser cannot work
   /// here" (not a normal no-match / timeout): network(2), audio(3),
-  /// server(4), client(5), permissions(9), busy(10/11), language not
-  /// supported / unavailable(12/13).
-  static const fatalRecognizerErrors = {2, 3, 4, 5, 9, 10, 11, 12, 13};
+  /// server(4), client(5), busy(10/11), language not supported /
+  /// unavailable(12/13). Missing mic permission (9) is not a recogniser
+  /// fault — granting the permission fixes it — so it is not counted.
+  static const fatalRecognizerErrors = {2, 3, 4, 5, 10, 11, 12, 13};
 
   void _trackRecognizerHealth(String status) {
     if (status == 'listening') return;

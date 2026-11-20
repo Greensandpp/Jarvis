@@ -175,6 +175,7 @@ class _CorePainter extends CustomPainter {
     }
     _ring(c, p, r * .17, gold, width: 2.2, alpha: .9);
     _ring(c, p, r * .115, cyan, width: 1.1, alpha: .8);
+    _apexCinematic(c, p, r);
   }
 
   void _mira(Canvas c, Offset p, double r) {
@@ -221,6 +222,114 @@ class _CorePainter extends CustomPainter {
       if (i % 17 == 0) _glow(c, pos, 7 + 4 * z, color, .30);
     }
     _ring(c, p, r * .16, aqua, width: 1.4, alpha: .47 + .43 * pulse);
+    _miraHumanoid(c, p, r, violet, magenta, aqua, pulse);
+  }
+
+  /// Procedural holographic female bust (no external assets): silhouette,
+  /// facial contour lines, scanlines, a sampled point cloud and eye glints,
+  /// breathing slightly with the animation phase.
+  void _miraHumanoid(Canvas c, Offset p, double r, Color violet, Color magenta, Color aqua, double pulse) {
+    final breathe = 1 + .012 * math.sin(phase * 1.3);
+    final s = r * 1.05 * breathe;
+    final top = p.translate(0, -s * .62);
+    Offset q(double x, double y) => top + Offset(x * s, y * s);
+    final body = Path()
+      // head (slightly oval), hair volume, neck, shoulders and chest
+      ..moveTo(q(0, 0).dx, q(0, 0).dy)
+      ..cubicTo(q(.17, 0).dx, q(.17, 0).dy, q(.21, .14).dx, q(.21, .14).dy, q(.2, .25).dx, q(.2, .25).dy)
+      ..cubicTo(q(.2, .36).dx, q(.2, .36).dy, q(.15, .45).dx, q(.15, .45).dy, q(.08, .5).dx, q(.08, .5).dy)
+      ..lineTo(q(.075, .6).dx, q(.075, .6).dy)
+      ..cubicTo(q(.16, .66).dx, q(.16, .66).dy, q(.42, .68).dx, q(.42, .68).dy, q(.5, .82).dx, q(.5, .82).dy)
+      ..lineTo(q(.56, 1.12).dx, q(.56, 1.12).dy)
+      ..lineTo(q(-.56, 1.12).dx, q(-.56, 1.12).dy)
+      ..lineTo(q(-.5, .82).dx, q(-.5, .82).dy)
+      ..cubicTo(q(-.42, .68).dx, q(-.42, .68).dy, q(-.16, .66).dx, q(-.16, .66).dy, q(-.075, .6).dx, q(-.075, .6).dy)
+      ..lineTo(q(-.08, .5).dx, q(-.08, .5).dy)
+      ..cubicTo(q(-.15, .45).dx, q(-.15, .45).dy, q(-.2, .36).dx, q(-.2, .36).dy, q(-.2, .25).dx, q(-.2, .25).dy)
+      ..cubicTo(q(-.21, .14).dx, q(-.21, .14).dy, q(-.17, 0).dx, q(-.17, 0).dy, q(0, 0).dx, q(0, 0).dy)
+      ..close();
+    final bounds = body.getBounds();
+    // translucent volume
+    c.drawPath(body, Paint()
+      ..shader = LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [
+        aqua.withValues(alpha: .20 + .08 * pulse), violet.withValues(alpha: .10), magenta.withValues(alpha: 0),
+      ]).createShader(bounds));
+    // scanlines moving upward, clipped to the figure
+    c.save();
+    c.clipPath(body);
+    final step = s * .022;
+    final offset = (phase * s * .05) % step;
+    for (var y = bounds.bottom + offset; y > bounds.top; y -= step) {
+      c.drawLine(Offset(bounds.left, y), Offset(bounds.right, y),
+          Paint()..color = aqua.withValues(alpha: .10)..strokeWidth = .7);
+    }
+    // facial contour (latitude) lines on the head
+    for (var k = 1; k < 7; k++) {
+      final cy = q(0, .04 + k * .065).dy;
+      final w = s * (.2 - .012 * (k - 3).abs() * (k - 3).abs() * .6);
+      c.drawOval(Rect.fromCenter(center: Offset(top.dx, cy), width: w * 2, height: s * .02),
+          Paint()..style = PaintingStyle.stroke..strokeWidth = .6..color = violet.withValues(alpha: .35));
+    }
+    // vertical meridians on the torso
+    for (var k = -4; k <= 4; k++) {
+      final x = top.dx + k * s * .11;
+      c.drawLine(Offset(x, q(0, .72).dy), Offset(x * .98 + top.dx * .02, bounds.bottom),
+          Paint()..color = magenta.withValues(alpha: .12)..strokeWidth = .6);
+    }
+    c.restore();
+    // point cloud sampled inside the silhouette (deterministic)
+    for (var i = 0; i < 520; i++) {
+      final fx = ((i * 7919) % 1000) / 1000, fy = ((i * 104729) % 997) / 997;
+      final pt = Offset(bounds.left + fx * bounds.width, bounds.top + fy * bounds.height);
+      if (!body.contains(pt)) continue;
+      final tw = .35 + .65 * math.sin(phase * 2.2 + i * .37).abs();
+      c.drawCircle(pt, .6 + .7 * tw, Paint()..color = (i % 5 == 0 ? magenta : aqua).withValues(alpha: .18 + .5 * tw));
+    }
+    // outline with glow
+    c.drawPath(body, Paint()
+      ..style = PaintingStyle.stroke..strokeWidth = 4..color = aqua.withValues(alpha: .10)
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6));
+    c.drawPath(body, Paint()..style = PaintingStyle.stroke..strokeWidth = 1.1..color = aqua.withValues(alpha: .75));
+    // eyes + a soft "voice" glow at the lips
+    for (final ex in [-.075, .075]) {
+      _glow(c, q(ex, .23), s * .03, aqua, .9);
+    }
+    _glow(c, q(0, .38), s * (.025 + .02 * pulse), magenta, .55 + .3 * pulse);
+    // emitter pedestal
+    final ped = Rect.fromCenter(center: q(0, 1.14), width: s * 1.3, height: s * .12);
+    c.drawOval(ped, Paint()..style = PaintingStyle.stroke..strokeWidth = 1.4..color = violet.withValues(alpha: .7));
+    _glow(c, ped.center, s * .45, violet, .35 + .2 * pulse);
+  }
+
+  /// APEX cinematic layer: perspective-tilted orbit rings and a light sweep.
+  void _apexCinematic(Canvas c, Offset p, double r) {
+    const gold = Color(0xFFFFDD8B), cyan = Color(0xFF23EEFF);
+    for (var k = 0; k < 3; k++) {
+      final tilt = .28 + k * .2;
+      final spin = phase * (k.isEven ? .7 : -.5) + k;
+      c.save();
+      c.translate(p.dx, p.dy);
+      c.rotate(spin * .15 + k * 1.05);
+      final rect = Rect.fromCenter(center: Offset.zero, width: r * (2.05 + k * .2), height: r * (2.05 + k * .2) * tilt);
+      c.drawOval(rect, Paint()..style = PaintingStyle.stroke..strokeWidth = 1.2..color = (k == 1 ? cyan : gold).withValues(alpha: .45));
+      // a bright "satellite" travelling on the orbit
+      final a = phase * (1.2 + k * .4);
+      final sat = Offset(math.cos(a) * rect.width / 2, math.sin(a) * rect.height / 2);
+      _glow(c, sat, r * .07, k == 1 ? cyan : gold, .9);
+      c.restore();
+    }
+    // radar-like light sweep
+    final sweep = phase * 1.4;
+    c.drawCircle(p, r * 1.05, Paint()
+      ..shader = SweepGradient(
+        startAngle: sweep, endAngle: sweep + 1.1,
+        colors: [gold.withValues(alpha: 0), gold.withValues(alpha: .22), gold.withValues(alpha: 0)],
+        transform: GradientRotation(sweep),
+      ).createShader(Rect.fromCircle(center: p, radius: r * 1.05)));
+    // anamorphic lens flare
+    c.drawRect(Rect.fromCenter(center: p, width: r * 2.6, height: 2.2),
+        Paint()..shader = LinearGradient(colors: [cyan.withValues(alpha: 0), Colors.white.withValues(alpha: .55), cyan.withValues(alpha: 0)])
+            .createShader(Rect.fromCenter(center: p, width: r * 2.6, height: 2.2)));
   }
 
   @override

@@ -613,7 +613,6 @@ class JarvisService extends ChangeNotifier {
       manual: manual,
       onResult: (words, isFinal, candidates) {
         _lastUserSpeech = words;
-        debugPrint('[JarvisService] Heard: "$words" (candidates: $candidates, isFinal: $isFinal, isAwake: $_isAwake)');
 
         // Immediate wake detection on partial speech stream
         if (_shouldListenContinuously && !_isAwake) {
@@ -652,7 +651,6 @@ class JarvisService extends ChangeNotifier {
           _speechSilenceTimer = Timer(const Duration(milliseconds: 950), () {
             final trimmed = _lastUserSpeech.trim();
             if (trimmed.isNotEmpty) {
-              debugPrint('[JarvisService] Silence debounce timer fired for: "$trimmed"');
               unawaited(_handleSpeechResult(trimmed, candidates));
             }
           });
@@ -702,7 +700,6 @@ class JarvisService extends ChangeNotifier {
     _isInFollowUp = false;
 
     _lastUserSpeech = '';
-    debugPrint('[JarvisService] _handleSpeechResult: "$trimmed" (candidates: $candidates, isAwake: $_isAwake)');
 
     // Proactive conversational confirmation check:
     // If Jarvis just asked a proactive question (e.g. "It's night time, sir. Should I turn on the night mode?"),
@@ -716,7 +713,6 @@ class JarvisService extends ChangeNotifier {
       final isAffirmative = isAffirmativeResponse(answer);
       final isNegative = isNegativeResponse(answer);
 
-      debugPrint('[JarvisService] Proactive response: "$answer" (yes: $isAffirmative, no: $isNegative)');
 
       if (isAffirmative) {
         _wakeUp();
@@ -792,7 +788,6 @@ class JarvisService extends ChangeNotifier {
     // 4. In background standby mode, user spoke WITHOUT wake word:
     // (e.g. talking to a friend on the desk):
     // COMPLETELY IGNORE ambient chatter to never interrupt room conversation!
-    debugPrint('[JarvisService] Ambient conversation ignored: "$trimmed"');
     _standDown();
   }
 

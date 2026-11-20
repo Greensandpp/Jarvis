@@ -49,12 +49,12 @@ android {
 
     buildTypes {
         getByName("debug") {
-            applicationIdSuffix = ".visualstaging"
+            applicationIdSuffix = ".recoverydev"
             versionNameSuffix = "-visual-staging"
         }
         release {
             // Isolated visual-only test APK. Separate from Stable JARVIS and debug staging.
-            applicationIdSuffix = ".visualrelease"
+            applicationIdSuffix = ".recoveryqa"
             versionNameSuffix = "-visual-release-qa"
             // TODO: Add your own signing config for the release build.
             // Signing with the debug keys for now, so `flutter run --release` works.
@@ -74,6 +74,7 @@ flutter {
 }
 
 dependencies {
+    testImplementation("junit:junit:4.13.2")
     // Required by flutter_local_notifications for java.time support below API 26+.
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
 }

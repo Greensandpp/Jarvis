@@ -6,8 +6,8 @@
 set -uo pipefail
 OUT="$1"; STD_APK="$2"; FULL_APK="$3"
 mkdir -p "$OUT"
-STD=com.greensoil.jarvis.unified.visualstaging
-FULL=com.greensoil.jarvis.unified.full.visualstaging
+STD=com.greensoil.jarvis.unified.recoverydev
+FULL=com.greensoil.jarvis.unified.full.recoverydev
 UI="python3 $(dirname "$0")/ui.py"
 fails=0; n=0
 log() { echo "$*" | tee -a "$OUT/summary.txt"; }

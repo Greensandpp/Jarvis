@@ -22,6 +22,7 @@ jobs:
       - uses: subosito/flutter-action@v2
         with:
           channel: stable
+          flutter-version: '3.50.1'
           cache: true
       - run: flutter --version
       - run: flutter pub get
@@ -29,13 +30,14 @@ jobs:
         shell: bash
         run: |
           set -o pipefail
-          flutter analyze --no-fatal-infos 2>&1 | tee analyze.txt
+          mkdir -p evidence
+          flutter analyze --no-fatal-infos 2>&1 | tee evidence/analyze.txt
       - name: Full test suite
         shell: bash
         run: |
           set -o pipefail
-          flutter test --reporter expanded 2>&1 | tee flutter-test.txt
-          tail -1 flutter-test.txt
+          flutter test --reporter expanded 2>&1 | tee evidence/flutter-test.txt
+          tail -1 evidence/flutter-test.txt
       - name: Build standard + full (debug, for emulator) and release (size)
         shell: bash
         run: |
@@ -73,7 +75,7 @@ jobs:
           python3 scripts/check_apk_elf_16kb.py out/JARVIS-UNIFIED-standard-release.apk evidence/standard-release-elf-16kb.json
           (cd out && sha256sum *.apk) | tee evidence/SHA256SUMS.txt
           echo "commit=${GITHUB_SHA} run=${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID} signing=CI debug key (test only)" > evidence/PROVENANCE.txt
-          cp analyze.txt flutter-test.txt evidence/
+          test -s evidence/analyze.txt && test -s evidence/flutter-test.txt
       - uses: actions/upload-artifact@v4
         with:
           name: JARVIS-UNIFIED-APKS-TEST-ONLY
@@ -111,6 +113,7 @@ jobs:
       - uses: subosito/flutter-action@v2
         with:
           channel: stable
+          flutter-version: '3.50.1'
           cache: true
       - run: flutter pub get
       - name: Acceptance (Android ${{ matrix.api-level }})
@@ -126,11 +129,12 @@ jobs:
           disable-animations: false
           emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -cores 3
           script: |
+            set +e
             bash scripts/unified_acceptance.sh ev-api${{ matrix.api-level }} apks/JARVIS-UNIFIED-standard-debug.apk apks/JARVIS-UNIFIED-full-debug.apk || echo "device checks reported failures" > ev-api${{ matrix.api-level }}/device-failed
             adb uninstall com.greensoil.jarvis.unified.recoverydev || true
-            SHOT_DIR=ev-api${{ matrix.api-level }} flutter drive --flavor standard --dart-define=EXPECT_FLAVOR=standard --driver test_driver/integration_test.dart --target integration_test/unified_acceptance_test.dart -d emulator-5554 2>&1 | tee ev-api${{ matrix.api-level }}/drive-standard.txt || true
+            SHOT_DIR=ev-api${{ matrix.api-level }} flutter drive --flavor standard --dart-define=EXPECT_FLAVOR=standard --driver test_driver/integration_test.dart --target integration_test/unified_acceptance_test.dart -d emulator-5554 2>&1 | tee ev-api${{ matrix.api-level }}/drive-standard.txt; echo "${PIPESTATUS[0]}" > ev-api${{ matrix.api-level }}/drive-standard.exit
             adb uninstall com.greensoil.jarvis.unified.full.recoverydev || true
-            SHOT_DIR=ev-api${{ matrix.api-level }} flutter drive --flavor full --dart-define=EXPECT_FLAVOR=full --driver test_driver/integration_test.dart --target integration_test/unified_acceptance_test.dart -d emulator-5554 2>&1 | tee ev-api${{ matrix.api-level }}/drive-full.txt || true
+            SHOT_DIR=ev-api${{ matrix.api-level }} flutter drive --flavor full --dart-define=EXPECT_FLAVOR=full --driver test_driver/integration_test.dart --target integration_test/unified_acceptance_test.dart -d emulator-5554 2>&1 | tee ev-api${{ matrix.api-level }}/drive-full.txt; echo "${PIPESTATUS[0]}" > ev-api${{ matrix.api-level }}/drive-full.exit
       - name: Summary + contact sheet (printed for review)
         if: always()
         shell: bash
@@ -150,7 +154,14 @@ jobs:
           fw=$(grep -lE "Some tests failed|EXCEPTION CAUGHT" drive-standard.txt drive-full.txt 2>/dev/null | wc -l)
           for f in drive-standard.txt drive-full.txt; do grep -A12 "EXCEPTION CAUGHT" "$f" | head -14; done
           echo "in-app FAIL count=$fails device-failed=$dev framework-failures=$fw"
-          [ "$fails" = 0 ] && [ "$dev" = 0 ] && [ "$fw" = 0 ] && grep -q "I08 PASS" in-app-summary.txt
+          [ "$fails" = 0 ] && [ "$dev" = 0 ] && [ "$fw" = 0 ] || exit 1
+          for f in standard full; do
+            [ "$(cat drive-$f.exit)" = 0 ] || exit 1
+            grep -q "All tests passed" drive-$f.txt || exit 1
+            for n in I01 I02 I04 I05 I06 I07 I08 I09 I10 I11 I12 I13 I14 I15; do
+              grep -q "ACCEPT $n PASS" drive-$f.txt || exit 1
+            done
+          done
       - uses: actions/upload-artifact@v4
         if: always()
         with:

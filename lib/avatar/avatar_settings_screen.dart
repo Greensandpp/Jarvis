@@ -4,7 +4,6 @@ import '../services/settings_service.dart';
 import '../widgets/jarvis_visual_mode_host.dart';
 import '../widgets/aira/aira_models.dart';
 import 'avatar_settings.dart';
-import 'avatar_engine.dart';
 import 'avatar_view.dart';
 
 class AvatarSettingsScreen extends StatefulWidget {
@@ -119,7 +118,9 @@ class _AvatarSettingsScreenState extends State<AvatarSettingsScreen> {
               ExpansionTile(
                 title: const Text('Approved Serpent reference'),
                 children: [
-                  const Text('Original reference verified separately; final rigged source asset is not bundled.'),
+                  const Text(
+                    'Original reference verified separately; final rigged source asset is not bundled.',
+                  ),
                   const Text(
                     'Visual reference only. This image is not a reusable rig or animated 3D asset.',
                   ),

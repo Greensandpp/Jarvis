@@ -21,8 +21,8 @@ import '../../widgets/chat_bubble.dart';
 import '../../widgets/glass_widgets.dart';
 // ignore: deprecated_member_use
 import '../../widgets/jarvis_visual_mode_host.dart';
-import '../../widgets/status_chip.dart';
 import '../sessions/session_detail_screen.dart';
+import '../sessions/assistant_conversation_screen.dart';
 import '../settings/settings_screen.dart';
 
 /// Main screen: live task transcript, task input with voice, overlay toggle.
@@ -146,7 +146,24 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     } else if (_mode == AppMode.chat) {
       _executor.sendChatMessage(goal);
     } else {
-      JarvisService.instance.processCommand(goal);
+      JarvisService.instance.processCommand(goal).then((_) {
+        if (mounted &&
+            goal.toLowerCase() != 'cancel' &&
+            !RegExp(
+              r'\b(core|aira|apex|mira|office|avatar|mode)\b',
+              caseSensitive: false,
+            ).hasMatch(goal)) {
+          ScaffoldMessenger.of(context).clearSnackBars();
+          showModalBottomSheet<void>(
+            context: context,
+            isScrollControlled: true,
+            builder: (_) => const FractionallySizedBox(
+              heightFactor: .72,
+              child: AssistantConversationScreen(),
+            ),
+          );
+        }
+      });
     }
   }
 
@@ -338,6 +355,18 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         child: ListView(
           padding: EdgeInsets.zero,
           children: [
+            ListTile(
+              leading: const Icon(Icons.chat_bubble_outline),
+              title: const Text('Conversation'),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => const AssistantConversationScreen(),
+                  ),
+                );
+              },
+            ),
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 20, 20, 12),
               child: Column(

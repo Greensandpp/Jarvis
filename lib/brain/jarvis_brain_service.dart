@@ -343,6 +343,22 @@ class JarvisBrainService {
       ),
       // ── Operator ─────────────────────────────────────────────────────
       ToolSpec(
+        name: 'dial_number',
+        description: 'Open the Android dialer with a phone number. The owner presses Call; never auto-call or run USSD.',
+        parameters: {'number': {'type': 'string', 'minLength': 3, 'maxLength': 30}},
+        required: const ['number'],
+        agent: JarvisAgent.operator,
+        risk: ToolRisk.approval,
+        describe: (a) => 'Open the dialer for ${_s(a, 'number')} (you press Call)',
+        run: (a) async {
+          final number = _s(a, 'number').replaceAll(RegExp(r'[\s()\-]'), '');
+          if (!RegExp(r'^\+?[0-9]{3,15}$').hasMatch(number)) return const ToolResult.fail('Invalid phone number. USSD and service codes are blocked.');
+          final opened = await SystemControlService.instance.dial(number);
+          return opened ? const ToolResult(true, 'Dialer opened. Review the number and press Call yourself.')
+              : const ToolResult.fail('Could not open a dialer.');
+        },
+      ),
+      ToolSpec(
         name: 'open_app',
         description: 'Open an installed app by name.',
         parameters: {

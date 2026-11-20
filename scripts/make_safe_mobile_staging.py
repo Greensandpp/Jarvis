@@ -44,8 +44,8 @@ root = Path(args.root)
 gradle = root / "android/app/build.gradle.kts"
 manifest = root / "android/app/src/main/AndroidManifest.xml"
 g = gradle.read_text()
-old = 'applicationIdSuffix = ".visualrelease"'
-assert g.count(old) == 1, "expected isolated release suffix exactly once"
+old = next((s for s in ['applicationIdSuffix = ".visualrelease"', 'applicationIdSuffix = ".recoveryqa"'] if s in g), '')
+assert old and g.count(old) == 1, "expected isolated release suffix exactly once"
 gradle.write_text(g.replace(old, f'applicationIdSuffix = ".{args.variant}"'))
 ANDROID = "http://schemas.android.com/apk/res/android"
 TOOLS = "http://schemas.android.com/tools"

@@ -10,7 +10,7 @@ export function buildRig() {
  const root=new THREE.Bone(); root.name='pelvis'; root.position.y=1.5;
  const bones=[root], named={pelvis:root}, armour=[];
  const skin={position:[],normal:[],skinIndex:[],skinWeight:[]};
- const metal=new THREE.MeshStandardMaterial({color:0x122c36,metalness:.86,roughness:.3});
+ const metal=new THREE.MeshStandardMaterial({color:0x4c8795,emissive:0x0b2832,emissiveIntensity:.7,metalness:.35,roughness:.32});
  const glow=new THREE.MeshStandardMaterial({color:0x49ddff,emissive:0x49ddff,emissiveIntensity:2,metalness:.3,roughness:.22});
  const add=(name,parent,pos)=>{const b=new THREE.Bone();b.name=name;b.position.set(...pos);parent.add(b);bones.push(b);named[name]=b;return b;};
  const chest=add('chest',root,[0,.52,0]);
@@ -82,19 +82,34 @@ export function animateRig(r,t,state='idle',level=0,intro=1,dt=1) {
  r.mesh.updateMatrixWorld(true);
 }
 export function animateSnake(s,t,intro=1) {
- const start=s.bones[0];start.position.set(Math.sin(t*.45)*.6,.65+Math.cos(t*.5)*.25,Math.cos(t*.45)*.5);
- start.rotation.set(.8,0,t*.23);
- for(let i=1;i<s.bones.length;i++){s.bones[i].rotation.z=.2+Math.sin(t*1.7-i*.3)*.16;s.bones[i].rotation.x=Math.sin(t*.9-i*.2)*.18;}
+ // Procedural inverse kinematics: the independently rigged serpent follows
+ // a spatial helix around the humanoid, with a travelling slither wave.
+ const count=s.bones.length,up=new THREE.Vector3(0,1,0);
+ const path=(i)=>{const u=i/(count-1),a=t*.55+u*Math.PI*2;
+  const radius=.82+Math.sin(t*1.1-u*7)*.055;
+  return new THREE.Vector3(Math.cos(a)*radius,.4+u*2.35+Math.sin(t*1.4-u*6)*.08,Math.sin(a)*radius);
+ };
+ s.mesh.scale.setScalar(1);s.mesh.updateMatrixWorld(true);
+ for(let i=0;i<count;i++) {
+  const b=s.bones[i],p=path(i),next=path(i+1);
+  const world=new THREE.Quaternion().setFromUnitVectors(up,next.sub(p).normalize());
+  if(i===0){b.position.copy(p);b.quaternion.copy(world);}
+  else {b.position.copy(b.parent.worldToLocal(p));
+    const parent=b.parent.getWorldQuaternion(new THREE.Quaternion());
+    b.quaternion.copy(parent.invert().multiply(world));
+  }
+  b.updateMatrixWorld(true);
+ }
  s.head.rotation.y=Math.sin(t*1.6)*.5;s.jaw.rotation.x=.15+(Math.sin(t*2)+1)*.23;
- s.mesh.visible=intro>.72 && Math.sin(t*.12)>-.93;s.mesh.scale.setScalar(clamp((intro-.72)/.22,0,1));s.mesh.updateMatrixWorld(true);
+ s.mesh.visible=intro>.72 && Math.sin(t*.12)>-.93;s.mesh.updateMatrixWorld(true);
 }
 export function startScene() {
  const report=(v)=>window.HologramBridge?.postMessage(JSON.stringify(v));
  let renderer;try{renderer=new THREE.WebGLRenderer({antialias:true,alpha:false,powerPreference:'low-power'});}catch(e){report({type:'error',message:'WebGL unavailable'});return;}
  document.body.appendChild(renderer.domElement);renderer.setPixelRatio(Math.min(devicePixelRatio,1.5));renderer.setClearColor(0x01070b);
  const scene=new THREE.Scene(),camera=new THREE.PerspectiveCamera(36,1,.1,60);scene.fog=new THREE.FogExp2(0x01070b,.045);
- const ambient=new THREE.HemisphereLight(0xb8eaff,0x101621,2);scene.add(ambient);
- const key=new THREE.PointLight(0x49ddff,35,12),rim=new THREE.PointLight(0x8056ff,25,12);key.position.set(2,4,3);rim.position.set(-2,3,-2);scene.add(key,rim);
+ const ambient=new THREE.HemisphereLight(0xb8eaff,0x24404c,3.5);scene.add(ambient);
+ const key=new THREE.PointLight(0x49ddff,90,12),rim=new THREE.PointLight(0x8056ff,65,12);key.position.set(2,4,3);rim.position.set(-2,3,-2);scene.add(key,rim);
  const rig=buildRig(),snake=buildSnake();scene.add(rig.mesh,snake.mesh);
  const platform=new THREE.Mesh(new THREE.CylinderGeometry(1.3,1.4,.09,64),rig.metal);platform.position.y=.04;scene.add(platform);
  const ring=new THREE.Mesh(new THREE.TorusGeometry(1.35,.016,8,96),rig.glow);ring.rotation.x=Math.PI/2;ring.position.y=.1;scene.add(ring);

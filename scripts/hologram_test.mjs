@@ -18,6 +18,7 @@ animateSnake(snake,1,.5);assert.equal(snake.mesh.visible,false);
 animateRig(rig,1,'idle',0,.4);const assembly=rig.armour[0].position.clone();
 animateRig(rig,1,'idle',0,1);assert.ok(assembly.distanceTo(rig.armour[0].position)>.2);
 animateSnake(snake,1,1);assert.equal(snake.mesh.visible,true);
+const spine=positions(snake.mesh);assert.ok(Math.max(...spine.map(p=>p[1]))>2.5);assert.ok(Math.min(...spine.map(p=>p[1]))<.6);assert.ok(spine.some(p=>p[2]>.6)&&spine.some(p=>p[2]<-.6),'serpent coils in front and behind the torso');
 for(const mesh of [rig.mesh,snake.mesh]){
  const p=mesh.geometry.attributes.position,w=mesh.geometry.attributes.skinWeight,ix=mesh.geometry.attributes.skinIndex;
  for(let i=0;i<w.count;i++){assert.ok(Math.abs(w.getX(i)+w.getY(i)-1)<.0001);assert.ok(ix.getX(i)<mesh.skeleton.bones.length);}

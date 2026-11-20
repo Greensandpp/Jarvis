@@ -10,7 +10,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:private_agent/core/build_profile.dart';
 import 'package:private_agent/avatar/avatar_settings.dart';
 import 'package:private_agent/avatar/avatar_view.dart';
-import 'package:private_agent/brain/visual_bus.dart';
 import 'package:private_agent/main.dart' as app;
 import 'package:private_agent/screens/brain/memory_tools.dart';
 import 'package:private_agent/services/conversational_memory_service.dart';

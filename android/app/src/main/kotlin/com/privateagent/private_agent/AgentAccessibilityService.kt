@@ -37,6 +37,27 @@ class AgentAccessibilityService : AccessibilityService() {
 
     private val mainHandler by lazy { Handler(Looper.getMainLooper()) }
 
+    private fun sensitiveNode(node: AccessibilityNodeInfo): Boolean =
+        SensitiveScreenPolicy.protectedField(node.isPassword,
+            node.viewIdResourceName.orEmpty(), node.contentDescription?.toString().orEmpty(),
+            node.hintText?.toString().orEmpty(), node.text?.toString().orEmpty())
+
+    private fun sensitiveScreen(root: AccessibilityNodeInfo?): Boolean {
+        val keyguard = getSystemService(android.content.Context.KEYGUARD_SERVICE) as? android.app.KeyguardManager
+        if (keyguard?.isKeyguardLocked == true || root == null) return true
+        if (SensitiveScreenPolicy.protectedPackage(root.packageName?.toString().orEmpty())) return true
+        val pending = java.util.ArrayDeque<AccessibilityNodeInfo>()
+        pending.add(root)
+        var inspected = 0
+        while (!pending.isEmpty()) {
+            val node = pending.removeFirst()
+            if (++inspected > 2000 || sensitiveNode(node)) return true
+            for (i in 0 until node.childCount) node.getChild(i)?.let { pending.add(it) }
+        }
+        return false
+    }
+
+
     override fun onServiceConnected() {
         super.onServiceConnected()
         instance = this
@@ -71,6 +92,11 @@ class AgentAccessibilityService : AccessibilityService() {
         if (!isRecordingMacro || event == null) return
         val pkg = event.packageName?.toString() ?: ""
         if (pkg == packageName) return // Ignore self-interactions inside PrivateAgent
+        if (event.isPassword || SensitiveScreenPolicy.protectedPackage(pkg) || sensitiveScreen(rootInActiveWindow)) {
+            isRecordingMacro = false
+            synchronized(macroEvents) { macroEvents.clear() }
+            return
+        }
 
         when (event.eventType) {
             AccessibilityEvent.TYPE_VIEW_CLICKED -> {
@@ -165,6 +191,7 @@ class AgentAccessibilityService : AccessibilityService() {
      * task that stays inside PrivateAgent).
      */
     fun dumpScreen(): List<Map<String, Any>> {
+        if (sensitiveScreen(rootInActiveWindow)) return emptyList()
         val self = packageName
 
         val active = rootInActiveWindow
@@ -193,6 +220,7 @@ class AgentAccessibilityService : AccessibilityService() {
         val out = mutableListOf<Map<String, Any>>()
         var index = 0
         for (root in roots) {
+            if (sensitiveScreen(root)) continue
             index = traverse(root, index, out)
         }
         return out
@@ -202,7 +230,7 @@ class AgentAccessibilityService : AccessibilityService() {
         startIndex: Int,
         out: MutableList<Map<String, Any>>
     ): Int {
-        if (node == null) return startIndex
+        if (node == null || sensitiveNode(node)) return startIndex
         var index = startIndex
 
         val rect = Rect()
@@ -285,6 +313,7 @@ class AgentAccessibilityService : AccessibilityService() {
      * falls back to a swipe gesture.
      */
     fun scroll(direction: String, result: MethodChannel.Result) {
+        if (sensitiveScreen(rootInActiveWindow)) { result.success(false); return }
         val forward = direction.lowercase() == "down" || direction.lowercase() == "right"
         val vertical =
             direction.lowercase() == "down" || direction.lowercase() == "up"
@@ -323,6 +352,7 @@ class AgentAccessibilityService : AccessibilityService() {
     }
 
     private fun dispatch(gesture: GestureDescription, result: MethodChannel.Result) {
+        if (sensitiveScreen(rootInActiveWindow)) { result.success(false); return }
         val accepted = dispatchGesture(
             gesture,
             object : GestureResultCallback() {
@@ -357,12 +387,13 @@ class AgentAccessibilityService : AccessibilityService() {
      * editable node found on screen. Returns false when no input exists.
      */
     fun typeText(text: String): Boolean {
+        if (sensitiveScreen(rootInActiveWindow)) return false
         val root = rootInActiveWindow ?: return false
         var target = root.findFocus(AccessibilityNodeInfo.FOCUS_INPUT)
         if (target == null || !target.isEditable) {
             target = findFirstEditable(root)
         }
-        if (target == null) return false
+        if (target == null || sensitiveNode(target)) return false
 
         target.performAction(AccessibilityNodeInfo.ACTION_FOCUS)
         val args = Bundle().apply {
@@ -375,7 +406,7 @@ class AgentAccessibilityService : AccessibilityService() {
     }
 
     private fun findFirstEditable(node: AccessibilityNodeInfo?): AccessibilityNodeInfo? {
-        if (node == null) return null
+        if (node == null || sensitiveNode(node)) return null
         if (node.isEditable && node.isVisibleToUser && node.isEnabled) return node
         for (i in 0 until node.childCount) {
             val found = findFirstEditable(node.getChild(i))
@@ -403,6 +434,7 @@ class AgentAccessibilityService : AccessibilityService() {
     }
 
     private fun pressImeEnter(): Boolean {
+        if (sensitiveScreen(rootInActiveWindow)) return false
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) return false
         val root = rootInActiveWindow ?: return false
         val target = root.findFocus(AccessibilityNodeInfo.FOCUS_INPUT) ?: return false
@@ -417,6 +449,10 @@ class AgentAccessibilityService : AccessibilityService() {
 
     /** Captures the screen and delivers a Base64-encoded PNG via [result]. */
     fun takeScreenshotBase64(result: MethodChannel.Result) {
+        if (sensitiveScreen(rootInActiveWindow)) {
+            result.error("PRIVATE_SCREEN", "Screen capture blocked for private or locked content", null)
+            return
+        }
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) {
             result.error(
                 "UNSUPPORTED",

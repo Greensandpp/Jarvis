@@ -50,6 +50,8 @@ jobs:
             cp build/app/outputs/flutter-apk/app-$f-release.apk out/JARVIS-UNIFIED-$f-release.apk
           done
           ls -la out
+      - name: Native privacy policy tests
+        run: cd android && ./gradlew :app:testStandardDebugUnitTest :app:testFullDebugUnitTest
       - name: Identity, permissions, signature, 16 KB, size
         shell: bash
         run: |

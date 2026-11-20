@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:private_agent/brain/brain.dart';
+import 'package:private_agent/brain/jarvis_brain_service.dart';
 
 Map<String, dynamic> call(String args) => {
   'tool_calls': [
@@ -12,6 +13,21 @@ Map<String, dynamic> call(String args) => {
   ],
 };
 void main() {
+  test('qualified approval text never authorizes a sensitive action', () {
+    for (final answer in [
+      "yes but don't send",
+      'okay wait',
+      'yes no',
+      'seri vendam',
+      'yes?',
+    ]) {
+      expect(JarvisBrainService.isYes(answer), isFalse, reason: answer);
+    }
+    for (final answer in ['yes', 'ok go ahead', 'seri', 'சரி']) {
+      expect(JarvisBrainService.isYes(answer), isTrue, reason: answer);
+    }
+  });
+
   test(
     'invalid/missing/extra/enum/out-of-range arguments never reach Android or approval',
     () async {

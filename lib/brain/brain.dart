@@ -297,7 +297,7 @@ class JarvisBrain {
       audit.add(e);
       return BrainResult('Okay, I did not do it.', [e], usedAi: false);
     }
-    final r = await _safeRun(p.tool, p.args);
+    final r = await _safeRun(p.tool, p.args, ownerApproved: true);
     final e = AuditEntry(
       p.tool.name,
       p.tool.agent,
@@ -313,8 +313,14 @@ class JarvisBrain {
     );
   }
 
-  Future<ToolResult> _safeRun(ToolSpec t, Map<String, dynamic> args) async {
-    if (!t.available || t.risk == ToolRisk.blocked)
+  Future<ToolResult> _safeRun(
+    ToolSpec t,
+    Map<String, dynamic> args, {
+    bool ownerApproved = false,
+  }) async {
+    if ((!t.available &&
+            !(ownerApproved && t.unavailableReason == 'internal')) ||
+        t.risk == ToolRisk.blocked)
       return const ToolResult.fail('Tool unavailable or blocked.');
     final error = t.validate(args);
     if (error != null) return ToolResult.fail(error);

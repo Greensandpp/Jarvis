@@ -28,7 +28,8 @@ class MessageDraftingService {
     required String prompt,
     String tone = 'friendly and professional',
   }) async {
-    final aiPrompt = '''
+    final aiPrompt =
+        '''
 You are an expert communication assistant.
 Draft a concise, natural message based on this request:
 "$prompt"
@@ -53,15 +54,17 @@ Write ONLY the exact message text to be sent — no greeting to the user, no exp
     final channel = platform.toLowerCase() == 'sms'
         ? MessageChannel.sms
         : (platform.toLowerCase() == 'email'
-            ? MessageChannel.email
-            : MessageChannel.whatsapp);
+              ? MessageChannel.email
+              : MessageChannel.whatsapp);
     final draft = MessageDraft(
       channel: channel,
       recipient: recipient,
       body: draftText,
       subject: 'Draft for $recipient: $draftText',
     );
-    await dispatchDraft(draft);
+    if (!await dispatchDraft(draft)) {
+      throw StateError('Could not open the message draft. Nothing was sent.');
+    }
     return draft;
   }
 
@@ -102,4 +105,3 @@ Write ONLY the exact message text to be sent — no greeting to the user, no exp
     }
   }
 }
-

@@ -50,7 +50,7 @@ Canvas painter.
 
 ## 4. Verification report
 
-Evidence comes from GitHub Actions run 44757133303 (commit `9b0e…`, workflow `.github/workflows/serpent-guardian.yml`).
+Evidence comes from GitHub Actions run 44757133303 (commit `b82b3ca`, workflow `.github/workflows/serpent-guardian.yml`).
 The test-only prerelease `serpent-guardian-proto-44757133303-1` holds the APKs, screenshots, perf logs and test logs.
 
 | Check | Result | Evidence |

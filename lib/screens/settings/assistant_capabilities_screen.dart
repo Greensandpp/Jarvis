@@ -16,15 +16,23 @@ class _AssistantCapabilitiesScreenState
     with WidgetsBindingObserver {
   String status = 'Checking assistant role…';
   bool overlay = false;
+  final _live = JarvisVisualModeHostState.sharedLive;
+  void _liveChanged() {
+    if (mounted) setState(() {});
+  }
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     refresh();
+    _live.addListener(_liveChanged);
+    _live.load();
   }
 
   @override
   void dispose() {
+    _live.removeListener(_liveChanged);
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }
@@ -49,6 +57,38 @@ class _AssistantCapabilitiesScreenState
             : 'Assistant role not selected or unavailable';
         overlay = active;
       });
+  }
+
+  Future<void> _toggleLive(bool enabled) async {
+    if (!enabled) {
+      await _live.stop();
+      return;
+    }
+    if (!_live.configured) {
+      await showLiveVoiceSettings(context, _live);
+      return;
+    }
+    final approved = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Start Gemini Live microphone?'),
+        content: const Text(
+          'Microphone audio will stream to Google using your cloud broker. '
+          'No recording is saved. Live stops when you leave the app or switch it off.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Start'),
+          ),
+        ],
+      ),
+    );
+    if (approved == true && mounted) await _live.start(consent: true);
   }
 
   @override
@@ -116,6 +156,13 @@ class _AssistantCapabilitiesScreenState
                       );
                   }
                 },
+        ),
+        SwitchListTile(
+          key: const ValueKey('live-voice-setting'),
+          title: const Text('Gemini Live microphone'),
+          value: _live.active,
+          subtitle: Text(_live.message ?? 'Status: ${_live.status.name}'),
+          onChanged: _toggleLive,
         ),
         ListTile(
           title: const Text('Gemini Live settings'),

@@ -7,6 +7,19 @@ import 'package:private_agent/avatar/avatar_settings.dart';
 import 'package:private_agent/avatar/avatar_view.dart';
 
 void main() {
+  test(
+    'listening/thinking/speaking choreography is distinct without fabricating audio',
+    () {
+      final idle = AvatarDynamics(AvatarState.idle, 1);
+      final listening = AvatarDynamics(AvatarState.listening, 1);
+      final thinking = AvatarDynamics(AvatarState.thinking, 1);
+      final speaking = AvatarDynamics(AvatarState.speaking, 1);
+      expect(listening.headTilt, isNot(idle.headTilt));
+      expect(thinking.orbitSpeed, greaterThan(idle.orbitSpeed));
+      expect(speaking.handLift, isNot(idle.handLift));
+    },
+  );
+
   TestWidgetsFlutterBinding.ensureInitialized();
   setUp(() => SharedPreferences.setMockInitialValues({}));
   test(

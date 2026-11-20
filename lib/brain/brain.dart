@@ -464,7 +464,7 @@ class JarvisBrain {
         r"fail|couldn|could not|can't|cannot|unable|not available|error|blocked|முடிய|illa",
         caseSensitive: false,
       ).hasMatch(reply);
-      if (!admits) return '${_failures(acted)}. $reply';
+      if (!admits) return _failures(acted);
     }
     final sources = steps
         .where((s) => s.tool == 'web_search' && s.outcome == 'ok')

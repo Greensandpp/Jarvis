@@ -137,6 +137,7 @@ jobs:
             SHOT_DIR=ev-api${{ matrix.api-level }} flutter drive --flavor standard --dart-define=EXPECT_FLAVOR=standard --driver test_driver/integration_test.dart --target integration_test/unified_acceptance_test.dart -d emulator-5554 2>&1 | tee ev-api${{ matrix.api-level }}/drive-standard.txt; echo "${PIPESTATUS[0]}" > ev-api${{ matrix.api-level }}/drive-standard.exit
             adb uninstall com.greensoil.jarvis.unified.full.recoverydev || true
             SHOT_DIR=ev-api${{ matrix.api-level }} flutter drive --flavor full --dart-define=EXPECT_FLAVOR=full --driver test_driver/integration_test.dart --target integration_test/unified_acceptance_test.dart -d emulator-5554 2>&1 | tee ev-api${{ matrix.api-level }}/drive-full.txt; echo "${PIPESTATUS[0]}" > ev-api${{ matrix.api-level }}/drive-full.exit
+            bash scripts/recovery_runtime_probe.sh ev-api${{ matrix.api-level }}
       - name: Summary + contact sheet (printed for review)
         if: always()
         shell: bash

@@ -136,3 +136,30 @@ class SerpentSpline {
         .5;
   }
 }
+
+/// State choreography is independent of speech timing. Speaking changes glow
+/// and posture; it never invents jaw motion when no audio/visemes are supplied.
+class AvatarDynamics {
+  AvatarDynamics(AvatarState state, double time) {
+    energy = switch (state) {
+      AvatarState.listening => 1.25,
+      AvatarState.thinking => 1.7,
+      AvatarState.speaking => 1.4,
+      AvatarState.closing => .5,
+      _ => 1,
+    };
+    headTilt =
+        (state == AvatarState.listening ? -.045 : 0) +
+        math.sin(time * .55) * .025;
+    handLift = state == AvatarState.thinking
+        ? -.12
+        : state == AvatarState.speaking
+        ? math.sin(time * 2) * .05
+        : 0;
+    eyeOpen =
+        (time % 4.5 > 4.38 ? .12 : 1) *
+        (state == AvatarState.thinking ? .65 : 1);
+    orbitSpeed = state == AvatarState.thinking ? 1.8 : 1;
+  }
+  late final double energy, headTilt, handLift, eyeOpen, orbitSpeed;
+}

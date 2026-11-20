@@ -249,13 +249,16 @@ class JarvisVisualModeHostState extends State<JarvisVisualModeHost> {
           key: ValueKey(m),
           model: m,
           style: _avatars.current,
-          state: switch (_phase()) {
-            JarvisPhase.listening => AvatarState.listening,
-            JarvisPhase.thinking ||
-            JarvisPhase.executing => AvatarState.thinking,
-            JarvisPhase.speaking => AvatarState.speaking,
-            _ => AvatarState.idle,
-          },
+          audioLevel: () => _live.modelSpeaking ? _live.level : null,
+          state: _live.modelSpeaking
+              ? AvatarState.speaking
+              : switch (_phase()) {
+                  JarvisPhase.listening => AvatarState.listening,
+                  JarvisPhase.thinking ||
+                  JarvisPhase.executing => AvatarState.thinking,
+                  JarvisPhase.speaking => AvatarState.speaking,
+                  _ => AvatarState.idle,
+                },
         );
       return widget.coreBuilder?.call(context) ??
           const JarvisHudWidget(minimalist: true);
@@ -284,7 +287,7 @@ class JarvisVisualModeHostState extends State<JarvisVisualModeHost> {
   Widget build(BuildContext context) {
     if (widget.minimalist) {
       return ListenableBuilder(
-        listenable: Listenable.merge([_avatars, _phaseSource, _aira]),
+        listenable: Listenable.merge([_avatars, _phaseSource, _aira, _live]),
         builder: (context, _) => ColoredBox(
           color: Colors.black,
           child: Column(

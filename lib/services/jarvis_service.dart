@@ -808,6 +808,7 @@ class JarvisService extends ChangeNotifier {
 
   /// Aborts any running task immediately.
   Future<void> abortTask() async {
+    _commandGeneration++;
     JarvisBrainService.instance.cancel();
     _standDown();
     if (_executor.isBusy) {
@@ -3030,6 +3031,7 @@ Mastering the boundless road.
   /// Runs the tool-calling brain and speaks the verified answer in the
   /// detected reply language. Errors propagate to the processCommand guard.
   Future<void> _runBrain(String text) async {
+    final generation = _commandGeneration;
     _phase = JarvisPhase.thinking;
     _statusMessage = 'BRAIN // PLANNING';
     notifyListeners();
@@ -3038,12 +3040,14 @@ Mastering the boundless road.
     try {
       r = await brain.handle(text);
     } on BrainCancelled {
+      if (generation != _commandGeneration) return;
       _lastJarvisSpeech = 'Cancelled.';
       _phase = JarvisPhase.idle;
       _statusMessage = 'CANCELLED';
       notifyListeners();
       return;
     }
+    if (generation != _commandGeneration) return;
     lastBrainSteps = r.steps;
     lastHandledByBrain = true;
     _dialogHistory.add({'role': 'user', 'content': text});
@@ -3063,6 +3067,7 @@ Mastering the boundless road.
         languageTag: lang == ReplyLanguage.tamil ? 'ta-IN' : 'en-IN',
         neuralVoice: neuralVoiceFor(lang, female: s.preferFemaleVoice, englishDefault: s.jarvisNeuralVoice),
         female: s.preferFemaleVoice);
+    if (generation != _commandGeneration) return;
     await _startFollowUpListening();
   }
 

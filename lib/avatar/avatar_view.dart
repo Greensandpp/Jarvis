@@ -170,6 +170,7 @@ class AvatarMeshPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     if (size.isEmpty) return;
     final s = style, t = timeline.time;
+    final dynamics = AvatarDynamics(timeline.state, t);
     canvas.drawRect(Offset.zero & size, Paint()..color = s.background);
     if (timeline.closed) return;
     final formation = timeline.state == AvatarState.intro
@@ -262,7 +263,7 @@ class AvatarMeshPainter extends CustomPainter {
       }
     }
 
-    final breath = math.sin(t * 1.8) * .018;
+    final breath = math.sin(t * 1.8 * dynamics.energy) * .018;
     final hover = math.sin(t * .8) * .035;
     final armor = Color.lerp(const Color(0xFF122732), s.primary, .18)!;
     final trim = Color.lerp(const Color(0xFF8C947B), s.secondary, .3)!;
@@ -270,7 +271,7 @@ class AvatarMeshPainter extends CustomPainter {
     sphere(V3(0, -.44 + hover, 0), V3(.36 + breath, .48, .21), armor);
     sphere(V3(0, .05 + hover, 0), const V3(.23, .25, .15), trim);
     sphere(V3(0, .25 + hover, 0), const V3(.28, .19, .18), armor);
-    final headTurn = math.sin(t * .55) * .05;
+    final headTurn = dynamics.headTilt;
     sphere(V3(headTurn, -1.10 + hover, .01), const V3(.20, .26, .18), armor);
     final ff = face();
     sphere(
@@ -285,7 +286,7 @@ class AvatarMeshPainter extends CustomPainter {
         -.20 + hover,
         .06 + math.sin(t + side) * .03,
       );
-      final hand = V3(side * .84, -.08 + hover, .20);
+      final hand = V3(side * .84, -.08 + hover + dynamics.handLift, .20);
       sphere(shoulder, const V3(.19, .19, .20), trim);
       limb(shoulder, elbow, .105, armor);
       sphere(elbow, const V3(.115, .115, .12), trim);
@@ -306,7 +307,7 @@ class AvatarMeshPainter extends CustomPainter {
       sphere(foot, const V3(.09, .08, .17), trim);
       sphere(
         V3(side * .073 + headTurn, -1.13 + hover, .172),
-        const V3(.057, .018, .018),
+        V3(.057, .018 * dynamics.eyeOpen, .018),
         s.secondary,
         emissive: true,
       );
@@ -326,7 +327,8 @@ class AvatarMeshPainter extends CustomPainter {
           : 1.0);
       for (var i = 0; i < count; i++) {
         if (i / count > length) continue;
-        final a = spline.at(i / count), b = spline.at((i + 1) / count);
+        final a = spline.at(i / count) + V3(0, hover, 0),
+            b = spline.at((i + 1) / count) + V3(0, hover, 0);
         limb(
           a,
           b,
@@ -342,7 +344,7 @@ class AvatarMeshPainter extends CustomPainter {
             sections: 6,
           );
       }
-      final h = spline.at(1);
+      final h = spline.at(1) + V3(0, hover, 0);
       if (length > .9) {
         sphere(
           h + const V3(-.05, .13, -.04),
@@ -391,6 +393,16 @@ class AvatarMeshPainter extends CustomPainter {
           sections: 4,
         );
     }
+    for (var i = 0; i < 3; i++) {
+      final a = t * .3 * s.outerMotion * dynamics.orbitSpeed + i * tau / 3;
+      sphere(
+        V3(math.cos(a) * .95, -.5 + math.sin(a * 1.3) * .6, math.sin(a) * .6),
+        const V3(.045, .09, .045),
+        s.secondary,
+        emissive: true,
+        sections: 4,
+      );
+    }
     faces.sort((a, b) => a.depth.compareTo(b.depth));
     final light = const V3(-.4, -.5, 1).unit;
     for (final f in faces) {
@@ -424,7 +436,12 @@ class AvatarMeshPainter extends CustomPainter {
             ..strokeWidth = .5,
         );
     }
-    glow(V3(0, -.49 + hover, .25), .30, s.primary, .8 * formation);
+    glow(
+      V3(0, -.49 + hover, .25),
+      .30,
+      s.primary,
+      .8 * formation * dynamics.energy,
+    );
     // Holographic rings and multicolor energy ribbons in real 3D space.
     for (var ring = 0; ring < 3; ring++) {
       final path = Path();

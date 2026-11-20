@@ -254,6 +254,31 @@ class _MemoryPageState extends State<_MemoryPage> {
                   setState(() {});
                 }),
           ]),
+          FutureBuilder<List<MemoryFact>>(
+            future: m.suggestions(),
+            builder: (context, snap) {
+              final sug = snap.data ?? const <MemoryFact>[];
+              if (sug.isEmpty) return const SizedBox.shrink();
+              return Column(key: const ValueKey('mem-suggestions'), crossAxisAlignment: CrossAxisAlignment.start, children: [
+                const Text('Suggested memories (not saved until you approve)', style: TextStyle(fontWeight: FontWeight.w700)),
+                for (final f in sug)
+                  ListTile(
+                    title: Text(f.fact),
+                    trailing: Row(mainAxisSize: MainAxisSize.min, children: [
+                      IconButton(tooltip: 'Approve', icon: const Icon(Icons.check), onPressed: () async {
+                        await m.approveSuggestion(f.id);
+                        setState(() {});
+                      }),
+                      IconButton(tooltip: 'Dismiss', icon: const Icon(Icons.close), onPressed: () async {
+                        await m.dismissSuggestion(f.id);
+                        setState(() {});
+                      }),
+                    ]),
+                  ),
+                const Divider(),
+              ]);
+            },
+          ),
           for (final f in m.facts)
             ListTile(
               key: ValueKey('mem-${f.id}'),

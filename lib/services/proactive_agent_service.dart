@@ -431,6 +431,7 @@ Explain clearly and concisely in natural spoken English (2 to 3 sentences) what 
   /// Continuous learning: learns user preferences from actions taken.
   Future<void> recordObservedPreference(String preferenceKey, String value) async {
     final fact = 'User preference: $preferenceKey is "$value"';
-    await ConversationalMemoryService.instance.addFact(fact, category: 'preference');
+    // Observed preferences are suggestions until the owner approves them.
+    await ConversationalMemoryService.instance.suggest(fact, category: 'preference');
   }
 }

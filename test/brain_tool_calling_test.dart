@@ -222,4 +222,26 @@ void main() {
       expect(JarvisBrainService.isNo(n), isTrue, reason: n);
     }
   });
+
+  test('JarvisBrainService: implicit fact → spoken approval → saved only after "yes"; "vendam" dismisses', () async {
+    final svc = JarvisBrainService.instance;
+    final mem = ConversationalMemoryService.instance;
+    await mem.wipeAll();
+    await SettingsService.instance.setReplyLanguage('auto');
+    final r = await svc.handle('my favorite index is SENSEX');
+    expect(r.reply, contains('Privacy Lock')); // honest: cloud AI not enabled in tests
+    expect(r.reply, contains('Offline I can still'));
+    expect(r.reply, contains('Shall I remember "my favorite index is SENSEX"'));
+    expect(mem.facts, isEmpty);
+    final y = await svc.handle('yes');
+    expect(y.reply, contains('Remembered'));
+    expect(mem.facts.single.fact, 'my favorite index is SENSEX');
+    await svc.handle('i live in Chennai');
+    expect(svc.hasPending, isTrue);
+    await svc.handle('vendam');
+    expect(mem.facts.length, 1);
+    expect(await mem.suggestions(), isEmpty);
+    final audit = await JarvisBrainService.loadAudit();
+    expect(audit.map((e) => e['outcome']), containsAll(['approved · ok', 'declined']));
+  });
 }

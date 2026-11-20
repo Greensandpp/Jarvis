@@ -50,7 +50,13 @@ class JarvisBrainService {
     // 1. Pending approval: "yes" runs it, "no" drops it, anything else drops it too.
     if (brain.pending != null) {
       if (isYes(text)) return _finish(text, await brain.resolvePending(approved: true));
-      if (isNo(text)) return _finish(text, await brain.resolvePending(approved: false));
+      if (isNo(text)) {
+        final p = brain.pending!;
+        if (p.tool.name == 'memory_suggestion_approve') {
+          await ConversationalMemoryService.instance.dismissSuggestion('${p.args['id']}');
+        }
+        return _finish(text, await brain.resolvePending(approved: false));
+      }
       brain.pending = null;
     }
 
@@ -85,8 +91,18 @@ class JarvisBrainService {
 
   Future<BrainResult> _finish(String text, BrainResult r) async {
     await _persistAudit();
-    // recordTurn also performs the original explicit "remember that…" capture.
-    await ConversationalMemoryService.instance.recordTurn(text, r.reply);
+    final mem = ConversationalMemoryService.instance;
+    mem.lastNewSuggestion = null;
+    // recordTurn performs the original "remember that…" capture (explicit =
+    // approved) and turns implicit statements into suggestions.
+    await mem.recordTurn(text, r.reply);
+    final sug = mem.lastNewSuggestion;
+    if (sug != null && brain.pending == null && r.pending == null) {
+      final t = brain.tool('memory_suggestion_approve')!;
+      brain.pending = PendingApproval(t, {'id': sug.id}, 'Shall I remember "${sug.fact}"?', text);
+      return BrainResult('${r.reply} Shall I remember "${sug.fact}"? Say yes or no.'.trim(), r.steps,
+          pending: brain.pending, usedAi: r.usedAi);
+    }
     return r;
   }
 
@@ -385,6 +401,20 @@ class JarvisBrainService {
         run: (a) async {
           final f = await ConversationalMemoryService.instance.addFact(_s(a, 'fact'), category: _s(a, 'category').isEmpty ? 'personal' : _s(a, 'category'));
           return ToolResult(true, 'Remembered: ${f.fact}', verified: true);
+        },
+      ),
+      ToolSpec(
+        name: 'memory_suggestion_approve',
+        description: 'Internal: approve a suggested memory (only after the owner says yes).',
+        parameters: {'id': _p('string', 'Suggestion id')},
+        required: const ['id'],
+        agent: JarvisAgent.archivist,
+        risk: ToolRisk.approval,
+        available: false, // never offered to the model; used only by the approval flow
+        unavailableReason: 'internal',
+        run: (a) async {
+          final f = await ConversationalMemoryService.instance.approveSuggestion(_s(a, 'id'));
+          return f == null ? const ToolResult.fail('Suggestion no longer exists.') : ToolResult(true, 'Remembered: ${f.fact}', verified: true);
         },
       ),
       ToolSpec(

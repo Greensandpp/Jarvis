@@ -42,4 +42,21 @@ void main() {
     expect(restored.history, hasLength(1));
     expect((await m.undoCorrection(restored.id))!.fact, contains('50000'));
   });
+
+  test('implicit statements become suggestions; nothing is saved until approved', () async {
+    final m = ConversationalMemoryService.instance;
+    await m.wipeAll();
+    await m.recordTurn('my favorite index is NIFTY', 'ok');
+    expect(m.facts, isEmpty);
+    final s = await m.suggestions();
+    expect(s.single.fact, 'my favorite index is NIFTY');
+    await m.recordTurn('my favorite index is NIFTY', 'ok');
+    expect((await m.suggestions()).length, 1, reason: 'no duplicate suggestions');
+    await m.approveSuggestion(s.single.id);
+    expect(m.facts.single.fact, 'my favorite index is NIFTY');
+    expect(await m.suggestions(), isEmpty);
+    await m.recordTurn('i live in Coimbatore', 'ok');
+    await m.dismissSuggestion((await m.suggestions()).single.id);
+    expect(m.facts.length, 1);
+  });
 }

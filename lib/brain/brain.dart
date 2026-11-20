@@ -145,7 +145,7 @@ class JarvisBrain {
     String persona = 'You are JARVIS, the owner\'s private assistant on their Android phone.',
     List<ToolSpec> tools = const [],
   }) {
-    final unavailable = tools.where((t) => !t.available).map((t) => '${t.name}: ${t.unavailableReason}').toList();
+    final unavailable = tools.where((t) => !t.available && t.unavailableReason != 'internal').map((t) => '${t.name}: ${t.unavailableReason}').toList();
     return [
       persona,
       'Current time: $now (IST).',

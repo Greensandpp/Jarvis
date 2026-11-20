@@ -146,10 +146,13 @@ class ConversationalMemoryService extends ChangeNotifier {
     final lower = text.toLowerCase().trim();
     String? fact;
     String category = 'personal';
+    var explicit = false;
 
     if (lower.startsWith('remember that ') || lower.startsWith('remember ')) {
+      explicit = true;
       fact = text.replaceFirst(RegExp(r'remember\s+(that\s+)?', caseSensitive: false), '').trim();
     } else if (lower.startsWith('note that ') || lower.startsWith('keep in mind that ')) {
+      explicit = true;
       fact = text.replaceFirst(RegExp(r'(note|keep in mind)\s+that\s+', caseSensitive: false), '').trim();
     } else if (lower.contains('my favorite ') && lower.contains(' is ')) {
       fact = text.trim();
@@ -160,7 +163,13 @@ class ConversationalMemoryService extends ChangeNotifier {
     }
 
     if (fact != null && fact.isNotEmpty && fact.length >= 3) {
-      await addFact(fact, category: category);
+      if (explicit) {
+        // The owner explicitly asked ("remember that…") = approved.
+        await addFact(fact, category: category);
+      } else {
+        // Implicit statements are only suggested; the owner approves them.
+        await suggest(fact, category: category);
+      }
     }
   }
 
@@ -264,6 +273,60 @@ class ConversationalMemoryService extends ChangeNotifier {
       _refreshLearnedContext();
     }
     return added;
+  }
+
+  // ── Suggested memories (need the owner's approval) ─────────────────
+  static const _suggestKey = 'jarvis_memory_suggestions_v1';
+  final List<MemoryFact> _suggestions = [];
+  bool _suggestionsLoaded = false;
+  /// Set when a new suggestion was created during the last turn.
+  MemoryFact? lastNewSuggestion;
+
+  Future<List<MemoryFact>> suggestions() async {
+    if (!_suggestionsLoaded) {
+      _suggestionsLoaded = true;
+      final p = await SharedPreferences.getInstance();
+      try {
+        for (final e in jsonDecode(p.getString(_suggestKey) ?? '[]') as List) {
+          _suggestions.add(MemoryFact.fromJson(Map<String, dynamic>.from(e as Map)));
+        }
+      } catch (_) {}
+    }
+    return List.unmodifiable(_suggestions);
+  }
+
+  Future<void> _saveSuggestions() async {
+    final p = await SharedPreferences.getInstance();
+    await p.setString(_suggestKey, jsonEncode(_suggestions.map((f) => f.toJson()).toList()));
+    notifyListeners();
+  }
+
+  Future<MemoryFact?> suggest(String fact, {String category = 'personal'}) async {
+    await init();
+    await suggestions();
+    final clean = fact.trim();
+    final lc = clean.toLowerCase();
+    if (_facts.any((f) => f.fact.toLowerCase() == lc) || _suggestions.any((f) => f.fact.toLowerCase() == lc)) return null;
+    final f = MemoryFact(id: 's${DateTime.now().microsecondsSinceEpoch}', fact: clean, category: category, createdAt: DateTime.now());
+    _suggestions.insert(0, f);
+    lastNewSuggestion = f;
+    await _saveSuggestions();
+    return f;
+  }
+
+  Future<MemoryFact?> approveSuggestion(String id) async {
+    await suggestions();
+    final i = _suggestions.indexWhere((f) => f.id == id);
+    if (i < 0) return null;
+    final f = _suggestions.removeAt(i);
+    await _saveSuggestions();
+    return addFact(f.fact, category: f.category);
+  }
+
+  Future<void> dismissSuggestion(String id) async {
+    await suggestions();
+    _suggestions.removeWhere((f) => f.id == id);
+    await _saveSuggestions();
   }
 
   /// Removes an individual fact from memory.

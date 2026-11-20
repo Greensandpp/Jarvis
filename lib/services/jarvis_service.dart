@@ -130,7 +130,7 @@ class JarvisService extends ChangeNotifier {
   final List<Map<String, String>> _dialogHistory = [];
 
   bool get isAlwaysOn => SettingsService.instance.jarvisAlwaysOn;
-  bool get _shouldListenContinuously => isAlwaysOn || _isInJarvisMode;
+  bool get _shouldListenContinuously => isAlwaysOn;
   ProactiveSuggestion? get pendingProactiveSuggestion => _pendingProactiveSuggestion;
   bool get isAwaitingProactiveConfirmation => _pendingProactiveSuggestion != null;
 
@@ -180,7 +180,6 @@ class JarvisService extends ChangeNotifier {
     NotesKnowledgeService.instance.init();
     MacroRecorderService.instance.init();
     unawaited(ProactiveAgentService.instance.evaluateProactiveNeeds());
-    ProactiveAgentService.instance.startProactiveMonitor();
 
     _voice.soundLevel.addListener(() {
       _soundLevel = _voice.soundLevel.value;
@@ -213,12 +212,13 @@ class JarvisService extends ChangeNotifier {
           _phase = _executor.isBusy ? JarvisPhase.executing : JarvisPhase.idle;
           notifyListeners();
         }
-        // Continuous listening trigger: when speech output finishes, resume passive wake-word listening
-        if (_shouldListenContinuously) {
+        // A manual ARC interrupt owns the next listening transition.
+        // Do not race it with this automatic TTS completion callback.
+        if (_shouldListenContinuously && !_arcTapTransitioning && !_voice.output.externalSession) {
           if (_isAwake) {
             _keepAwake();
           }
-          startListening();
+          unawaited(startListening());
         }
       }
     });
@@ -427,8 +427,9 @@ class JarvisService extends ChangeNotifier {
   /// Called when user navigates into JARVIS mode.
   void onEnterJarvisMode() {
     _isInJarvisMode = true;
+    ProactiveAgentService.instance.startProactiveMonitor();
     _standDown();
-    startListening();
+    if (isAlwaysOn) startListening();
     // Arm mid-air proximity sensor for zero-touch gestures while in JARVIS mode
     unawaited(AirGestureService.instance.start());
     _statusMessage = 'STANDBY // SAY "HEY JARVIS"';
@@ -441,6 +442,7 @@ class JarvisService extends ChangeNotifier {
     unawaited(AirGestureService.instance.stop());
     // Always-On mode listens continuously across the app like Google Assistant
     if (!isAlwaysOn) {
+      ProactiveAgentService.instance.stopProactiveMonitor();
       _standDown();
       if (_phase == JarvisPhase.listening) {
         stopListening();
@@ -574,22 +576,49 @@ class JarvisService extends ChangeNotifier {
     return false;
   }
 
-  /// Toggles speech recognition manually via the UI.
+  /// One ARC tap starts capture; the next tap finishes that capture.
+  /// Never immediately restart the recognizer from the stop-tap path: doing
+  /// so can consume the same utterance twice or re-trigger a second reply.
+  bool _arcTapTransitioning = false;
   Future<void> toggleListening() async {
-    if (_phase == JarvisPhase.listening) {
-      await stopListening();
-      if (_shouldListenContinuously) {
-        _standDown();
-        await startListening();
+    if (_arcTapTransitioning) return;
+    _arcTapTransitioning = true;
+    try {
+      if (_phase == JarvisPhase.speaking || _voice.isSpeaking.value) {
+        // Explicit tap-to-interrupt. Hands-free acoustic barge-in is separate.
+        await _voice.stopSpeaking();
+        _speechSilenceTimer?.cancel();
+        _lastUserSpeech = '';
+        _wakeUp();
+        await startListening(manual: true);
+        return;
       }
-    } else {
+      if (_phase == JarvisPhase.listening) {
+        _speechSilenceTimer?.cancel();
+        final captured = _lastUserSpeech.trim();
+        await stopListening();
+        if (captured.isNotEmpty) {
+          await _handleSpeechResult(captured);
+        } else {
+          _standDown();
+        }
+        return;
+      }
+      if (_phase == JarvisPhase.thinking || _phase == JarvisPhase.executing) {
+        // Never enqueue an additional command while one is in flight.
+        return;
+      }
+      _lastUserSpeech = '';
       _wakeUp();
       await startListening(manual: true);
+    } finally {
+      _arcTapTransitioning = false;
     }
   }
 
   /// Begins recording voice input.
   Future<bool> startListening({bool manual = false}) async {
+    if (_voice.output.externalSession) return false;
     await _voice.stopSpeaking();
 
     if (manual) {

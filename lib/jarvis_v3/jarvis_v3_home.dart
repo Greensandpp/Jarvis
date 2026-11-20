@@ -1,13 +1,9 @@
 import 'package:flutter/material.dart';
 
-import '../services/agent_office/agent_office.dart';
 import '../services/jarvis_service.dart';
 import '../services/settings_service.dart';
 import '../services/task_executor.dart';
 import '../services/voice_service.dart';
-import '../widgets/agent_office_view.dart';
-import '../widgets/aira/aira_view.dart';
-import '../widgets/jarvis_local_visuals.dart';
 import '../widgets/jarvis_visual_mode_host.dart';
 import 'assistant_activity.dart';
 import 'chat_auto_hide.dart';
@@ -16,8 +12,9 @@ import 'conversation_store.dart';
 import 'neon_conversation.dart';
 import 'neon_dock.dart';
 import 'neon_theme.dart';
-import 'reference_avatar_stage.dart';
 import 'visual_mode_store.dart';
+import 'holographic_stage.dart';
+import 'hologram_theme_store.dart';
 
 /// Everything the main screen reads from, or sends to, the real services.
 /// Tests pass doubles; production uses [JarvisV3Bindings.live].
@@ -145,10 +142,7 @@ class JarvisV3HomeState extends State<JarvisV3Home> with WidgetsBindingObserver 
   final _input = TextEditingController();
   final _focus = FocusNode();
   final _scroll = ScrollController();
-  final _stageKeys = {
-    JarvisVisualMode.core: GlobalKey<ReferenceAvatarStageState>(),
-    JarvisVisualMode.serpent: GlobalKey<ReferenceAvatarStageState>(),
-  };
+  final _stageKey = GlobalKey<HolographicStageState>();
   late bool _introRunning;
 
   @override
@@ -235,7 +229,7 @@ class JarvisV3HomeState extends State<JarvisV3Home> with WidgetsBindingObserver 
   }
 
   void skipIntro() {
-    for (final k in _stageKeys.values) {
+    for (final k in [_stageKey]) {
       k.currentState?.skipIntro();
     }
     if (mounted) setState(() => _introRunning = false);
@@ -261,41 +255,17 @@ class JarvisV3HomeState extends State<JarvisV3Home> with WidgetsBindingObserver 
   bool get _reduceMotion =>
       _settings.reduceMotion || (MediaQuery.maybeDisableAnimationsOf(context) ?? false);
 
-  Widget _visual(JarvisVisualMode mode) {
-    final reduce = _reduceMotion;
-    switch (mode) {
-      case JarvisVisualMode.core:
-      case JarvisVisualMode.serpent:
-        return ReferenceAvatarStage(
-          key: _stageKeys[mode],
-          reference:
-              mode == JarvisVisualMode.serpent ? AvatarReference.serpent : AvatarReference.jarvis,
-          activity: activity,
-          soundLevel: widget.bindings.soundLevel,
-          playIntro: _introRunning && !reduce,
-          reduceMotion: reduce,
-          onIntroFinished: () {
-            if (mounted && _introRunning) setState(() => _introRunning = false);
-          },
-        );
-      case JarvisVisualMode.aira:
-        return AiraModeView(
-            liveState: _aira, soundLevel: widget.bindings.soundLevel, developerControls: false);
-      case JarvisVisualMode.office:
-        return AgentOfficeView(
-          controller: AgentOfficeController.instance,
-          localTask: () {
-            final e = TaskExecutor.instance;
-            return (goal: e.currentGoal ?? '', state: e.state.name, step: e.step);
-          },
-          localTaskListenable: TaskExecutor.instance,
-        );
-      case JarvisVisualMode.apex:
-        return const JarvisLocalVisual(apex: true);
-      case JarvisVisualMode.mira:
-        return const JarvisLocalVisual(apex: false);
-    }
-  }
+  Widget _visual(JarvisVisualMode mode) => ValueListenableBuilder<String>(
+    valueListenable: HologramThemeStore.instance,
+    builder: (context, theme, _) => HolographicStage(
+      key: _stageKey, activity: activity, theme: theme,
+      soundLevel: widget.bindings.soundLevel, onTap: () { widget.bindings.toggleMic(); },
+      playIntro: _introRunning && !_reduceMotion, reduceMotion: _reduceMotion,
+      onIntroFinished: () {
+        if (mounted && _introRunning) setState(() => _introRunning = false);
+      },
+    ),
+  );
 
   @override
   Widget build(BuildContext context) {
@@ -309,7 +279,7 @@ class JarvisV3HomeState extends State<JarvisV3Home> with WidgetsBindingObserver 
           Positioned.fill(
             child: AnimatedSwitcher(
               duration: _reduceMotion ? Duration.zero : const Duration(milliseconds: 450),
-              child: KeyedSubtree(key: ValueKey('v3-visual-${mode.name}'), child: _visual(mode)),
+              child: KeyedSubtree(key: const ValueKey('v3-real-3d'), child: _visual(mode)),
             ),
           ),
           // Soft vignette so the header and dock read cleanly over the scene.
@@ -386,7 +356,7 @@ class JarvisV3HomeState extends State<JarvisV3Home> with WidgetsBindingObserver 
               ),
             ),
           ])),
-          if (_introRunning && (mode == JarvisVisualMode.core || mode == JarvisVisualMode.serpent))
+          if (_introRunning)
             Positioned(
               right: 8,
               top: 60 + MediaQuery.paddingOf(context).top,

@@ -7,6 +7,7 @@ import 'package:permission_handler/permission_handler.dart';
 
 import '../avatar/avatar_runtime.dart' show publishAvatarSpeech;
 import 'edge_tts_service.dart';
+import 'speech_output_controller.dart';
 import 'gemini_dictation.dart';
 import 'voice_selection.dart';
 import 'settings_service.dart';
@@ -26,7 +27,13 @@ class VoiceService {
   bool _speechReady = false;
   bool _ttsReady = false;
   bool _listening = false;
-  Completer<void>? _speakCompleter;
+  late final SpeechOutputController output = SpeechOutputController(
+    stopDrivers: () async {
+      await EdgeTtsService.instance.stop();
+      try { await _tts.stop(); } catch (_) {}
+    },
+    onSpeaking: (speaking) => isSpeaking.value = speaking,
+  );
 
   final ValueNotifier<bool> isSpeaking = ValueNotifier<bool>(false);
   final ValueNotifier<double> soundLevel = ValueNotifier<double>(0.0);
@@ -147,7 +154,7 @@ class VoiceService {
       return status.isGranted;
     } catch (_) {
       // Gracefully allow mock/headless testing environments where permission channel is unmocked
-      return true;
+      return false;
     }
   }
 
@@ -229,28 +236,6 @@ class VoiceService {
       }
 
       await _tts.awaitSpeakCompletion(true);
-
-      _tts.setStartHandler(() {
-        isSpeaking.value = true;
-      });
-      _tts.setCompletionHandler(() {
-        isSpeaking.value = false;
-        if (_speakCompleter != null && !_speakCompleter!.isCompleted) {
-          _speakCompleter!.complete();
-        }
-      });
-      _tts.setErrorHandler((_) {
-        isSpeaking.value = false;
-        if (_speakCompleter != null && !_speakCompleter!.isCompleted) {
-          _speakCompleter!.complete();
-        }
-      });
-      _tts.setCancelHandler(() {
-        isSpeaking.value = false;
-        if (_speakCompleter != null && !_speakCompleter!.isCompleted) {
-          _speakCompleter!.complete();
-        }
-      });
 
       _ttsReady = true;
     } catch (_) {
@@ -352,89 +337,42 @@ class VoiceService {
         .trim();
   }
 
-  Future<void> speak(String text) async {
+  Future<void> speak(String text) => speakIn(text,
+      languageTag: SettingsService.instance.jarvisNeuralVoice.startsWith('ta-') ? 'ta-IN' : 'en-IN',
+      neuralVoice: SettingsService.instance.jarvisNeuralVoice,
+      female: SettingsService.instance.preferFemaleVoice);
+
+  Future<void> speakIn(String text, {required String languageTag,
+      required String neuralVoice, required bool female}) async {
     final clean = sanitizeForSpeech(text);
     if (clean.isEmpty) return;
-    publishAvatarSpeech(clean);
-
-    // Temporarily pause microphone while speaking to eliminate echo and feedback
-    final wasListening = _listening;
-    if (wasListening) {
-      await stopListening();
-    }
-
-    await stopSpeaking();
-    isSpeaking.value = true;
-
-    try {
-      // 1. Try Ultra-Realistic Studio Neural Voice if enabled
-      if (SettingsService.instance.useNeuralVoice && SettingsService.instance.allowCloudTts) {
-        try {
-          final played = await EdgeTtsService.instance.speak(clean);
-          if (played) {
-            return;
-          }
-        } catch (e) {
-          debugPrint('[VoiceService] Neural voice error, falling back to local TTS: $e');
+    await output.speak((ticket) async {
+      if (_listening) await stopListening();
+      if (ticket.cancelled) return;
+      publishAvatarSpeech(clean, languageTag: languageTag);
+      final settings = SettingsService.instance;
+      if (neuralVoice.isNotEmpty && settings.useNeuralVoice && settings.allowCloudTts) {
+        final played = await EdgeTtsService.instance.speak(clean, voice: neuralVoice);
+        if (ticket.cancelled) return;
+        if (played) {
+          lastVoiceUsed = 'neural $neuralVoice';
+          return;
         }
       }
-
-      // 2. Fall back to local FlutterTts (offline safe)
       await initTts();
-      if (!_ttsReady) {
+      if (ticket.cancelled || !_ttsReady) return;
+      final supported = await _tts.isLanguageAvailable(languageTag);
+      if (ticket.cancelled) return;
+      if (supported != true) {
+        lastVoiceUsed = '$languageTag unavailable — text only';
         return;
       }
-      try {
-        _speakCompleter = Completer<void>();
-        await _tts.speak(clean);
-        // Wait for audio synthesis and speaker playback to finish completely
-        await _speakCompleter?.future;
-      } catch (_) {
-      } finally {
-        _speakCompleter = null;
-      }
-    } finally {
-      isSpeaking.value = false;
-    }
-  }
-
-  /// Speaks in the reply language chosen by the brain. Neural (Edge) voice
-  /// when cloud TTS is allowed, otherwise the phone's local TTS in that
-  /// language, preferring a voice whose name marks it female.
-  Future<void> speakIn(String text, {required String languageTag, required String neuralVoice, required bool female}) async {
-    final clean = sanitizeForSpeech(text);
-    if (clean.isEmpty) return;
-    publishAvatarSpeech(clean, languageTag: languageTag);
-    final wasListening = _listening;
-    if (wasListening) await stopListening();
-    await stopSpeaking();
-    isSpeaking.value = true;
-    try {
-      if (neuralVoice.isNotEmpty && SettingsService.instance.useNeuralVoice && SettingsService.instance.allowCloudTts) {
-        try {
-          if (await EdgeTtsService.instance.speak(clean, voice: neuralVoice)) {
-            lastVoiceUsed = 'neural $neuralVoice';
-            return;
-          }
-        } catch (_) {}
-      }
-      await initTts();
-      if (!_ttsReady) return;
-      try {
-        await _tts.setLanguage(languageTag);
-        final used = await _applyLocalVoice(languageTag, female: female);
-        lastVoiceUsed = 'local $languageTag · $used';
-        _speakCompleter = Completer<void>();
-        await _tts.speak(clean);
-        await _speakCompleter?.future;
-      } catch (_) {
-      } finally {
-        _speakCompleter = null;
-        _ttsReady = false; // restore the owner's normal voice profile next time
-      }
-    } finally {
-      isSpeaking.value = false;
-    }
+      await _tts.setLanguage(languageTag);
+      final used = await _applyLocalVoice(languageTag, female: female);
+      if (ticket.cancelled) return;
+      lastVoiceUsed = 'local $languageTag · $used';
+      await _tts.speak(clean);
+    });
   }
 
   String lastVoiceUsed = 'none yet';
@@ -542,14 +480,5 @@ class VoiceService {
     return out;
   }
 
-  Future<void> stopSpeaking() async {
-    try {
-      await EdgeTtsService.instance.stop();
-      await _tts.stop();
-      isSpeaking.value = false;
-      if (_speakCompleter != null && !_speakCompleter!.isCompleted) {
-        _speakCompleter!.complete();
-      }
-    } catch (_) {}
-  }
+  Future<void> stopSpeaking() => output.stop();
 }

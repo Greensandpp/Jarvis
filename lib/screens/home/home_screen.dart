@@ -29,7 +29,8 @@ import '../settings/settings_screen.dart';
 
 /// Main screen: live task transcript, task input with voice, overlay toggle.
 class HomeScreen extends StatefulWidget {
-  const HomeScreen({super.key});
+  const HomeScreen({super.key, this.agentMode});
+  final AppMode? agentMode;
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -45,7 +46,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   bool _serviceEnabled = false;
   bool _overlayActive = false;
   bool _listening = false;
-  AppMode _mode = AppMode.agent;
+  AppMode _mode = AppMode.jarvis;
 
   /// True while either an agent task or a chat reply is in flight.
   bool get _busy => _executor.isBusy || _executor.isChatBusy;
@@ -55,22 +56,22 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _executor.addListener(_onExecutorUpdate);
-    _mode = SettingsService.instance.appMode;
+    // Owner-selected startup: always show the JARVIS ARC, never Phone Agent.
+    // Other modes remain accessible through the mode picker.
+    _mode = widget.agentMode ?? AppMode.jarvis;
 
     // Connect Google Assistant style wake-word trigger to auto-switch into JARVIS HUD
     JarvisService.instance.onWakeWordTriggered = () {
       if (mounted && _mode != AppMode.jarvis) {
         setState(() => _mode = AppMode.jarvis);
         SettingsService.instance.setAppMode(AppMode.jarvis);
-        JarvisService.instance.speakGreeting(force: true);
+        // Wake transitions are silent; a single voice reply follows the command.
       }
     };
 
     if (_mode == AppMode.jarvis) {
+      // Startup is silent: no unsolicited executive briefing, no dual TTS.
       JarvisService.instance.onEnterJarvisMode();
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        JarvisService.instance.speakGreeting();
-      });
     }
     if (SettingsService.instance.jarvisAlwaysOn) {
       JarvisService.instance.ensureAlwaysOnRunning();
@@ -105,6 +106,12 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) _refreshStates();
+    if (state == AppLifecycleState.paused || state == AppLifecycleState.hidden) {
+      if (!SettingsService.instance.jarvisAlwaysOn) {
+        _voice.stopListening();
+        _voice.stopSpeaking();
+      }
+    }
   }
 
   Future<void> _refreshStates() async {
@@ -153,6 +160,12 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   }
 
   Future<void> _toggleListening() async {
+    // JARVIS HUD and its composer must share one speech owner. The generic
+    // dictation callback below would overwrite JarvisService.onSpeechResult.
+    if (_mode == AppMode.jarvis) {
+      await JarvisService.instance.toggleListening();
+      return;
+    }
     if (_listening) {
       await _voice.stopListening();
       setState(() => _listening = false);
@@ -958,7 +971,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     setState(() => _mode = mode);
     SettingsService.instance.setAppMode(mode);
     if (mode == AppMode.jarvis) {
-      JarvisService.instance.speakGreeting(force: true);
+      // Enter ARC silently; greet only after an explicit user interaction.
+      JarvisService.instance.onEnterJarvisMode();
     } else if (previousMode == AppMode.jarvis) {
       JarvisService.instance.onExitJarvisMode();
     }

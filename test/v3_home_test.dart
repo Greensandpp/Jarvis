@@ -5,7 +5,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:private_agent/brain/visual_bus.dart';
 import 'package:private_agent/jarvis_v3/chat_interface_settings.dart';
 import 'package:private_agent/jarvis_v3/jarvis_v3_home.dart';
-import 'package:private_agent/jarvis_v3/reference_avatar_stage.dart';
+import 'package:private_agent/jarvis_v3/holographic_stage.dart';
+import 'package:private_agent/jarvis_v3/hologram_theme_store.dart';
 import 'package:private_agent/jarvis_v3/visual_mode_store.dart';
 import 'package:private_agent/theme/app_theme.dart';
 import 'package:private_agent/widgets/jarvis_visual_mode_host.dart';
@@ -49,8 +50,8 @@ void main() {
     expect(find.byKey(const ValueKey('v3-menu')), findsOneWidget);
     expect(find.byKey(const ValueKey('v3-settings')), findsOneWidget);
     expect(find.byKey(const ValueKey('v3-status')), findsOneWidget);
-    expect(find.byKey(const ValueKey('avatar-jarvis-gold')), findsOneWidget,
-        reason: 'the original approved metallic humanoid render');
+    expect(find.byType(HolographicStage), findsOneWidget,
+        reason: 'real WebGL stage replaces the image renderer');
     expect(find.byKey(const ValueKey('v3-dock')), findsOneWidget);
     // Text field, mic and send all inside the single dock.
     for (final k in ['v3-dock-input', 'v3-dock-mic', 'v3-dock-send']) {
@@ -180,43 +181,31 @@ void main() {
     expect(fake.micToggles, 1);
   });
 
-  testWidgets('every assistant mode still renders from the selector', (tester) async {
-    await pumpHome(tester);
-    for (final m in JarvisVisualMode.values) {
-      if (m == JarvisVisualMode.office) continue; // network-backed view, covered by agent_office_test
-      VisualModeStore.instance.value = m;
-      await tester.pump(const Duration(milliseconds: 600));
-      expect(find.byKey(ValueKey('v3-visual-${m.name}')), findsOneWidget, reason: m.name);
-      expect(tester.takeException(), isNull, reason: m.name);
+  testWidgets('six 3D themes retain the scene and do not restart the microphone', (tester) async {
+    final fake=await pumpHome(tester);
+    final original=tester.state(find.byType(HolographicStage));
+    for(final theme in HologramThemeStore.themes) {
+      HologramThemeStore.instance.value=theme;
+      await tester.pump();
+      expect(tester.widget<HolographicStage>(find.byType(HolographicStage)).theme,theme);
+      expect(tester.state(find.byType(HolographicStage)),same(original));
+      expect(fake.micToggles,0);
     }
-    VisualModeStore.instance.value = JarvisVisualMode.serpent;
-    await tester.pump(const Duration(milliseconds: 600));
-    expect(find.byKey(const ValueKey('avatar-serpent-guardian')), findsOneWidget,
-        reason: 'Serpent uses the owner-supplied reference render');
-    VisualModeStore.instance.value = JarvisVisualMode.core;
-    await tester.pump(const Duration(milliseconds: 600));
   });
 
-  testWidgets('introduction runs its stages, can be skipped, and ends in IDLE', (tester) async {
-    await pumpHome(tester, intro: true);
-    expect(find.byKey(const ValueKey('v3-skip-intro')), findsOneWidget);
-    final stage = tester.state<ReferenceAvatarStageState>(find.byType(ReferenceAvatarStage));
-    final seen = <IntroStage>{};
-    for (var i = 0; i < 40; i++) {
-      seen.add(stage.introStage);
-      await tester.pump(const Duration(milliseconds: 90));
-    }
-    expect(seen, containsAll(IntroStage.values));
-    await tester.pump(const Duration(milliseconds: 100));
-    expect(find.byKey(const ValueKey('v3-skip-intro')), findsNothing,
-        reason: 'the intro hands over to IDLE by itself');
-    // Replay and skip.
-    await pumpHome(tester, intro: true);
+  testWidgets('intro remains active until renderer completion and skip disables it', (tester) async {
+    await pumpHome(tester,intro:true);
+    expect(find.byKey(const ValueKey('v3-skip-intro')),findsOneWidget);
+    await tester.pump(const Duration(seconds:8));
+    expect(find.byKey(const ValueKey('v3-skip-intro')),findsOneWidget,
+      reason:'Flutter must not claim the WebGL intro completed on a timer');
+    tester.widget<HolographicStage>(find.byType(HolographicStage)).onIntroFinished();
+    await tester.pump();
+    expect(find.byKey(const ValueKey('v3-skip-intro')),findsNothing);
+    await pumpHome(tester,intro:true);
     await tester.tap(find.byKey(const ValueKey('v3-skip-intro')));
     await tester.pump();
-    expect(find.byKey(const ValueKey('v3-skip-intro')), findsNothing);
-    expect(tester.state<ReferenceAvatarStageState>(find.byType(ReferenceAvatarStage)).introStage,
-        IntroStage.done);
+    expect(tester.widget<HolographicStage>(find.byType(HolographicStage)).playIntro,isFalse);
   });
 
   testWidgets('reduced motion: no intro and no running animation', (tester) async {
@@ -237,12 +226,12 @@ void main() {
     await pumpHome(tester);
     await tester.runAsync(() => requestVisual(mode: 'apex'));
     await tester.pump(const Duration(milliseconds: 600));
-    expect(find.byKey(const ValueKey('v3-visual-apex')), findsOneWidget);
+    expect(find.byKey(const ValueKey('v3-real-3d')), findsOneWidget);
     final p = await SharedPreferences.getInstance();
     expect(p.getString('jarvis_visual_mode_v1'), 'apex');
     await tester.runAsync(() => requestVisual(mode: 'core'));
     await tester.pump(const Duration(milliseconds: 600));
-    expect(find.byKey(const ValueKey('v3-visual-core')), findsOneWidget);
+    expect(find.byKey(const ValueKey('v3-real-3d')), findsOneWidget);
   });
 
   testWidgets('dock text field stays transparent under the real app theme (light and dark)', (tester) async {

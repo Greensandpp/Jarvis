@@ -11,6 +11,7 @@ import '../services/gemini_live/live_voice_controller.dart';
 import '../services/jarvis_service.dart';
 import '../services/live_voice_session.dart';
 import '../services/settings_service.dart';
+import '../services/voice_service.dart';
 import '../services/task_executor.dart';
 import 'agent_office_view.dart';
 import 'aira/aira_models.dart';
@@ -142,7 +143,12 @@ class JarvisVisualModeHostState extends State<JarvisVisualModeHost> {
   /// The one Gemini Live controller shared by every surface (dock, drawer).
   static LiveVoiceController sharedLive() => _sharedLive ??= LiveVoiceController(
         requestMicPermission: () async => (await Permission.microphone.request()).isGranted,
-        pauseOtherMic: () => JarvisService.instance.stopListening(),
+        pauseOtherMic: () async {
+          VoiceService.instance.output.externalSession = true;
+          await JarvisService.instance.stopListening();
+          await VoiceService.instance.stopSpeaking();
+        },
+        externalAudioOwnership: (active) => VoiceService.instance.output.externalSession = active,
       );
 
   @override

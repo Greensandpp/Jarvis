@@ -95,6 +95,7 @@ class EdgeTtsService {
   static const int _cs64Adjustment0 = 0xF2F90B1A;
   static const int _cs64Adjustment1 = 0x0B1A0000;
 
+  int _playbackGeneration = 0;
   bool _isSpeaking = false;
   bool get isSpeaking => _isSpeaking;
 
@@ -619,9 +620,11 @@ class EdgeTtsService {
   ///
   /// Waits until playback completely finishes so speech is never cut off.
   Future<bool> speak(String text, {String? voice}) async {
+    final generation = ++_playbackGeneration;
     try {
       _isSpeaking = true;
       final file = await synthesize(text, voice: voice);
+      if (generation != _playbackGeneration) return false;
       if (file == null || !file.existsSync()) {
         _isSpeaking = false;
         return false;
@@ -642,6 +645,7 @@ class EdgeTtsService {
 
   /// Immediately terminates any currently playing audio.
   Future<void> stop() async {
+    ++_playbackGeneration;
     try {
       _isSpeaking = false;
       await _channel.invokeMethod('stopAudio');

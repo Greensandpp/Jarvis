@@ -10,6 +10,7 @@ import 'chat_interface_settings.dart';
 import 'neon_theme.dart';
 import 'reference_avatar_stage.dart';
 import 'visual_mode_store.dart';
+import 'hologram_theme_store.dart';
 
 /// Compact assistant-mode selector (from the menu or a long-press on the
 /// title). All six modes stay available.
@@ -80,6 +81,17 @@ class _AppearanceSettingsScreenState extends State<AppearanceSettingsScreen> {
       body: ListenableBuilder(
         listenable: s,
         builder: (context, _) => ListView(children: [
+          _section('3D hologram theme'),
+          ValueListenableBuilder<String>(
+            valueListenable: HologramThemeStore.instance,
+            builder: (context, current, _) => Wrap(children: [
+              for (final theme in HologramThemeStore.themes)
+                Padding(padding: const EdgeInsets.all(4), child: ChoiceChip(
+                  label: Text(theme.toUpperCase()), selected: current == theme,
+                  onSelected: (_) => HologramThemeStore.instance.select(theme),
+                )),
+            ]),
+          ),
           _section('Chat interface'),
           SwitchListTile(
             key: const ValueKey('set-autohide'),
@@ -138,7 +150,7 @@ class _AppearanceSettingsScreenState extends State<AppearanceSettingsScreen> {
           SwitchListTile(
             key: const ValueKey('set-reduce-motion'),
             title: const Text('Reduce motion'),
-            subtitle: const Text('Still image, no intro, no particles. The system setting is also respected.'),
+            subtitle: const Text('Still 3D pose, no intro. The system setting is also respected.'),
             value: s.reduceMotion,
             onChanged: (v) => s.update(reduceMotion: v),
           ),

@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 
 import 'screens/home/home_screen.dart';
-import 'screens/onboarding/onboarding_screen.dart';
 import 'services/charging_telemetry_service.dart';
 import 'services/settings_service.dart';
 import 'theme/app_theme.dart';
@@ -65,14 +64,12 @@ class _PrivateAgentAppState extends State<PrivateAgentApp> {
   Widget build(BuildContext context) {
     return MaterialApp(
       navigatorKey: PrivateAgentApp.navigatorKey,
-      title: 'PrivateAgent',
+      title: 'GreenSoil JARVIS',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light(),
       darkTheme: AppTheme.dark(),
       themeMode: _settings.themeMode,
-      home: _settings.onboardingComplete
-          ? const HomeScreen()
-          : OnboardingScreen(onFinished: () => setState(() {})),
+      home: const HomeScreen(),
     );
   }
 }

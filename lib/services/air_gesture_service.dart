@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
-import 'edge_tts_service.dart';
+import 'voice_service.dart';
 import 'system_control_service.dart';
 
 /// 🖐️ Iron Man Zero-Touch Air Gestures Service
@@ -68,7 +68,7 @@ class AirGestureService extends ChangeNotifier {
           : 'Proximity sensor unavailable. Simulated gestures ready.';
       notifyListeners();
       if (_voiceFeedback) {
-        unawaited(EdgeTtsService.instance.speak(
+        unawaited(VoiceService.instance.speak(
           'Zero-touch air gestures engaged, sir. Sensors monitoring overhead space.',
         ));
       }
@@ -90,7 +90,7 @@ class AirGestureService extends ChangeNotifier {
     _statusMessage = 'Air Gestures offline';
     notifyListeners();
     if (_voiceFeedback) {
-      unawaited(EdgeTtsService.instance.speak(
+      unawaited(VoiceService.instance.speak(
         'Air gesture sensors disengaged, sir.',
       ));
     }

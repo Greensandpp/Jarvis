@@ -14,6 +14,7 @@ import '../brain/trading_ai_screen.dart';
 import '../brain/control_center_screen.dart';
 import 'jarvis_settings_screen.dart';
 import 'permissions_screen.dart';
+import '../home/home_screen.dart';
 import '../../core/build_profile.dart';
 
 /// Next-Generation Liquid Glass Settings Screen.
@@ -265,6 +266,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
             child: ListView(
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 40),
               children: [
+                ListTile(
+                  leading: const Icon(Icons.smart_toy_outlined), title: const Text('Agents'),
+                  subtitle: const Text('Private Agent / Phone Agent'),
+                  onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (context) => Scaffold(
+                    appBar: AppBar(title: const Text('Agents')),
+                    body: ListView(children: [
+                      for (final label in ['Private Agent', 'Phone Agent'])
+                        ListTile(title: Text(label), onTap: () => Navigator.of(context).push(
+                          MaterialPageRoute(builder: (_) => const HomeScreen(agentMode: AppMode.agent)),
+                        )),
+                    ]),
+                  ))),
+                ),
                 _sectionHeader(
                   icon: Icons.psychology_rounded,
                   title: 'AI Intelligence Engine',

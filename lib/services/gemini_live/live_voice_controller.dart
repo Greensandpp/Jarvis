@@ -62,9 +62,11 @@ class LiveVoiceController extends ChangeNotifier with WidgetsBindingObserver {
     Future<bool> Function()? requestMicPermission,
     Future<void> Function()? pauseOtherMic,
     bool observeLifecycle = true,
+    void Function(bool)? externalAudioOwnership,
   })  : _factory = transportFactory ?? _defaultFactory,
         _requestMic = requestMicPermission ?? (() async => false),
-        _pauseOtherMic = pauseOtherMic ?? (() async {}) {
+        _pauseOtherMic = pauseOtherMic ?? (() async {}),
+        _externalAudioOwnership = externalAudioOwnership ?? ((_) {}) {
     if (observeLifecycle) WidgetsBinding.instance.addObserver(this);
   }
 
@@ -74,6 +76,7 @@ class LiveVoiceController extends ChangeNotifier with WidgetsBindingObserver {
         model: s.model,
       );
 
+  final void Function(bool) _externalAudioOwnership;
   final TransportFactory _factory;
   final Future<bool> Function() _requestMic;
   final Future<void> Function() _pauseOtherMic;
@@ -121,6 +124,7 @@ class LiveVoiceController extends ChangeNotifier with WidgetsBindingObserver {
     }
     await _pauseOtherMic();
     await _teardown();
+    _externalAudioOwnership(true);
     final t = _factory(settings);
     _transport = t;
     final session = LiveVoiceSession(t);
@@ -143,7 +147,10 @@ class LiveVoiceController extends ChangeNotifier with WidgetsBindingObserver {
       ..add(t.drops.listen(_onDrop));
     message = null;
     final ok = await session.start(consent: true, voice: settings.voice, locale: settings.locale);
-    if (!ok) message = session.error ?? 'Voice connection unavailable';
+    if (!ok) {
+      message = session.error ?? 'Voice connection unavailable';
+      _externalAudioOwnership(false);
+    }
     notifyListeners();
     return ok;
   }
@@ -163,6 +170,7 @@ class LiveVoiceController extends ChangeNotifier with WidgetsBindingObserver {
       _ => 'Live connection closed; tap to start again',
     });
     message = s.error;
+    _externalAudioOwnership(false);
     notifyListeners();
   }
 
@@ -198,6 +206,7 @@ class LiveVoiceController extends ChangeNotifier with WidgetsBindingObserver {
       old.dispose();
     }
     _transport = null;
+    _externalAudioOwnership(false);
   }
 
   @override

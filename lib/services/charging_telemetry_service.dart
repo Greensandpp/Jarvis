@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
-import 'edge_tts_service.dart';
+import 'voice_service.dart';
 
 /// ⚡ Arc Reactor Charging Telemetry Service
 ///
@@ -71,13 +71,13 @@ class ChargingTelemetryService extends ChangeNotifier {
       if (_voiceAnnouncements) {
         final wattStr = _wattage > 0 ? '${_wattage.toStringAsFixed(1)} Watts' : 'nominal levels';
         final tempStr = _temperatureC > 0 ? ', core temperature at ${_temperatureC.toStringAsFixed(1)}° Celsius' : '';
-        unawaited(EdgeTtsService.instance.speak(
+        unawaited(VoiceService.instance.speak(
           'Arc reactor coupled, sir. Energy intake active at $wattStr. Power cells at $_batteryLevel percent$tempStr.',
         ));
       }
     } else {
       if (_voiceAnnouncements) {
-        unawaited(EdgeTtsService.instance.speak(
+        unawaited(VoiceService.instance.speak(
           'Arc reactor decoupled, sir. System running on internal reserves at $_batteryLevel percent power.',
         ));
       }

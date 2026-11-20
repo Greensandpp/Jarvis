@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:private_agent/app.dart';
+import 'package:private_agent/jarvis_v3/holographic_stage.dart';
 import 'package:private_agent/models/skill.dart';
 import 'package:private_agent/models/task_step.dart';
 import 'package:private_agent/screens/settings/settings_screen.dart';
@@ -135,15 +136,17 @@ void main() {
     });
   });
 
-  testWidgets('app boots into onboarding on first run', (tester) async {
+  testWidgets('first run boots directly into hologram without onboarding', (tester) async {
     SharedPreferences.setMockInitialValues({});
     await SettingsService.instance.init();
 
     await tester.pumpWidget(const PrivateAgentApp());
     await tester.pumpAndSettle();
 
-    expect(find.text('Meet J.A.R.V.I.S.'), findsOneWidget);
-    expect(find.text('Continue'), findsOneWidget);
+    expect(find.byType(HolographicStage), findsOneWidget);
+    expect(find.text('Meet J.A.R.V.I.S.'), findsNothing);
+    expect(find.byKey(const ValueKey('v3-dock')), findsOneWidget);
+    await tester.pumpWidget(const SizedBox());
   });
 
   testWidgets('custom Ollama model survives unrelated settings changes', (
@@ -169,6 +172,8 @@ void main() {
 
     // Change an unrelated setting — this used to reset the Model field
     // back to the provider default.
+    await tester.ensureVisible(find.text('Send system prompt'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Send system prompt'));
     await tester.pumpAndSettle();
 
@@ -178,6 +183,8 @@ void main() {
     expect(modelField.controller!.text, 'qwen2.5:7b');
 
     // Saving persists the custom model, not the default.
+    await tester.ensureVisible(find.text('Save changes'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Save changes'));
     await tester.pumpAndSettle();
     expect(settings.model, 'qwen2.5:7b');
@@ -233,8 +240,8 @@ void main() {
       await settings.setSpeechInputLocale('ta-IN');
       expect(settings.speechInputLocale, 'ta-IN');
       await settings.setSpeechInputLocale('en-IN');
-      expect(settings.jarvisVoice, 'paul');
-      expect(settings.jarvisNeuralVoice, 'en-GB-RyanNeural');
+      expect(settings.jarvisVoice, 'friday');
+      expect(settings.jarvisNeuralVoice, 'en-IN-NeerjaNeural');
       expect(settings.useNeuralVoice, isTrue);
       expect(settings.jarvisWorkflowsEnabled, isTrue);
 

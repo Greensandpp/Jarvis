@@ -5,6 +5,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_overlay_window/flutter_overlay_window.dart';
 
 import 'app.dart';
+import 'jarvis_v3/hologram_theme_store.dart';
+import 'jarvis_v3/chat_interface_settings.dart';
 import 'overlay/overlay_app.dart';
 import 'services/ai_service.dart';
 import 'services/calendar_reminder_service.dart';
@@ -26,6 +28,8 @@ Future<void> main() async {
 
   final settings = SettingsService.instance;
   await settings.init();
+  await HologramThemeStore.instance.load();
+  await ChatInterfaceSettings.instance.load();
 
   final executor = TaskExecutor.instance;
   await executor.init();

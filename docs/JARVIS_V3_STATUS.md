@@ -66,3 +66,13 @@ For these reasons the Full Control APK is **not** attached to the test release.
 `00-reference-vs-v3.jpg` sets the original references beside the new screens. Emulator screenshots
 are in the CI artifacts. **Visual sign-off on the phone is still the owner's.** A widget test does not
 prove visual fidelity.
+
+## Final CI result (run 44808224751, commit e52a8a0)
+
+- Build: analyzer exit 0; 239 tests passed; Full Control permission gate passed on the merged debug and release APKs.
+- Android 15 (API 35) and Android 16 (API 36) emulators: device checks U01, U02, U02b, U03, U03S, U04 and U13 pass. U14, U15 and U16 are UNVERIFIED and need the phone. In-app acceptance: 21 PASS, 0 FAIL on each.
+- Test release (Standard only): https://github.com/Greensandpp/Jarvis/releases/tag/jarvis-v3-dev-44808224751-1
+  - `JARVIS-V3-DEV-standard-release.apk`: 73,390,767 bytes, SHA-256 `f4703587003983f36347918b2b4f480d8c3b40aeb28b2f12dde5d77c44b59859`, package `com.greensoil.jarvis.unified.visualrelease`, CI debug key.
+- Full Control release APK (built, not published): SHA-256 `cea08f7fd3e67012809dfcf1493f70997f2374beaddafec2d2e950635b1debc9`.
+- Earlier test release `jarvis-v3-dev-44794212201-3` has the white box in the dock; use the release above instead.
+- Emulator frame rate with the software GPU: about 2 to 3 fps on the Serpent render (adaptive quality lowered the particles from 70 to 42). This is not representative of the iQOO 13 GPU, but it means phone performance must be measured before it can be called PASS.

@@ -193,6 +193,8 @@ void main() {
         }
       }
 
+      // Dismiss the user-requested conversation view before navigation.
+      await home(t);
       // I04 Settings: build label + honest AI status
       await t.tap(find.byTooltip('Settings').first);
       await pumpFor(t, const Duration(seconds: 3));
@@ -229,7 +231,6 @@ void main() {
       } else {
         report('I05', 'FAIL', 'AI status not found');
       }
-      if (expectFlavor != 'standard') return;
 
       // I06 diagnostics against the real network (no key → must stop at key step, never ONLINE)
       final diagBtn = find.byKey(const ValueKey('open-ai-diagnostics'));

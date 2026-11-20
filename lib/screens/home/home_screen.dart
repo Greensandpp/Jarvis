@@ -146,24 +146,25 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     } else if (_mode == AppMode.chat) {
       _executor.sendChatMessage(goal);
     } else {
-      JarvisService.instance.processCommand(goal).then((_) {
-        if (mounted &&
-            goal.toLowerCase() != 'cancel' &&
-            !RegExp(
-              r'\b(core|aira|apex|mira|office|avatar|mode)\b',
-              caseSensitive: false,
-            ).hasMatch(goal)) {
-          ScaffoldMessenger.of(context).clearSnackBars();
-          showModalBottomSheet<void>(
-            context: context,
-            isScrollControlled: true,
-            builder: (_) => const FractionallySizedBox(
-              heightFactor: .72,
-              child: AssistantConversationScreen(),
-            ),
-          );
-        }
-      });
+      // Open the response view synchronously with the user's action. A delayed
+      // completion must never push a modal over another page they navigated to.
+      JarvisService.instance.processCommand(goal);
+      if (mounted &&
+          goal.toLowerCase() != 'cancel' &&
+          !RegExp(
+            r'\b(core|aira|apex|mira|office|avatar|mode)\b',
+            caseSensitive: false,
+          ).hasMatch(goal)) {
+        ScaffoldMessenger.of(context).clearSnackBars();
+        showModalBottomSheet<void>(
+          context: context,
+          isScrollControlled: true,
+          builder: (_) => const FractionallySizedBox(
+            heightFactor: .72,
+            child: AssistantConversationScreen(),
+          ),
+        );
+      }
     }
   }
 

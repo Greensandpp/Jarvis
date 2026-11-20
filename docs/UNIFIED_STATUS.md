@@ -41,9 +41,8 @@ Legend: **PASS-DEVICE** = passed inside the real APK on Android 15 and 16 emulat
 
 Final run: GitHub Actions run 44680102603 (commit 7171112), workflow `.github/workflows/jarvis-unified.yml`.
 Android 16 (API 36): all U-checks and I01–I13 PASS for both builds, no framework exceptions.
-Android 15 (API 35): device checks PASS; the in-app step was blocked by an external Gradle plugin-portal
-outage (kotlin-gradle-plugin 2.2.21 metadata) and was re-run — see the run page. I01–I12 passed on Android 15
-in earlier runs of the same tests (44672821319, 44676545913).
+Android 15 (API 35): all U-checks and I01–I13 PASS for both builds after re-running the job once (the first attempt
+was blocked by an external Gradle plugin-portal outage, not by the app).
 
 ### Build outputs (run 44680102603, CI debug key — test builds only)
 

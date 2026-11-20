@@ -36,9 +36,9 @@ Remote V3 head `44e5e98a00031032758445132ee60018736b630d` plus the voice tap / c
 | Voice-controller regressions | PASS | `test/speech_output_controller_test.dart`, actual VoiceService platform-channel routing / late completion regression in `voice_output_integration_test.dart` |
 | Startup / composer / theme / intro callback | PASS | `test/widget_test.dart`, `test/v3_home_test.dart`, `test/hologram_theme_test.dart` |
 | Independent skeletal motion | PASS | `node scripts/hologram_test.mjs`; humanoid and serpent move independently, valid skin weights, real vertex deformation |
-| Rendered WebGL browser evidence | UNVERIFIED locally | Local Chromium cannot create its Unix socket in this workspace; CI test provided |
-| Android builds / install / manifest | UNVERIFIED until CI | Both variants and merged-permission/signature checks provided |
-| Android 16 WebView runtime | UNVERIFIED until CI | Fresh startup, actual renderer readiness, bone motion, intro completion and persisted themes test provided |
+| Rendered WebGL browser evidence | PASS in CI | Actual six-theme/intro/orbit renders; zero browser JS errors |
+| Android builds / install / manifest | PASS in CI | Both development variants built; signatures and merged permission audit passed; recovery hashes verified |
+| Android 16 WebView runtime | PASS for both variants | Silent launch, actual renderer readiness, changing bone positions, intro completion and six persisted themes |
 | iQOO 13 Android 16/17 | UNVERIFIED | No attached owner device or Android 17 emulator |
 
 ## Security and remaining blockers
@@ -55,7 +55,7 @@ Tap interruption is implemented. Acoustic barge-in during ordinary local TTS is 
 
 | Defect / feature | Candidate status |
 |---|---|
-| Wrong startup / Private Agent on launch | PASS in widget tests; Android test pending |
+| Wrong startup / Private Agent on launch | PASS in widget tests and Android 16 on both variants |
 | Simultaneous male/female speech, direct service bypasses | Controller regression PASS; actual audible phone test UNVERIFIED |
 | Repeated ARC tap speech / state race | Existing tap guards retained; cancellation tests PASS; physical mic tests UNVERIFIED |
 | Mic permission/lifecycle, resume and periodic beep | No implicit startup capture; OEM/device behavior UNVERIFIED |
@@ -63,10 +63,25 @@ Tap interruption is implemented. Acoustic barge-in during ordinary local TTS is 
 | Hands-free acoustic interruption | NOT IMPLEMENTED for local TTS; Live integration UNVERIFIED |
 | Actual model selection/display/fallback | Existing bounded discovery/fallback retained; model tests PASS; live provider UNVERIFIED |
 | Static image workaround / head, arms, fingers / snake | Replaced with genuine 3D skeletal prototype; movement tests PASS |
-| Intro / theme persistence / one chat input / auto-hide | Unit/widget tests PASS; rendered Android acceptance pending |
-| Full APK install warning / Android 16/17 / Play Protect | Android 16 emulator test pending; Android 17 / OEM Play Protect UNVERIFIED |
-| Initial permissions / security / overlay | Existing reduced-permission manifests retained; merged APK audit pending |
+| Intro / theme persistence / one chat input / auto-hide | Unit/widget and rendered Android 16 acceptance PASS for both variants |
+| Full APK install warning / Android 16/17 / Play Protect | Android 16 emulator PASS; Android 17 / OEM Play Protect UNVERIFIED |
+| Initial permissions / security / overlay | Merged APK permission/signature audit PASS; broker and physical-device security gaps remain below |
 | Billing / ₹1,000 spending protection / broker-only keys | BLOCKED / incomplete as described above |
 | Performance, memory, battery | UNVERIFIED on phone; desktop/emulator FPS must be labelled by environment |
 
 Final acceptance has not been claimed. A working articulated prototype is a permitted intermediate deliverable; final detailed modelling, phone speech tests, broker/billing protection and Android 17 acceptance remain necessary.
+
+
+## Final verified development build — 21 November 2026 IST
+
+- Built code: `7ae6a83d9914d36a43785548a08fd906e8e65674`.
+- CI: https://github.com/Greensandpp/Jarvis/actions/runs/44823470559 — SUCCESS.
+- 248 tests, analyzer, actual desktop WebGL renders, Standard/Full Android builds, signature/permission audit and Android 16 real WebView acceptance all pass.
+- Actual Android acceptance observed 38 humanoid bones, 32 serpent bones, independent changing positions, intro done and all six persisted themes. Startup was silent after fixing the successful sensor-init announcement path caught by the previous run.
+- Standard package: `com.greensoil.jarvis.unified.visualstaging`, 176127248 bytes, SHA-256 `0fce2fea4693a8db7496917643a85cefcc861c2c0dee75a1ddf06b3055e279f1`.
+- Full package: `com.greensoil.jarvis.unified.full.visualstaging`, 176127984 bytes, SHA-256 `4055f68a528e537dea296203758b6a084dbf60dd0bdc9f76e97d8c63d78c5ace`.
+- CI Android Debug certificate SHA-256: `c940bdc910cd490b6cc9c9613f256de5f4429441c7e87c49be3f5762d327ce97` (development signing only). Both min SDK 26 / target SDK 36.
+- Encrypted artifact ZIP digest, AES-GCM authentication and recovered APK hashes checked locally. ARM64 ELF 16 KB alignment: PASS on both recovered APKs.
+- Latest desktop SwiftShader samples: 26.07–30.00 FPS. Android 16 software-GPU emulator final samples: Standard 4.76 FPS / Full 6.67 FPS. Phone smoothness, total memory and physical battery impact are UNVERIFIED.
+- Detailed modelling, local TTS acoustic barge-in, dedicated permission/offline state treatment, local wake-word/LLM resources, broker-only keys, complete billing/budget protection, Android 17 and iQOO/Play Protect validation remain incomplete. **This is a private development prototype; master acceptance is NOT COMPLETE.**
+- No unencrypted Full APK was published on GitHub. No merge, deployment or production release.

@@ -87,8 +87,12 @@ class VoiceService {
   }
 
   Future<bool> initSpeech() async {
+    // Permission may be revoked after the recognizer was initialized.
+    if (!await _ensureMicPermission()) {
+      _speechReady = false;
+      return false;
+    }
     if (_speechReady) return true;
-    if (!await _ensureMicPermission()) return false;
     try {
       final available =
           await _nativeSpeechChannel.invokeMethod<bool>('isAvailable') ?? false;
@@ -103,12 +107,6 @@ class VoiceService {
     try {
       await _tts.setPitch(1.0);
       await _tts.setSpeechRate(0.48);
-      _ttsReady = await _configureOfflineVoice(
-        SettingsService.instance.jarvisNeuralVoice.startsWith('ta-IN-')
-            ? 'ta-IN'
-            : 'en-IN',
-      );
-      if (!_ttsReady) return;
       await _tts.awaitSpeakCompletion(true);
 
       _tts.setStartHandler(() {
@@ -133,7 +131,11 @@ class VoiceService {
         }
       });
 
-      _ttsReady = true;
+      _ttsReady = await _configureOfflineVoice(
+        SettingsService.instance.jarvisNeuralVoice.startsWith('ta-IN-')
+            ? 'ta-IN'
+            : 'en-IN',
+      );
     } catch (_) {
       _ttsReady = false;
     }

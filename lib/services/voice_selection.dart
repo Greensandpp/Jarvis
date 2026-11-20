@@ -12,7 +12,8 @@ Map<String, String>? selectOfflineVoice(
         .toLowerCase();
     return '${v['name'] ?? ''}'.isNotEmpty &&
         locale.split('-').first == target.split('-').first &&
-        network == 'false';
+        (network == 'false' || network == '0') &&
+        !'${v['features'] ?? ''}'.toLowerCase().contains('notinstalled');
   }).toList();
   int score(Map v) {
     final name = '${v['name']}'.toLowerCase();
@@ -25,7 +26,15 @@ Map<String, String>? selectOfflineVoice(
             ? 1000
             : 0) +
         (name.contains('neural') ? 500 : 0) +
-        (int.tryParse('${v['quality'] ?? 0}') ?? 0);
+        (int.tryParse('${v['quality'] ?? 0}') ??
+            const {
+              'very high': 500,
+              'high': 400,
+              'normal': 300,
+              'low': 200,
+              'very low': 100,
+            }['${v['quality']}'.toLowerCase()] ??
+            0);
   }
 
   candidates.sort((a, b) => score(b).compareTo(score(a)));

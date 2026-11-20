@@ -160,7 +160,7 @@ void main() {
       final tl = const TamilVisemeMapper().map('aama ma');
       for (var t = 0.0; t < tl.duration; t += 0.007) {
         final w = tl.sample(t);
-        final sum = w.values.fold(0.0, (a, b) => a + b);
+        final sum = w.values.fold<double>(0.0, (a, b) => a + b);
         expect(sum, closeTo(1, 1e-6), reason: 'weights sum to 1 at t=$t');
       }
       expect(tl.sample(-1), {Viseme.sil: 1});

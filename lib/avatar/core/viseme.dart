@@ -159,7 +159,7 @@ class VisemeTimeline {
     } else {
       add(cur.viseme, cur.weight);
     }
-    final rest = 1 - out.values.fold(0.0, (a, b) => a + b);
+    final rest = 1 - out.values.fold<double>(0.0, (a, b) => a + b);
     if (rest > 0.001) add(Viseme.sil, rest);
     return out;
   }

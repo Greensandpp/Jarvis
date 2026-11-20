@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'hermes_evolution_service.dart';
+import '../brain/memory_backup.dart';
 
 /// A remembered fact or user preference that persists across sessions.
 class MemoryFact {
@@ -9,12 +10,15 @@ class MemoryFact {
   final String fact;
   final String category; // 'preference', 'personal', 'work', 'habit'
   final DateTime createdAt;
+  /// Earlier versions of this fact, oldest first (kept when the owner corrects it).
+  final List<String> history;
 
   const MemoryFact({
     required this.id,
     required this.fact,
     this.category = 'personal',
     required this.createdAt,
+    this.history = const [],
   });
 
   Map<String, dynamic> toJson() => {
@@ -22,6 +26,7 @@ class MemoryFact {
         'fact': fact,
         'category': category,
         'createdAt': createdAt.toIso8601String(),
+        if (history.isNotEmpty) 'history': history,
       };
 
   factory MemoryFact.fromJson(Map<String, dynamic> json) => MemoryFact(
@@ -31,6 +36,7 @@ class MemoryFact {
         createdAt: json['createdAt'] != null
             ? DateTime.tryParse(json['createdAt'].toString()) ?? DateTime.now()
             : DateTime.now(),
+        history: (json['history'] as List?)?.map((e) => '$e').toList() ?? const [],
       );
 }
 
@@ -182,6 +188,82 @@ class ConversationalMemoryService extends ChangeNotifier {
       HermesEvolutionService.instance.evolveContext().catchError((_) {});
     } catch (_) {}
     return newFact;
+  }
+
+  /// Corrects a fact in place. The previous wording is kept in [MemoryFact.history]
+  /// so a correction can be reviewed or undone.
+  Future<MemoryFact?> correctFact(String id, String corrected) async {
+    await init();
+    final i = _facts.indexWhere((f) => f.id == id);
+    final clean = corrected.trim();
+    if (i < 0 || clean.isEmpty) return null;
+    final old = _facts[i];
+    if (old.fact == clean) return old;
+    final updated = MemoryFact(id: old.id, fact: clean, category: old.category,
+        createdAt: DateTime.now(), history: [...old.history, old.fact]);
+    _facts[i] = updated;
+    await _persistFacts();
+    notifyListeners();
+    _refreshLearnedContext();
+    return updated;
+  }
+
+  /// Re-synthesises the Hermes learned context so corrections reach the AI prompt.
+  void _refreshLearnedContext() {
+    try {
+      HermesEvolutionService.instance.evolveContext().catchError((_) {});
+    } catch (_) {}
+  }
+
+  /// Undo the last correction of a fact.
+  Future<MemoryFact?> undoCorrection(String id) async {
+    await init();
+    final i = _facts.indexWhere((f) => f.id == id);
+    if (i < 0 || _facts[i].history.isEmpty) return null;
+    final f = _facts[i];
+    _facts[i] = MemoryFact(id: f.id, fact: f.history.last, category: f.category,
+        createdAt: f.createdAt, history: f.history.sublist(0, f.history.length - 1));
+    await _persistFacts();
+    notifyListeners();
+    _refreshLearnedContext();
+    return _facts[i];
+  }
+
+  /// Facts most relevant to [query] (for prompt injection / recall).
+  List<MemoryFact> relevantFacts(String query, {int limit = 8}) {
+    final scored = [for (final f in _facts) (f, relevance(query, f.fact, f.createdAt))]
+      ..removeWhere((e) => e.$2 < 0.2)
+      ..sort((a, b) => b.$2.compareTo(a.$2));
+    return [for (final e in scored.take(limit)) e.$1];
+  }
+
+  /// Passphrase-encrypted export of long-term facts (see memory_backup.dart).
+  Future<String> exportEncrypted(String passphrase, {int iterations = 60000}) async {
+    await init();
+    return encryptBackup(jsonEncode(_facts.map((f) => f.toJson()).toList()), passphrase, iterations: iterations);
+  }
+
+  /// Verifies and merges an encrypted backup. Returns how many new facts were
+  /// added. Throws [BackupException] (and changes nothing) on a wrong
+  /// passphrase or tampered file.
+  Future<int> importEncrypted(String backup, String passphrase) async {
+    await init();
+    final list = jsonDecode(decryptBackup(backup, passphrase));
+    if (list is! List) throw const BackupException('Backup content is not a fact list.');
+    var added = 0;
+    for (final item in list) {
+      if (item is! Map) continue;
+      final f = MemoryFact.fromJson(item.map((k, v) => MapEntry('$k', v)));
+      if (f.fact.isEmpty || _facts.any((e) => e.fact.toLowerCase() == f.fact.toLowerCase())) continue;
+      _facts.add(f);
+      added++;
+    }
+    if (added > 0) {
+      await _persistFacts();
+      notifyListeners();
+      _refreshLearnedContext();
+    }
+    return added;
   }
 
   /// Removes an individual fact from memory.

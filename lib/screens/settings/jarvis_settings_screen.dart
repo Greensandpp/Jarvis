@@ -5,6 +5,7 @@ import 'package:flutter_overlay_window/flutter_overlay_window.dart';
 import '../../services/app_usage_service.dart';
 import '../../services/commute_traffic_service.dart';
 import '../../services/conversational_memory_service.dart';
+import '../brain/memory_tools.dart';
 import '../../services/hermes_evolution_service.dart';
 import '../../services/jarvis_service.dart';
 import '../../services/macro_recorder_service.dart';
@@ -2438,7 +2439,25 @@ class _JarvisSettingsScreenState extends State<JarvisSettingsScreen> {
                         ),
                       ],
                     ),
-                    const SizedBox(height: 12),
+                    Row(children: [
+                      TextButton.icon(
+                        key: const ValueKey('memory-export'),
+                        icon: const Icon(Icons.lock_outline, size: 18),
+                        label: const Text('Encrypted backup'),
+                        onPressed: () => exportMemoryDialog(context),
+                      ),
+                      TextButton.icon(
+                        key: const ValueKey('memory-import'),
+                        icon: const Icon(Icons.restore, size: 18),
+                        label: const Text('Restore'),
+                        onPressed: () async {
+                          await importMemoryDialog(context);
+                          setModalState(() {});
+                          setState(() {});
+                        },
+                      ),
+                    ]),
+                    const SizedBox(height: 4),
                     ConstrainedBox(
                       constraints: BoxConstraints(
                         maxHeight: MediaQuery.of(context).size.height * 0.45,
@@ -2459,17 +2478,38 @@ class _JarvisSettingsScreenState extends State<JarvisSettingsScreen> {
                                   dense: true,
                                   title: Text(f.fact, style: const TextStyle(fontSize: 13)),
                                   subtitle: Text(
-                                    '${f.category} • ${f.createdAt.toString().split('.').first}',
+                                    '${f.category} • ${f.createdAt.toString().split('.').first}'
+                                    '${f.history.isEmpty ? '' : ' • corrected ${f.history.length}×'}',
                                     style: const TextStyle(fontSize: 11),
                                   ),
-                                  trailing: IconButton(
-                                    icon: const Icon(Icons.delete_outline, size: 18),
-                                    onPressed: () async {
-                                      await memory.deleteFact(f.id);
-                                      setModalState(() {});
-                                      setState(() {});
-                                    },
-                                  ),
+                                  trailing: Row(mainAxisSize: MainAxisSize.min, children: [
+                                    if (f.history.isNotEmpty) IconButton(
+                                      tooltip: 'Undo correction',
+                                      icon: const Icon(Icons.undo, size: 18),
+                                      onPressed: () async {
+                                        await undoCorrection(context, f);
+                                        setModalState(() {});
+                                        setState(() {});
+                                      },
+                                    ),
+                                    IconButton(
+                                      tooltip: 'Correct',
+                                      icon: const Icon(Icons.edit_outlined, size: 18),
+                                      onPressed: () async {
+                                        await correctFactDialog(context, f);
+                                        setModalState(() {});
+                                        setState(() {});
+                                      },
+                                    ),
+                                    IconButton(
+                                      icon: const Icon(Icons.delete_outline, size: 18),
+                                      onPressed: () async {
+                                        await memory.deleteFact(f.id);
+                                        setModalState(() {});
+                                        setState(() {});
+                                      },
+                                    ),
+                                  ]),
                                 );
                               },
                             ),

@@ -403,7 +403,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             hintText: 'gemini-2.5-flash',
             prefixIcon: const Icon(Icons.psychology_outlined, size: 20),
           ),
-          SwitchListTile(
+          Material(type: MaterialType.transparency, child: SwitchListTile(
             key: const ValueKey('settings-model-auto'),
             contentPadding: EdgeInsets.zero,
             title: const Text('Choose the best model automatically'),
@@ -415,7 +415,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               await _settings.setModelAuto(v);
               if (v) unawaited(AiService.instance.discoverAndSelectModels(force: true));
             },
-          ),
+          )),
           const SizedBox(height: 16),
           // Save button with liquid glass styling
           SizedBox(

@@ -66,6 +66,12 @@ String textOf(Finder f) {
 }
 
 Future<void> home(WidgetTester t) async {
+  // Snackbars from a previous section sit over the dock's Send button.
+  for (final m in find.byType(ScaffoldMessenger).evaluate()) {
+    (m as StatefulElement).state is ScaffoldMessengerState
+        ? (m.state as ScaffoldMessengerState).clearSnackBars()
+        : null;
+  }
   t.state<NavigatorState>(find.byType(Navigator).first).popUntil((r) => r.isFirst);
   await pumpFor(t, const Duration(seconds: 2));
 }

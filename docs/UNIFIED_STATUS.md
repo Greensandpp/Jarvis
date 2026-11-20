@@ -36,7 +36,7 @@ Legend: **PASS-DEVICE** = passed inside the real APK on Android 15 and 16 emulat
 | I09 | Indicators (EMA9, MA9, VWAP, Supertrend, structure) and OI (PCR, max pain, support/resistance) from pasted data | PASS-DEVICE |
 | I10 | JARVIS Control Center: 14/14 sections open | PASS-DEVICE |
 | I11 | Microphone/TTS diagnostics report real facts (recognizer available, Tamil TTS installed, mic permission state) | PASS-DEVICE |
-| I12 | Memory: add, correct (history kept), undo, encrypted backup, wrong passphrase rejected, restore | see final run below |
+| I12 | Memory: add, correct (history kept), undo, encrypted backup file, wrong passphrase rejected, restore, persisted | PASS-DEVICE |
 | I13 | Typed command "switch to apex" / "aira jellyfish mode" switches visuals through the same path as voice | see final run below |
 
 Final run: see the PR/CI link in the delivery message (`.github/workflows/jarvis-unified.yml`).

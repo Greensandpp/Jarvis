@@ -37,9 +37,27 @@ Legend: **PASS-DEVICE** = passed inside the real APK on Android 15 and 16 emulat
 | I10 | JARVIS Control Center: 14/14 sections open | PASS-DEVICE |
 | I11 | Microphone/TTS diagnostics report real facts (recognizer available, Tamil TTS installed, mic permission state) | PASS-DEVICE |
 | I12 | Memory: add, correct (history kept), undo, encrypted backup file, wrong passphrase rejected, restore, persisted | PASS-DEVICE |
-| I13 | Typed command "switch to apex" / "aira jellyfish mode" switches visuals through the same path as voice | see final run below |
+| I13 | Typed command "switch to apex" / "aira jellyfish mode" switches visuals through the same path as voice (offline shortcut) | PASS-DEVICE |
 
-Final run: see the PR/CI link in the delivery message (`.github/workflows/jarvis-unified.yml`).
+Final run: GitHub Actions run 44680102603 (commit 7171112), workflow `.github/workflows/jarvis-unified.yml`.
+Android 16 (API 36): all U-checks and I01–I13 PASS for both builds, no framework exceptions.
+Android 15 (API 35): device checks PASS; the in-app step was blocked by an external Gradle plugin-portal
+outage (kotlin-gradle-plugin 2.2.21 metadata) and was re-run — see the run page. I01–I12 passed on Android 15
+in earlier runs of the same tests (44672821319, 44676545913).
+
+### Build outputs (run 44680102603, CI debug key — test builds only)
+
+| APK | Size | SHA-256 |
+|---|---|---|
+| JARVIS (Standard) release | 71.2 MB (71,234,537 B) | `890ceee9be6550527446caf2a0ec13965101b07a7c9cb326f565bd0d81c70afa` |
+| JARVIS Full Control release | 71.3 MB (71,256,853 B) | `911c0ec728766bec078a1f374228afa95f1cc7737061a27972537b872479e019` |
+| JARVIS (Standard) debug | 174.6 MB | `0c047379db6fd9fe078c921a7a88144a49a4543dc9d3cc517980fcff78ea068e` |
+| JARVIS Full Control debug | 174.6 MB | `568d6b85e135ab1dff22dbf59c08688e2e9cc035c5ca1f5fb84b1efa22e0b8f5` |
+
+Sizes are the real Flutter app (engine + original assets + new code); nothing was padded. Release builds
+pass the 16 KB page-alignment check. Standard release permissions: INTERNET, ACCESS_NETWORK_STATE,
+RECORD_AUDIO, MODIFY_AUDIO_SETTINGS, CAMERA, POST_NOTIFICATIONS, VIBRATE, WAKE_LOCK, SET_ALARM,
+FOREGROUND_SERVICE(+_MICROPHONE). Full Control release declares 23 permissions (original set).
 Defects found by these device runs and fixed: "setState() called when widget tree was locked" from the
 original HUD dispose (regression test added), accessibility banner shown in the Standard build, legacy
 "what is …" shortcuts bypassing the brain, backup encryption blocking the UI thread.

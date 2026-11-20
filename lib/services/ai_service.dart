@@ -1,7 +1,10 @@
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:http/http.dart' as http;
+
+import '../brain/ai_reliability.dart';
 
 import 'conversational_memory_service.dart';
 import 'hermes_evolution_service.dart';
@@ -12,7 +15,11 @@ import 'settings_service.dart';
 class AiException implements Exception {
   final String message;
   final int? statusCode;
-  const AiException(this.message, {this.statusCode});
+  /// Classified cause (DNS, TLS, auth, model, …); null for legacy call sites.
+  final AiFailureKind? kind;
+  const AiException(this.message, {this.statusCode, this.kind});
+
+  factory AiException.from(AiFailure f) => AiException(f.userMessage, statusCode: f.status, kind: f.kind);
 
   @override
   String toString() =>
@@ -622,7 +629,11 @@ class AiService {
   AiService._();
   static final AiService instance = AiService._();
 
-  final http.Client _client = http.Client();
+  http.Client _client = http.Client();
+
+  /// TEST DOUBLE hook: lets tests inject a mock HTTP client. Never used in the app.
+  @visibleForTesting
+  set debugClient(http.Client c) => _client = c;
 
   /// True for local backends (Ollama etc.) that accept any/empty API key.
   bool get _isLocalBackend {
@@ -1321,30 +1332,49 @@ The user is viewing an article or screen on their device and requested an execut
       },
     };
 
-    final body = jsonEncode({
-      'model': settings.model,
-      'messages': messages,
-      'max_tokens': settings.maxTokens,
-      'temperature': settings.temperature,
-      'stream': false,
-    });
+    // Try the configured model, then (on HTTP 404 only) models discovered for
+    // this key. Transient failures (429/5xx/timeouts) retry with backoff.
+    Future<http.Response> send(String model) => withRetry(() async {
+          final r = await _client
+              .post(uri, headers: headers, body: jsonEncode({
+                'model': model,
+                'messages': messages,
+                'max_tokens': settings.maxTokens,
+                'temperature': settings.temperature,
+                'stream': false,
+              }))
+              .timeout(const Duration(seconds: 60));
+          if (r.statusCode != 200) throw AiFailure.fromHttp(r.statusCode, r.body);
+          return r;
+        });
 
     http.Response res;
     try {
-      res = await _client
-          .post(uri, headers: headers, body: body)
-          .timeout(const Duration(seconds: 60));
-    } on TimeoutException {
-      throw const AiException('Request timed out after 60s.');
+      try {
+        res = await send(settings.model);
+      } on AiFailure catch (f) {
+        if (f.kind != AiFailureKind.modelNotFound || _isLocalBackend) rethrow;
+        final discovered = await discoverModels(_client, base, settings.apiKey);
+        await settings.setDiscoveredModels(discovered);
+        AiFailure last = f;
+        http.Response? ok;
+        for (final m in fallbackOrder('', discovered).where((m) => m != settings.model).take(3)) {
+          try {
+            ok = await send(m);
+            await settings.setModel(m); // remember the model that works
+            break;
+          } on AiFailure catch (e) {
+            last = e;
+          }
+        }
+        if (ok == null) throw last;
+        res = ok;
+      }
+      await settings.recordAiSuccess(settings.model);
     } catch (e) {
-      throw AiException('Network error: $e');
-    }
-
-    if (res.statusCode != 200) {
-      final snippet = res.body.length > 300
-          ? '${res.body.substring(0, 300)}…'
-          : res.body;
-      throw AiException(snippet, statusCode: res.statusCode);
+      final f = AiFailure.fromException(e);
+      await settings.recordAiFailure(f.kind.name);
+      throw AiException.from(f);
     }
 
     try {

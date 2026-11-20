@@ -813,7 +813,47 @@ class JarvisService extends ChangeNotifier {
   }
 
   /// Processes a voice command through JARVIS intelligence.
+  /// Guarded entry point: whatever happens inside the original command router
+  /// (provider down, DNS/TLS failure, plugin exception, hang), JARVIS returns to
+  /// idle with a clear message instead of staying in THINKING forever.
+  static const commandDeadline = Duration(seconds: 120);
+  int _commandGeneration = 0;
+
   Future<void> processCommand(String command) async {
+    final gen = ++_commandGeneration;
+    try {
+      await _processCommandInner(command).timeout(commandDeadline);
+    } on TimeoutException {
+      if (gen == _commandGeneration) {
+        await _recoverFromFailure('That took too long, so I stopped waiting. Please try again.', 'TIMEOUT');
+      }
+    } catch (e) {
+      if (gen == _commandGeneration) {
+        final msg = e is AiException ? e.message : 'Something went wrong while handling that request.';
+        final kind = e is AiException && e.kind != null ? e.kind!.name.toUpperCase() : 'ERROR';
+        await _recoverFromFailure(msg, kind);
+      }
+    }
+  }
+
+  Future<void> _recoverFromFailure(String message, String kind) async {
+    debugPrint('[JarvisService] command failed: $kind');
+    _lastJarvisSpeech = message;
+    _statusMessage = 'AI ERROR // $kind';
+    _phase = JarvisPhase.speaking;
+    notifyListeners();
+    try {
+      await _voice.speak(message);
+    } catch (_) {}
+    _phase = JarvisPhase.idle;
+    notifyListeners();
+  }
+
+  /// Current phase is THINKING/EXECUTING for longer than [commandDeadline]?
+  @visibleForTesting
+  JarvisPhase get debugPhase => _phase;
+
+  Future<void> _processCommandInner(String command) async {
     _wakeUp();
 
     final trimmed = command.trim();

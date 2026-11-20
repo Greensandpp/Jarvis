@@ -74,7 +74,9 @@ class SettingsService extends ChangeNotifier {
     'gemini': (
       label: 'Google Gemini',
       baseUrl: 'https://generativelanguage.googleapis.com/v1beta/openai',
-      model: 'gemini-2.0-flash',
+      // 2.0-flash returned HTTP 404 for some keys; requests now also fall back
+      // to models discovered for the key (Settings → Test connection).
+      model: 'gemini-2.5-flash',
     ),
     'openrouter': (
       label: 'OpenRouter',
@@ -112,6 +114,39 @@ class SettingsService extends ChangeNotifier {
   Future<void> setBaseUrl(String value) async {
     await _prefs?.setString('ai_base_url', value.trim());
     notifyListeners();
+  }
+
+  /// Chat models discovered for the current key (GET {base}/models).
+  List<String> get discoveredModels => _prefs?.getStringList('ai_discovered_models') ?? const [];
+  Future<void> setDiscoveredModels(List<String> m) async {
+    await _prefs?.setStringList('ai_discovered_models', m);
+    notifyListeners();
+  }
+
+  /// "ONLINE" is only claimed after a real request succeeded.
+  bool get aiVerified => _prefs?.getBool('ai_verified') ?? false;
+  int get aiLastOkAt => _prefs?.getInt('ai_last_ok_at') ?? 0;
+  String get aiLastOkModel => _prefs?.getString('ai_last_ok_model') ?? '';
+  String get aiLastErrorKind => _prefs?.getString('ai_last_error_kind') ?? '';
+
+  Future<void> recordAiSuccess(String model) async {
+    await _prefs?.setBool('ai_verified', true);
+    await _prefs?.setInt('ai_last_ok_at', DateTime.now().millisecondsSinceEpoch);
+    await _prefs?.setString('ai_last_ok_model', model);
+    await _prefs?.setString('ai_last_error_kind', '');
+  }
+
+  Future<void> recordAiFailure(String kind) async {
+    await _prefs?.setString('ai_last_error_kind', kind);
+    if (kind == 'auth' || kind == 'noKey' || kind == 'modelNotFound') await _prefs?.setBool('ai_verified', false);
+  }
+
+  /// Honest status line: never ONLINE without a verified request.
+  String get aiStatusLabel {
+    if (apiKey.isEmpty && provider != 'ollama') return 'AI NOT CONNECTED';
+    if (aiLastErrorKind.isNotEmpty) return 'AI ERROR · ${aiLastErrorKind.toUpperCase()}';
+    if (aiVerified) return 'AI ONLINE · $aiLastOkModel';
+    return 'AI NOT VERIFIED · run test';
   }
 
   String get apiKey => _prefs?.getString('ai_api_key') ?? '';

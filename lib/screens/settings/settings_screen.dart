@@ -5,6 +5,8 @@ import '../../services/personality_service.dart';
 import '../../services/settings_service.dart';
 import '../../services/telegram_service.dart';
 import '../../widgets/glass_widgets.dart';
+import '../brain/ai_diagnostics_screen.dart';
+import '../brain/trading_ai_screen.dart';
 import 'jarvis_settings_screen.dart';
 import 'permissions_screen.dart';
 
@@ -406,6 +408,30 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 _aiDirty ? 'Save changes' : 'Saved',
                 style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13.5),
               ),
+            ),
+          ),
+          const SizedBox(height: 10),
+          Text(_settings.aiStatusLabel, key: const ValueKey('settings-ai-status'),
+            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+          const SizedBox(height: 6),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              key: const ValueKey('open-ai-diagnostics'),
+              onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const AiDiagnosticsScreen()))
+                  .then((_) => setState(() {})),
+              icon: const Icon(Icons.network_check, size: 18),
+              label: const Text('Test connection & discover models'),
+            ),
+          ),
+          const SizedBox(height: 6),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              key: const ValueKey('open-trading-ai'),
+              onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const TradingAiScreen())),
+              icon: const Icon(Icons.candlestick_chart, size: 18),
+              label: const Text('Trading AI (paper only)'),
             ),
           ),
           if (_aiDirty)

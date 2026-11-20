@@ -136,9 +136,9 @@ void main() {
     expect(conversationOpacity(tester), 1, reason: 'countdown starts after speaking ends');
     await tester.pump(const Duration(seconds: 2));
     expect(conversationOpacity(tester), 0, reason: 'hidden after 8 s idle');
-    // History is not deleted, and a tap reveals it.
+    // History remains available through its explicit title control.
     expect(find.text('It is ten thirty.'), findsOneWidget);
-    await tester.tap(find.byKey(const ValueKey('v3-conversation-area')), warnIfMissed: false);
+    tester.state<JarvisV3HomeState>(find.byType(JarvisV3Home)).autoHide.reveal();
     await tester.pump();
     expect(conversationOpacity(tester), 1);
     // The dock and header stay visible throughout.

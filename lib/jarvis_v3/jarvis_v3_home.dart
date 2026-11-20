@@ -304,7 +304,7 @@ class JarvisV3HomeState extends State<JarvisV3Home> with WidgetsBindingObserver 
                   alignment: Alignment.bottomCenter,
                   child: FractionallySizedBox(
                     widthFactor: 1,
-                    heightFactor: 0.62,
+                    heightFactor: 0.32,
                     child: Column(children: [
                       if (conversation.hasPendingNotice)
                         Align(

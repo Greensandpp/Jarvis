@@ -141,7 +141,9 @@ class NeonConversationPanel extends StatelessWidget {
             live: true,
             settings: settings),
     ];
-    return GestureDetector(
+    return IgnorePointer(
+      ignoring: !visible || items.isEmpty,
+      child: GestureDetector(
       key: const ValueKey('v3-conversation-area'),
       behavior: HitTestBehavior.translucent,
       onTap: onTap,
@@ -178,6 +180,6 @@ class NeonConversationPanel extends StatelessWidget {
           ),
         ),
       ),
-    );
+    ));
   }
 }

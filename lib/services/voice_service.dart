@@ -250,6 +250,7 @@ class VoiceService {
 
   /// Forces re-initialization of TTS with a new voice profile.
   Future<void> reconfigureVoice([String? profile]) async {
+    await stopSpeaking();
     _ttsReady = false;
     await initTts(voiceProfile: profile);
   }

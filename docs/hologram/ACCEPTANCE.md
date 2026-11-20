@@ -13,6 +13,7 @@ Remote V3 head `44e5e98a00031032758445132ee60018736b630d` plus the voice tap / c
 - Explicit ARC taps interrupt the current output or finalize a capture once. Continuous recognition is controlled by the Always-On setting; opening the home no longer automatically requests the microphone or starts repeated recognizer rearming. Backgrounding without Always-On cancels capture and playback. Live audio takes exclusive output ownership.
 - Proactive monitor follows screen lifecycle and no longer leaks its periodic timer after leaving the home.
 - Production home uses a silent local Three.js r180 WebGL runtime in Android WebView. Content Security Policy forbids network requests, image/media loading and external navigation. Its bridge accepts only a mic tap and bounded renderer telemetry. No Android execution bridge is exposed to JavaScript.
+- Hidden/empty chat panels no longer intercept touches meant for the 3D scene. Chat area is limited to the lower 32% and history remains available from the title.
 - Existing one-input neon dock, user/assistant colours, expandable history and configurable auto-hide retained. Six 3D themes persist independently of speech and conversation.
 
 ## Actual 3D asset inventory
@@ -27,10 +28,10 @@ Remote V3 head `44e5e98a00031032758445132ee60018736b630d` plus the voice tap / c
 
 | Check | Result | Evidence |
 |---|---|---|
-| Flutter tests | PASS — 243 tests | Flutter 3.50.1 / Dart 3.14.0, `flutter test --reporter expanded` |
+| Flutter tests | PASS — 244 tests | Flutter 3.50.1 / Dart 3.14.0, `flutter test --reporter expanded` |
 | Analyzer | PASS — zero errors/warnings | `flutter analyze --no-fatal-infos` exit 0; 75 informational messages, mostly SDK Material deprecations |
 | Rapid speech replacements | PASS | 30 requests leave one valid playback ticket; cancellation during synthesis, stale completion and driver ordering checked |
-| Voice-controller regressions | PASS | `test/speech_output_controller_test.dart` |
+| Voice-controller regressions | PASS | `test/speech_output_controller_test.dart`, actual VoiceService platform-channel routing / late completion regression in `voice_output_integration_test.dart` |
 | Startup / composer / theme / intro callback | PASS | `test/widget_test.dart`, `test/v3_home_test.dart`, `test/hologram_theme_test.dart` |
 | Independent skeletal motion | PASS | `node scripts/hologram_test.mjs`; humanoid and serpent move independently, valid skin weights, real vertex deformation |
 | Rendered WebGL browser evidence | UNVERIFIED locally | Local Chromium cannot create its Unix socket in this workspace; CI test provided |

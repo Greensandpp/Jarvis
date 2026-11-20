@@ -1,0 +1,41 @@
+name: APK inventory audit (read-only, no release)
+on:
+  push:
+    branches: [audit/apk-inventory-20261120]
+permissions:
+  contents: read
+jobs:
+  inventory:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: '17' }
+      - uses: subosito/flutter-action@v2
+        with: { channel: stable, cache: true }
+      - run: flutter pub get
+      - name: Build debug and release APKs of the original four-mode JARVIS
+        run: |
+          flutter build apk --debug
+          flutter build apk --release
+      - name: Size breakdown (what the bytes actually are)
+        shell: bash
+        run: |
+          for a in build/app/outputs/flutter-apk/app-debug.apk build/app/outputs/flutter-apk/app-release.apk; do
+            echo "=================== $a  $(stat -c %s $a) bytes"
+            python3 - "$a" <<'PY'
+          import sys, zipfile, collections
+          z = zipfile.ZipFile(sys.argv[1]); groups = collections.Counter(); comp = collections.Counter()
+          def g(n):
+              if n.startswith('lib/'): return 'native libs: ' + n.split('/')[1] + ' / ' + n.split('/')[-1]
+              if n.startswith('assets/flutter_assets/assets/'): return 'app images: ' + n.split('/')[-1]
+              if n.endswith('kernel_blob.bin') or 'isolate_snapshot' in n or 'vm_snapshot' in n: return 'Dart debug runtime: ' + n.split('/')[-1]
+              if n.startswith('assets/flutter_assets/'): return 'flutter assets (fonts/shaders/other)'
+              if n.endswith('.dex'): return 'dex (Kotlin/Java + plugins)'
+              if n.startswith('res/'): return 'Android resources'
+              return 'other'
+          for i in z.infolist(): groups[g(i.filename)] += i.file_size; comp[g(i.filename)] += i.compress_size
+          for k, v in sorted(groups.items(), key=lambda x: -x[1])[:40]: print(f"{v/1e6:8.2f} MB uncompressed {comp[k]/1e6:8.2f} MB in APK  {k}")
+          PY
+          done

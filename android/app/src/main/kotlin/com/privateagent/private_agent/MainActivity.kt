@@ -126,6 +126,9 @@ class MainActivity : FlutterActivity() {
     override fun onStop() {
         // Live voice is foreground-only: never keep the microphone open in background.
         liveAudio?.release()
+        // SpeechRecognizer is activity-bound. Do not keep restarting it after
+        // the activity leaves foreground without an Android microphone FGS.
+        stopNativeListening()
         super.onStop()
     }
 
@@ -690,6 +693,27 @@ class MainActivity : FlutterActivity() {
         super.configureFlutterEngine(flutterEngine)
 
         liveAudio = LiveAudioBridge(this, flutterEngine.dartExecutor.binaryMessenger)
+
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "greensoil/assistant")
+            .setMethodCallHandler { call, result ->
+                if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
+                    result.success(false)
+                } else {
+                    val roles = getSystemService(android.app.role.RoleManager::class.java)
+                    when (call.method) {
+                        "roleHeld" -> result.success(roles?.isRoleHeld(android.app.role.RoleManager.ROLE_ASSISTANT) == true)
+                        "requestRole" -> {
+                            if (roles?.isRoleAvailable(android.app.role.RoleManager.ROLE_ASSISTANT) == true) {
+                                try {
+                                    startActivityForResult(roles.createRequestRoleIntent(android.app.role.RoleManager.ROLE_ASSISTANT), 9401)
+                                    result.success(true)
+                                } catch (_: Exception) { result.success(false) }
+                            } else { result.success(false) }
+                        }
+                        else -> result.notImplemented()
+                    }
+                }
+            }
 
         // Native Continuous Speech Channel
         val sChannel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, speechChannelName)

@@ -31,7 +31,8 @@ import 'brain_dump_dialog.dart';
 ///   * Orbiting quantum data nodes and floating photon spark particles.
 ///   * Organic spatial floating & pacing, plus full interactive touch drag anywhere on screen.
 class JarvisHudWidget extends StatefulWidget {
-  const JarvisHudWidget({super.key});
+  const JarvisHudWidget({super.key, this.minimalist = false});
+  final bool minimalist;
 
   @override
   State<JarvisHudWidget> createState() => _JarvisHudWidgetState();
@@ -193,6 +194,35 @@ class _JarvisHudWidgetState extends State<JarvisHudWidget>
 
   @override
   Widget build(BuildContext context) {
+    if (widget.minimalist) {
+      return LayoutBuilder(
+        builder: (context, box) => AnimatedBuilder(
+          animation: Listenable.merge([
+            _pacingController,
+            _ringsController,
+            _pulseController,
+            _waveController,
+            _sparkController,
+            _colorController,
+          ]),
+          builder: (context, _) =>
+              SettingsService.instance.jarvisScreenStyle ==
+                  JarvisScreenStyle.jarvis
+              ? _buildHologramSuitStage(
+                  arenaWidth: box.maxWidth,
+                  arenaHeight: box.maxHeight,
+                )
+              : _buildLivingSphereStage(
+                  arenaWidth: box.maxWidth,
+                  arenaHeight: box.maxHeight,
+                  sphereDiameter: math.min(
+                    box.maxWidth * .78,
+                    box.maxHeight * .7,
+                  ),
+                ),
+        ),
+      );
+    }
     return AnimatedBuilder(
       animation: _colorController,
       builder: (context, _) {
@@ -244,19 +274,33 @@ class _JarvisHudWidgetState extends State<JarvisHudWidget>
 
                     // Mid-air gesture detection banner
                     ValueListenableBuilder<String?>(
-                      valueListenable: AirGestureService.instance.activeGestureBanner,
+                      valueListenable:
+                          AirGestureService.instance.activeGestureBanner,
                       builder: (context, banner, _) {
                         if (banner == null) return const SizedBox.shrink();
                         return Container(
-                          margin: const EdgeInsets.symmetric(horizontal: 24, vertical: 4),
-                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+                          margin: const EdgeInsets.symmetric(
+                            horizontal: 24,
+                            vertical: 4,
+                          ),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 14,
+                            vertical: 7,
+                          ),
                           decoration: BoxDecoration(
-                            color: const Color(0xFF00E5FF).withValues(alpha: 0.18),
+                            color: const Color(
+                              0xFF00E5FF,
+                            ).withValues(alpha: 0.18),
                             borderRadius: BorderRadius.circular(16),
-                            border: Border.all(color: const Color(0xFF00E5FF), width: 1.4),
+                            border: Border.all(
+                              color: const Color(0xFF00E5FF),
+                              width: 1.4,
+                            ),
                             boxShadow: [
                               BoxShadow(
-                                color: const Color(0xFF00E5FF).withValues(alpha: 0.35),
+                                color: const Color(
+                                  0xFF00E5FF,
+                                ).withValues(alpha: 0.35),
                                 blurRadius: 14,
                               ),
                             ],
@@ -264,7 +308,11 @@ class _JarvisHudWidgetState extends State<JarvisHudWidget>
                           child: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              const Icon(Icons.pan_tool, color: Color(0xFF00E5FF), size: 15),
+                              const Icon(
+                                Icons.pan_tool,
+                                color: Color(0xFF00E5FF),
+                                size: 15,
+                              ),
                               const SizedBox(width: 8),
                               Flexible(
                                 child: Text(
@@ -293,8 +341,10 @@ class _JarvisHudWidgetState extends State<JarvisHudWidget>
                           final arenaHeight = constraints.maxHeight;
 
                           // Cinematic 3D sphere diameter
-                          final sphereDiameter =
-                              (arenaWidth * 0.78).clamp(280.0, 360.0);
+                          final sphereDiameter = (arenaWidth * 0.78).clamp(
+                            280.0,
+                            360.0,
+                          );
 
                           return GestureDetector(
                             behavior: HitTestBehavior.opaque,
@@ -350,7 +400,10 @@ class _JarvisHudWidgetState extends State<JarvisHudWidget>
                                     progress: _rippleController.value,
                                     color: themeColor,
                                   ),
-                                  child: SettingsService.instance.jarvisScreenStyle ==
+                                  child:
+                                      SettingsService
+                                              .instance
+                                              .jarvisScreenStyle ==
                                           JarvisScreenStyle.jarvis
                                       ? _buildHologramSuitStage(
                                           arenaWidth: arenaWidth,
@@ -382,39 +435,53 @@ class _JarvisHudWidgetState extends State<JarvisHudWidget>
                             ListenableBuilder(
                               listenable: SettingsService.instance,
                               builder: (context, _) {
-                                final isAlwaysOn = SettingsService.instance.jarvisAlwaysOn;
+                                final isAlwaysOn =
+                                    SettingsService.instance.jarvisAlwaysOn;
                                 final onColor = const Color(0xFF00E5FF);
-                                final offColor = Colors.white.withValues(alpha: 0.45);
+                                final offColor = Colors.white.withValues(
+                                  alpha: 0.45,
+                                );
                                 final color = isAlwaysOn ? onColor : offColor;
 
                                 return GestureDetector(
                                   onTap: () async {
                                     HapticFeedback.mediumImpact();
                                     final next = !isAlwaysOn;
-                                    await SettingsService.instance.setJarvisAlwaysOn(next);
+                                    await SettingsService.instance
+                                        .setJarvisAlwaysOn(next);
                                     if (next) {
-                                      JarvisService.instance.ensureAlwaysOnRunning();
+                                      JarvisService.instance
+                                          .ensureAlwaysOnRunning();
                                     } else {
                                       JarvisService.instance.stopAlwaysOn();
                                     }
                                   },
                                   child: Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 12,
+                                      vertical: 7,
+                                    ),
                                     decoration: BoxDecoration(
                                       color: isAlwaysOn
                                           ? onColor.withValues(alpha: 0.18)
-                                          : Colors.white.withValues(alpha: 0.05),
+                                          : Colors.white.withValues(
+                                              alpha: 0.05,
+                                            ),
                                       borderRadius: BorderRadius.circular(20),
                                       border: Border.all(
                                         color: isAlwaysOn
                                             ? onColor.withValues(alpha: 0.8)
-                                            : Colors.white.withValues(alpha: 0.25),
+                                            : Colors.white.withValues(
+                                                alpha: 0.25,
+                                              ),
                                         width: isAlwaysOn ? 1.5 : 1.0,
                                       ),
                                       boxShadow: isAlwaysOn
                                           ? [
                                               BoxShadow(
-                                                color: onColor.withValues(alpha: 0.35),
+                                                color: onColor.withValues(
+                                                  alpha: 0.35,
+                                                ),
                                                 blurRadius: 10,
                                               ),
                                             ]
@@ -424,13 +491,17 @@ class _JarvisHudWidgetState extends State<JarvisHudWidget>
                                       mainAxisSize: MainAxisSize.min,
                                       children: [
                                         Icon(
-                                          isAlwaysOn ? Icons.hearing : Icons.hearing_disabled,
+                                          isAlwaysOn
+                                              ? Icons.hearing
+                                              : Icons.hearing_disabled,
                                           size: 13,
                                           color: color,
                                         ),
                                         const SizedBox(width: 5),
                                         Text(
-                                          isAlwaysOn ? 'ALWAYS-ON: ON' : 'ALWAYS-ON',
+                                          isAlwaysOn
+                                              ? 'ALWAYS-ON: ON'
+                                              : 'ALWAYS-ON',
                                           style: TextStyle(
                                             color: color,
                                             fontSize: 9.5,
@@ -453,17 +524,26 @@ class _JarvisHudWidgetState extends State<JarvisHudWidget>
                                 HapticFeedback.mediumImpact();
                                 showDialog(
                                   context: context,
-                                  barrierColor: Colors.black.withValues(alpha: 0.65),
+                                  barrierColor: Colors.black.withValues(
+                                    alpha: 0.65,
+                                  ),
                                   builder: (_) => const BrainDumpDialog(),
                                 );
                               },
                               child: Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                  vertical: 7,
+                                ),
                                 decoration: BoxDecoration(
-                                  color: const Color(0xFF00E5FF).withValues(alpha: 0.12),
+                                  color: const Color(
+                                    0xFF00E5FF,
+                                  ).withValues(alpha: 0.12),
                                   borderRadius: BorderRadius.circular(20),
                                   border: Border.all(
-                                    color: const Color(0xFF00E5FF).withValues(alpha: 0.5),
+                                    color: const Color(
+                                      0xFF00E5FF,
+                                    ).withValues(alpha: 0.5),
                                     width: 1.2,
                                   ),
                                 ),
@@ -499,12 +579,19 @@ class _JarvisHudWidgetState extends State<JarvisHudWidget>
                                 _jarvis.processCommand('self evolve');
                               },
                               child: Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                  vertical: 7,
+                                ),
                                 decoration: BoxDecoration(
-                                  color: const Color(0xFFBA68C8).withValues(alpha: 0.14),
+                                  color: const Color(
+                                    0xFFBA68C8,
+                                  ).withValues(alpha: 0.14),
                                   borderRadius: BorderRadius.circular(20),
                                   border: Border.all(
-                                    color: const Color(0xFFBA68C8).withValues(alpha: 0.55),
+                                    color: const Color(
+                                      0xFFBA68C8,
+                                    ).withValues(alpha: 0.55),
                                     width: 1.2,
                                   ),
                                 ),
@@ -537,34 +624,50 @@ class _JarvisHudWidgetState extends State<JarvisHudWidget>
                             ListenableBuilder(
                               listenable: AirGestureService.instance,
                               builder: (context, _) {
-                                final isAir = AirGestureService.instance.isEnabled;
-                                final airColor = isAir ? const Color(0xFF00E5FF) : themeColor;
+                                final isAir =
+                                    AirGestureService.instance.isEnabled;
+                                final airColor = isAir
+                                    ? const Color(0xFF00E5FF)
+                                    : themeColor;
                                 return GestureDetector(
                                   onTap: () {
                                     HapticFeedback.mediumImpact();
                                     showDialog(
                                       context: context,
-                                      barrierColor: Colors.black.withValues(alpha: 0.65),
-                                      builder: (_) => const AirGesturesHudWidget(),
+                                      barrierColor: Colors.black.withValues(
+                                        alpha: 0.65,
+                                      ),
+                                      builder: (_) =>
+                                          const AirGesturesHudWidget(),
                                     );
                                   },
                                   onLongPress: () {
                                     HapticFeedback.heavyImpact();
-                                    AirGestureService.instance.toggleAirGestures();
+                                    AirGestureService.instance
+                                        .toggleAirGestures();
                                   },
                                   child: Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 12,
+                                      vertical: 7,
+                                    ),
                                     decoration: BoxDecoration(
-                                      color: isAir ? airColor.withValues(alpha: 0.20) : airColor.withValues(alpha: 0.10),
+                                      color: isAir
+                                          ? airColor.withValues(alpha: 0.20)
+                                          : airColor.withValues(alpha: 0.10),
                                       borderRadius: BorderRadius.circular(20),
                                       border: Border.all(
-                                        color: isAir ? airColor : airColor.withValues(alpha: 0.40),
+                                        color: isAir
+                                            ? airColor
+                                            : airColor.withValues(alpha: 0.40),
                                         width: isAir ? 1.6 : 1.2,
                                       ),
                                       boxShadow: isAir
                                           ? [
                                               BoxShadow(
-                                                color: airColor.withValues(alpha: 0.4),
+                                                color: airColor.withValues(
+                                                  alpha: 0.4,
+                                                ),
                                                 blurRadius: 10,
                                               ),
                                             ]
@@ -574,7 +677,9 @@ class _JarvisHudWidgetState extends State<JarvisHudWidget>
                                       mainAxisSize: MainAxisSize.min,
                                       children: [
                                         Icon(
-                                          isAir ? Icons.pan_tool : Icons.pan_tool_outlined,
+                                          isAir
+                                              ? Icons.pan_tool
+                                              : Icons.pan_tool_outlined,
                                           size: 13,
                                           color: airColor,
                                         ),
@@ -601,18 +706,28 @@ class _JarvisHudWidgetState extends State<JarvisHudWidget>
                             ListenableBuilder(
                               listenable: SettingsService.instance,
                               builder: (context, _) {
-                                final style = SettingsService.instance.jarvisScreenStyle;
-                                final isArc = style == JarvisScreenStyle.arcReactor;
-                                final podColor = isArc ? const Color(0xFF00E5FF) : const Color(0xFF64FFDA);
+                                final style =
+                                    SettingsService.instance.jarvisScreenStyle;
+                                final isArc =
+                                    style == JarvisScreenStyle.arcReactor;
+                                final podColor = isArc
+                                    ? const Color(0xFF00E5FF)
+                                    : const Color(0xFF64FFDA);
 
                                 return GestureDetector(
                                   onTap: () {
                                     HapticFeedback.mediumImpact();
-                                    final next = isArc ? JarvisScreenStyle.jarvis : JarvisScreenStyle.arcReactor;
-                                    SettingsService.instance.setJarvisScreenStyle(next);
+                                    final next = isArc
+                                        ? JarvisScreenStyle.jarvis
+                                        : JarvisScreenStyle.arcReactor;
+                                    SettingsService.instance
+                                        .setJarvisScreenStyle(next);
                                   },
                                   child: Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 7),
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 11,
+                                      vertical: 7,
+                                    ),
                                     decoration: BoxDecoration(
                                       color: podColor.withValues(alpha: 0.12),
                                       borderRadius: BorderRadius.circular(20),
@@ -625,7 +740,9 @@ class _JarvisHudWidgetState extends State<JarvisHudWidget>
                                       mainAxisSize: MainAxisSize.min,
                                       children: [
                                         Icon(
-                                          isArc ? Icons.blur_circular_rounded : Icons.accessibility_new_rounded,
+                                          isArc
+                                              ? Icons.blur_circular_rounded
+                                              : Icons.accessibility_new_rounded,
                                           size: 13,
                                           color: podColor,
                                         ),
@@ -652,19 +769,27 @@ class _JarvisHudWidgetState extends State<JarvisHudWidget>
                             ListenableBuilder(
                               listenable: MacroRecorderService.instance,
                               builder: (context, _) {
-                                final isRec = MacroRecorderService.instance.isRecording;
-                                final color = isRec ? const Color(0xFFFF5252) : const Color(0xFFBA68C8);
+                                final isRec =
+                                    MacroRecorderService.instance.isRecording;
+                                final color = isRec
+                                    ? const Color(0xFFFF5252)
+                                    : const Color(0xFFBA68C8);
                                 return GestureDetector(
                                   onTap: () {
                                     HapticFeedback.mediumImpact();
                                     if (isRec) {
                                       _jarvis.processCommand('save macro');
                                     } else {
-                                      _jarvis.processCommand('record macro Custom Task');
+                                      _jarvis.processCommand(
+                                        'record macro Custom Task',
+                                      );
                                     }
                                   },
                                   child: Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 12,
+                                      vertical: 7,
+                                    ),
                                     decoration: BoxDecoration(
                                       color: color.withValues(alpha: 0.12),
                                       borderRadius: BorderRadius.circular(20),
@@ -677,7 +802,9 @@ class _JarvisHudWidgetState extends State<JarvisHudWidget>
                                       mainAxisSize: MainAxisSize.min,
                                       children: [
                                         Icon(
-                                          isRec ? Icons.fiber_manual_record : Icons.auto_awesome,
+                                          isRec
+                                              ? Icons.fiber_manual_record
+                                              : Icons.auto_awesome,
                                           size: 13,
                                           color: color,
                                         ),
@@ -710,11 +837,15 @@ class _JarvisHudWidgetState extends State<JarvisHudWidget>
                         isListening
                             ? 'LISTENING // TAP TO FINISH'
                             : (_jarvis.phase == JarvisPhase.thinking
-                                ? 'COMPUTING RESPONSE...'
-                                : 'TAP SCREEN TO COMMUNICATE'),
+                                  ? 'COMPUTING RESPONSE...'
+                                  : 'TAP SCREEN TO COMMUNICATE'),
                         style: TextStyle(
                           color: themeColor.withValues(
-                            alpha: isListening || _jarvis.phase == JarvisPhase.thinking ? 0.55 : 0.22,
+                            alpha:
+                                isListening ||
+                                    _jarvis.phase == JarvisPhase.thinking
+                                ? 0.55
+                                : 0.22,
                           ),
                           fontSize: 9.5,
                           fontWeight: FontWeight.w600,
@@ -761,15 +892,18 @@ class _JarvisHudWidgetState extends State<JarvisHudWidget>
 
     if (isSpeaking) {
       // Fluid pacing across screen: walks/floats left and right while speaking!
-      pacingX = math.sin(t) * (arenaWidth * 0.22) +
+      pacingX =
+          math.sin(t) * (arenaWidth * 0.22) +
           math.sin(t * 2.1) * (arenaWidth * 0.05);
       pacingY = math.cos(t * 0.75) * 14.0 + math.sin(t * 1.5) * 5.0;
 
       // 3D gyroscopic tilt and precession: sphere orients toward the user
-      tiltY = -(pacingX / (arenaWidth * 0.30)).clamp(-1.0, 1.0) * 0.18 +
+      tiltY =
+          -(pacingX / (arenaWidth * 0.30)).clamp(-1.0, 1.0) * 0.18 +
           math.sin(t * 0.6) * 0.08;
       tiltX = math.sin(t * 1.1) * 0.08 + 0.04;
-      tiltZ = (pacingX / (arenaWidth * 0.30)).clamp(-1.0, 1.0) * 0.04 +
+      tiltZ =
+          (pacingX / (arenaWidth * 0.30)).clamp(-1.0, 1.0) * 0.04 +
           math.cos(t * 0.8) * 0.04;
       scale = 1.04 + math.sin(t * 0.6) * 0.05; // leans in toward user
     } else if (isListening) {
@@ -964,7 +1098,10 @@ class _JarvisHudWidgetState extends State<JarvisHudWidget>
     final double goldOpacity = goldFactor > 0.5
         ? ((goldFactor - 0.5) * 2.0).clamp(0.0, 1.0)
         : 0.0;
-    final double cyanOpacity = (1.0 - purpleOpacity - goldOpacity).clamp(0.0, 1.0);
+    final double cyanOpacity = (1.0 - purpleOpacity - goldOpacity).clamp(
+      0.0,
+      1.0,
+    );
 
     final tiltX = (_dragOffset.dx * 0.0015).clamp(-0.20, 0.20);
     final tiltY = (_dragOffset.dy * 0.0015).clamp(-0.20, 0.20);
@@ -1074,8 +1211,20 @@ class _JarvisHudWidgetState extends State<JarvisHudWidget>
                           BoxShadow(
                             color: themeColor.withValues(
                               alpha: isSpeaking || isListening
-                                  ? (0.42 + math.sin(_pulseController.value * 2 * math.pi) * 0.14)
-                                  : (0.20 + math.sin(_pulseController.value * 2 * math.pi) * 0.08),
+                                  ? (0.42 +
+                                        math.sin(
+                                              _pulseController.value *
+                                                  2 *
+                                                  math.pi,
+                                            ) *
+                                            0.14)
+                                  : (0.20 +
+                                        math.sin(
+                                              _pulseController.value *
+                                                  2 *
+                                                  math.pi,
+                                            ) *
+                                            0.08),
                             ),
                             blurRadius: 20,
                             spreadRadius: 4,
@@ -1340,11 +1489,7 @@ class _JarvisHudWidgetState extends State<JarvisHudWidget>
             onTap: () {
               proactive.dismissSuggestion();
             },
-            child: const Icon(
-              Icons.close,
-              size: 14,
-              color: Color(0x66FFFFFF),
-            ),
+            child: const Icon(Icons.close, size: 14, color: Color(0x66FFFFFF)),
           ),
         ],
       ),
@@ -1404,32 +1549,52 @@ class JarvisCornerBracketsPainter extends CustomPainter {
     const offset = 8.0;
 
     // Top-left
-    canvas.drawLine(const Offset(offset, offset + length),
-        const Offset(offset, offset), paint);
-    canvas.drawLine(const Offset(offset, offset),
-        const Offset(offset + length, offset), paint);
+    canvas.drawLine(
+      const Offset(offset, offset + length),
+      const Offset(offset, offset),
+      paint,
+    );
+    canvas.drawLine(
+      const Offset(offset, offset),
+      const Offset(offset + length, offset),
+      paint,
+    );
 
     // Top-right
-    canvas.drawLine(Offset(size.width - offset - length, offset),
-        Offset(size.width - offset, offset), paint);
-    canvas.drawLine(Offset(size.width - offset, offset),
-        Offset(size.width - offset, offset + length), paint);
+    canvas.drawLine(
+      Offset(size.width - offset - length, offset),
+      Offset(size.width - offset, offset),
+      paint,
+    );
+    canvas.drawLine(
+      Offset(size.width - offset, offset),
+      Offset(size.width - offset, offset + length),
+      paint,
+    );
 
     // Bottom-left
-    canvas.drawLine(Offset(offset, size.height - offset - length),
-        Offset(offset, size.height - offset), paint);
-    canvas.drawLine(Offset(offset, size.height - offset),
-        Offset(offset + length, size.height - offset), paint);
+    canvas.drawLine(
+      Offset(offset, size.height - offset - length),
+      Offset(offset, size.height - offset),
+      paint,
+    );
+    canvas.drawLine(
+      Offset(offset, size.height - offset),
+      Offset(offset + length, size.height - offset),
+      paint,
+    );
 
     // Bottom-right
     canvas.drawLine(
-        Offset(size.width - offset - length, size.height - offset),
-        Offset(size.width - offset, size.height - offset),
-        paint);
+      Offset(size.width - offset - length, size.height - offset),
+      Offset(size.width - offset, size.height - offset),
+      paint,
+    );
     canvas.drawLine(
-        Offset(size.width - offset, size.height - offset - length),
-        Offset(size.width - offset, size.height - offset),
-        paint);
+      Offset(size.width - offset, size.height - offset - length),
+      Offset(size.width - offset, size.height - offset),
+      paint,
+    );
   }
 
   @override
@@ -1506,7 +1671,7 @@ class JarvisCircularVocalSpectrumPainter extends CustomPainter {
     final normalizedSound = (soundLevel.abs().clamp(0.0, 10.0)) / 10.0;
     final voiceAmp = isSpeaking
         ? (0.35 + 0.65 * math.sin(wave * math.pi)) *
-            (0.6 + normalizedSound * 0.9)
+              (0.6 + normalizedSound * 0.9)
         : (isListening ? (0.2 + normalizedSound * 0.7) : 0.08);
 
     const numSpikes = 42;
@@ -1516,10 +1681,8 @@ class JarvisCircularVocalSpectrumPainter extends CustomPainter {
 
     for (int i = 0; i < numSpikes; i++) {
       final angle = (i / numSpikes) * 2 * math.pi;
-      final harmonic =
-          math.sin((i * 3.7) + (wave * 2 * math.pi)) * 0.5 + 0.5;
-      final spikeLen =
-          (harmonic * 16.0 * voiceAmp) + (isSpeaking ? 3.5 : 1.5);
+      final harmonic = math.sin((i * 3.7) + (wave * 2 * math.pi)) * 0.5 + 0.5;
+      final spikeLen = (harmonic * 16.0 * voiceAmp) + (isSpeaking ? 3.5 : 1.5);
 
       final r1 = baseRadius + 1.5;
       final r2 = baseRadius + 1.5 + spikeLen;
@@ -1528,23 +1691,27 @@ class JarvisCircularVocalSpectrumPainter extends CustomPainter {
       final p2 = Offset(cx + r2 * math.cos(angle), cy + r2 * math.sin(angle));
 
       final alpha = (0.25 + (harmonic * 0.75) * voiceAmp).clamp(0.1, 1.0);
-      spikePaint.color =
-          (i % 3 == 0 ? Colors.white : color).withValues(alpha: alpha);
+      spikePaint.color = (i % 3 == 0 ? Colors.white : color).withValues(
+        alpha: alpha,
+      );
 
       canvas.drawLine(p1, p2, spikePaint);
 
       // Outer node dot on prominent spikes
       if (harmonic > 0.7 && voiceAmp > 0.3) {
         canvas.drawCircle(
-            p2, 1.3, Paint()..color = Colors.white.withValues(alpha: alpha));
+          p2,
+          1.3,
+          Paint()..color = Colors.white.withValues(alpha: alpha),
+        );
       }
     }
   }
 
   @override
   bool shouldRepaint(
-          covariant JarvisCircularVocalSpectrumPainter oldDelegate) =>
-      true;
+    covariant JarvisCircularVocalSpectrumPainter oldDelegate,
+  ) => true;
 }
 
 /// 3D Tilted Gyroscopic Armillary Quantum Data Rings with tick markings and orbiting satellites
@@ -1597,8 +1764,7 @@ class JarvisOrbitalRingsPainter extends CustomPainter {
     final a1 = (isThinking ? rotation * 2.5 : rotation) * 2 * math.pi;
     final sat1 = Offset(r1 * math.cos(a1), r1 * math.sin(a1));
     canvas.drawCircle(sat1, 2.8, dotPaint);
-    canvas.drawCircle(
-        sat1, 6.0, Paint()..color = color.withValues(alpha: 0.4));
+    canvas.drawCircle(sat1, 6.0, Paint()..color = color.withValues(alpha: 0.4));
     canvas.restore();
 
     // Ring 2: Polar Orbital Ring (Tilted -44 deg)
@@ -1615,7 +1781,10 @@ class JarvisOrbitalRingsPainter extends CustomPainter {
     final sat2 = Offset(r2 * math.cos(a2), r2 * math.sin(a2));
     canvas.drawCircle(sat2, 2.6, dotPaint);
     canvas.drawCircle(
-        sat2, 5.5, Paint()..color = color.withValues(alpha: 0.35));
+      sat2,
+      5.5,
+      Paint()..color = color.withValues(alpha: 0.35),
+    );
     canvas.restore();
 
     // Ring 3: Steep Meridian Ring (Tilted +72 deg, precessing)
@@ -1636,7 +1805,10 @@ class JarvisOrbitalRingsPainter extends CustomPainter {
 
     final a3 = (rotation * 1.8) * 2 * math.pi;
     canvas.drawCircle(
-        Offset(r3 * math.cos(a3), r3 * math.sin(a3)), 2.0, dotPaint);
+      Offset(r3 * math.cos(a3), r3 * math.sin(a3)),
+      2.0,
+      dotPaint,
+    );
     canvas.restore();
   }
 
@@ -1672,41 +1844,48 @@ class JarvisCoreAcousticWavePainter extends CustomPainter {
     final normalizedSound = (soundLevel.abs().clamp(0.0, 10.0)) / 10.0;
     final voiceAmp = isSpeaking
         ? (0.40 + 0.60 * math.sin(wave * math.pi)) *
-            (0.7 + normalizedSound * 0.8)
+              (0.7 + normalizedSound * 0.8)
         : (isListening ? (normalizedSound * 0.75) : 0.0);
 
     // 1. Central Pulsar Singularity Core (white-hot radiant nucleus)
     final coreR = (size.width * 0.08) * (1.0 + (voiceAmp * 0.5));
     final corePaint = Paint()
-      ..shader = RadialGradient(
-        colors: [
-          const Color(0xFFFFFFFF),
-          color.withValues(alpha: 0.95),
-          color.withValues(alpha: 0.35),
-          Colors.transparent,
-        ],
-        stops: const [0.0, 0.35, 0.7, 1.0],
-      ).createShader(
-          Rect.fromCircle(center: Offset(cx, cy), radius: coreR * 2.4));
+      ..shader =
+          RadialGradient(
+            colors: [
+              const Color(0xFFFFFFFF),
+              color.withValues(alpha: 0.95),
+              color.withValues(alpha: 0.35),
+              Colors.transparent,
+            ],
+            stops: const [0.0, 0.35, 0.7, 1.0],
+          ).createShader(
+            Rect.fromCircle(center: Offset(cx, cy), radius: coreR * 2.4),
+          );
     canvas.drawCircle(Offset(cx, cy), coreR * 2.4, corePaint);
     canvas.drawCircle(
-        Offset(cx, cy), coreR * 0.55, Paint()..color = Colors.white);
+      Offset(cx, cy),
+      coreR * 0.55,
+      Paint()..color = Colors.white,
+    );
 
     // 2. Concentric Expanding Acoustic Shockwaves rippling out through the sphere
     final waveCount = 4;
     for (int i = 0; i < waveCount; i++) {
       final progress = (wave + (i / waveCount)) % 1.0;
-      final shockRadius = (size.width * 0.10) +
-          (progress * (maxR - (size.width * 0.10)));
+      final shockRadius =
+          (size.width * 0.10) + (progress * (maxR - (size.width * 0.10)));
       final baseAlpha = isSpeaking ? 0.75 : (isListening ? 0.40 : 0.15);
-      final alpha = (1.0 - progress) *
+      final alpha =
+          (1.0 - progress) *
           baseAlpha *
           (isSpeaking ? voiceAmp : (isListening ? 0.8 : 0.4));
 
       if (alpha > 0.02) {
         final shockPaint = Paint()
-          ..color = (isSpeaking ? const Color(0xFFFFD54F) : color)
-              .withValues(alpha: alpha.clamp(0.0, 1.0))
+          ..color = (isSpeaking ? const Color(0xFFFFD54F) : color).withValues(
+            alpha: alpha.clamp(0.0, 1.0),
+          )
           ..style = PaintingStyle.stroke
           ..strokeWidth = 1.8 * (1.0 - progress * 0.5);
 
@@ -1720,20 +1899,23 @@ class JarvisCoreAcousticWavePainter extends CustomPainter {
       final flareAngles = [0.0, math.pi / 2, math.pi / 4, -math.pi / 4];
       for (final fa in flareAngles) {
         final flarePaint = Paint()
-          ..shader = LinearGradient(
-            colors: [
-              Colors.transparent,
-              color.withValues(alpha: 0.70 * voiceAmp),
-              const Color(0xFFFFFFFF).withValues(alpha: 0.90 * voiceAmp),
-              color.withValues(alpha: 0.70 * voiceAmp),
-              Colors.transparent,
-            ],
-            stops: const [0.0, 0.35, 0.5, 0.65, 1.0],
-          ).createShader(Rect.fromCenter(
-            center: Offset(cx, cy),
-            width: flareLen * 2,
-            height: 3,
-          ));
+          ..shader =
+              LinearGradient(
+                colors: [
+                  Colors.transparent,
+                  color.withValues(alpha: 0.70 * voiceAmp),
+                  const Color(0xFFFFFFFF).withValues(alpha: 0.90 * voiceAmp),
+                  color.withValues(alpha: 0.70 * voiceAmp),
+                  Colors.transparent,
+                ],
+                stops: const [0.0, 0.35, 0.5, 0.65, 1.0],
+              ).createShader(
+                Rect.fromCenter(
+                  center: Offset(cx, cy),
+                  width: flareLen * 2,
+                  height: 3,
+                ),
+              );
 
         canvas.save();
         canvas.translate(cx, cy);
@@ -1845,10 +2027,13 @@ class JarvisHologramFxPainter extends CustomPainter {
       final px = cx + rx * math.cos(orbitalAngle);
       final py = cy + ry * math.sin(orbitalAngle);
 
-      final alpha =
-          (math.sin(t * math.pi) * (isSpeaking ? 0.9 : 0.65)).clamp(0.0, 1.0);
-      sparkPaint.color =
-          (t > 0.5 ? Colors.white : color).withValues(alpha: alpha);
+      final alpha = (math.sin(t * math.pi) * (isSpeaking ? 0.9 : 0.65)).clamp(
+        0.0,
+        1.0,
+      );
+      sparkPaint.color = (t > 0.5 ? Colors.white : color).withValues(
+        alpha: alpha,
+      );
 
       canvas.drawCircle(Offset(px, py), 1.8, sparkPaint);
     }
@@ -1886,17 +2071,23 @@ class JarvisEmitterPedestalPainter extends CustomPainter {
       ..close();
 
     final beamPaint = Paint()
-      ..shader = LinearGradient(
-        begin: Alignment.bottomCenter,
-        end: Alignment.topCenter,
-        colors: [
-          color.withValues(alpha: active ? 0.30 : 0.16),
-          color.withValues(alpha: 0.05),
-          Colors.transparent,
-        ],
-      ).createShader(
-        Rect.fromLTWH(cx - rx, cy - size.height * 0.65, rx * 2, size.height * 0.65),
-      )
+      ..shader =
+          LinearGradient(
+            begin: Alignment.bottomCenter,
+            end: Alignment.topCenter,
+            colors: [
+              color.withValues(alpha: active ? 0.30 : 0.16),
+              color.withValues(alpha: 0.05),
+              Colors.transparent,
+            ],
+          ).createShader(
+            Rect.fromLTWH(
+              cx - rx,
+              cy - size.height * 0.65,
+              rx * 2,
+              size.height * 0.65,
+            ),
+          )
       ..style = PaintingStyle.fill;
     canvas.drawPath(beamPath, beamPaint);
 
@@ -1911,11 +2102,19 @@ class JarvisEmitterPedestalPainter extends CustomPainter {
       ringPaint,
     );
     canvas.drawOval(
-      Rect.fromCenter(center: Offset(cx, cy), width: rx * 1.5, height: ry * 1.5),
+      Rect.fromCenter(
+        center: Offset(cx, cy),
+        width: rx * 1.5,
+        height: ry * 1.5,
+      ),
       ringPaint..strokeWidth = 0.9,
     );
     canvas.drawOval(
-      Rect.fromCenter(center: Offset(cx, cy), width: rx * 0.9, height: ry * 0.9),
+      Rect.fromCenter(
+        center: Offset(cx, cy),
+        width: rx * 0.9,
+        height: ry * 0.9,
+      ),
       ringPaint..strokeWidth = 0.6,
     );
 
@@ -1933,22 +2132,35 @@ class JarvisEmitterPedestalPainter extends CustomPainter {
       final len = (i % 4 == 0) ? 6.0 : 3.5;
       final dx = len * math.cos(angle);
       final dy = len * 0.28 * math.sin(angle);
-      canvas.drawLine(Offset(px - dx, py - dy), Offset(px + dx, py + dy), tickPaint);
+      canvas.drawLine(
+        Offset(px - dx, py - dy),
+        Offset(px + dx, py + dy),
+        tickPaint,
+      );
     }
 
     // 4. Center intense projection hotspot
     final spotPaint = Paint()
-      ..shader = RadialGradient(
-        colors: [
-          Colors.white.withValues(alpha: active ? 0.85 : 0.50),
-          color.withValues(alpha: active ? 0.60 : 0.30),
-          Colors.transparent,
-        ],
-      ).createShader(
-        Rect.fromCenter(center: Offset(cx, cy), width: rx * 0.7, height: ry * 0.7),
-      );
+      ..shader =
+          RadialGradient(
+            colors: [
+              Colors.white.withValues(alpha: active ? 0.85 : 0.50),
+              color.withValues(alpha: active ? 0.60 : 0.30),
+              Colors.transparent,
+            ],
+          ).createShader(
+            Rect.fromCenter(
+              center: Offset(cx, cy),
+              width: rx * 0.7,
+              height: ry * 0.7,
+            ),
+          );
     canvas.drawOval(
-      Rect.fromCenter(center: Offset(cx, cy), width: rx * 0.7, height: ry * 0.7),
+      Rect.fromCenter(
+        center: Offset(cx, cy),
+        width: rx * 0.7,
+        height: ry * 0.7,
+      ),
       spotPaint,
     );
 
@@ -1967,7 +2179,8 @@ class JarvisEmitterPedestalPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(covariant JarvisEmitterPedestalPainter oldDelegate) => true;
+  bool shouldRepaint(covariant JarvisEmitterPedestalPainter oldDelegate) =>
+      true;
 }
 
 /// 3D Orbital Holographic Torso Rings floating around the Suit
@@ -2093,10 +2306,7 @@ class JarvisSuitScanlinePainter extends CustomPainter {
   final double progress;
   final Color color;
 
-  JarvisSuitScanlinePainter({
-    required this.progress,
-    required this.color,
-  });
+  JarvisSuitScanlinePainter({required this.progress, required this.color});
 
   @override
   void paint(Canvas canvas, Size size) {

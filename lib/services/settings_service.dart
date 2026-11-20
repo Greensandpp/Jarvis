@@ -1,3 +1,5 @@
+import 'dart:convert';
+import 'package:crypto/crypto.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -31,7 +33,7 @@ class SettingsService extends ChangeNotifier {
   bool get isReady => _prefs != null;
 
   Future<void> init() async {
-    _prefs ??= await SharedPreferences.getInstance();
+    _prefs = await SharedPreferences.getInstance();
     // Ensure system prompt is enabled so models always receive the agent action grammar
     if (_prefs?.getBool('ai_use_system_prompt') != true) {
       await _prefs?.setBool('ai_use_system_prompt', true);
@@ -42,14 +44,21 @@ class SettingsService extends ChangeNotifier {
   /// App shortcuts are represented as `app:<Android app label or package>`.
   /// The allowlisted action catalog is rendered in the overlay editor.
   static const List<String> defaultArcShortcuts = [
-    'open_tradingview', 'toggle_torch', 'payment_safety', 'summarize_screen',
+    'open_tradingview',
+    'toggle_torch',
+    'payment_safety',
+    'summarize_screen',
   ];
   List<String> get arcShortcuts =>
       _prefs?.getStringList('arc_shortcuts_v1') ?? defaultArcShortcuts;
   Future<void> setArcShortcuts(List<String> value) async {
     // No duplicates; limits panel clutter and stored data.
-    final cleaned = value.map((e) => e.trim()).where((e) => e.isNotEmpty)
-        .toSet().take(20).toList();
+    final cleaned = value
+        .map((e) => e.trim())
+        .where((e) => e.isNotEmpty)
+        .toSet()
+        .take(20)
+        .toList();
     await _prefs?.setStringList('arc_shortcuts_v1', cleaned);
     notifyListeners();
   }
@@ -98,14 +107,32 @@ class SettingsService extends ChangeNotifier {
 
   String get provider => _prefs?.getString('ai_provider') ?? 'deepseek';
   Future<void> setProvider(String value) async {
+    if (value == provider) return;
+    await _prefs?.setString('ai_saved_model_$provider', model);
+    await _prefs?.setString('ai_saved_base_$provider', baseUrl);
     await _prefs?.setString('ai_provider', value);
     final preset = providers[value];
-    if (preset != null && preset.baseUrl.isNotEmpty) {
-      await _prefs?.setString('ai_base_url', preset.baseUrl);
-      await _prefs?.setString('ai_model', preset.model);
-    }
+    await _prefs?.setString(
+      'ai_base_url',
+      _prefs?.getString('ai_saved_base_$value') ?? preset?.baseUrl ?? '',
+    );
+    await _prefs?.setString(
+      'ai_model',
+      _prefs?.getString('ai_saved_model_$value') ?? preset?.model ?? '',
+    );
     notifyListeners();
   }
+
+  // Scope cached discovery and verification to this endpoint and credential.
+  // Only a digest is used in preference keys; credentials never enter logs.
+  String get aiConnectionId => sha256
+      .convert(
+        utf8.encode(
+          '$provider|${baseUrl.replaceAll(RegExp(r'/+$'), '')}|$apiKey',
+        ),
+      )
+      .toString();
+  String _aiKey(String key) => '${key}_$aiConnectionId';
 
   String get baseUrl =>
       _prefs?.getString('ai_base_url') ??
@@ -117,34 +144,46 @@ class SettingsService extends ChangeNotifier {
   }
 
   /// Chat models discovered for the current key (GET {base}/models).
-  List<String> get discoveredModels => _prefs?.getStringList('ai_discovered_models') ?? const [];
+  List<String> get discoveredModels =>
+      _prefs?.getStringList(_aiKey('ai_discovered_models')) ?? const [];
   Future<void> setDiscoveredModels(List<String> m) async {
-    await _prefs?.setStringList('ai_discovered_models', m);
+    await _prefs?.setStringList(_aiKey('ai_discovered_models'), m);
     notifyListeners();
   }
 
   /// "ONLINE" is only claimed after a real request succeeded.
-  bool get aiVerified => _prefs?.getBool('ai_verified') ?? false;
-  int get aiLastOkAt => _prefs?.getInt('ai_last_ok_at') ?? 0;
-  String get aiLastOkModel => _prefs?.getString('ai_last_ok_model') ?? '';
-  String get aiLastErrorKind => _prefs?.getString('ai_last_error_kind') ?? '';
+  bool get aiVerified =>
+      (_prefs?.getBool(_aiKey('ai_verified')) ?? false) &&
+      aiLastOkModel == model;
+  int get aiLastOkAt => _prefs?.getInt(_aiKey('ai_last_ok_at')) ?? 0;
+  String get aiLastOkModel =>
+      _prefs?.getString(_aiKey('ai_last_ok_model')) ?? '';
+  String get aiLastErrorKind =>
+      _prefs?.getString(_aiKey('ai_last_error_kind')) ?? '';
 
   Future<void> recordAiSuccess(String model) async {
-    await _prefs?.setBool('ai_verified', true);
-    await _prefs?.setInt('ai_last_ok_at', DateTime.now().millisecondsSinceEpoch);
-    await _prefs?.setString('ai_last_ok_model', model);
-    await _prefs?.setString('ai_last_error_kind', '');
+    await setModel(model);
+    await _prefs?.setBool(_aiKey('ai_verified'), true);
+    await _prefs?.setInt(
+      _aiKey('ai_last_ok_at'),
+      DateTime.now().millisecondsSinceEpoch,
+    );
+    await _prefs?.setString(_aiKey('ai_last_ok_model'), model);
+    await _prefs?.setString(_aiKey('ai_last_error_kind'), '');
+    notifyListeners();
   }
 
   Future<void> recordAiFailure(String kind) async {
-    await _prefs?.setString('ai_last_error_kind', kind);
-    if (kind == 'auth' || kind == 'noKey' || kind == 'modelNotFound') await _prefs?.setBool('ai_verified', false);
+    await _prefs?.setString(_aiKey('ai_last_error_kind'), kind);
+    await _prefs?.setBool(_aiKey('ai_verified'), false);
+    notifyListeners();
   }
 
   /// Honest status line: never ONLINE without a verified request.
   String get aiStatusLabel {
     if (apiKey.isEmpty && provider != 'ollama') return 'AI NOT CONNECTED';
-    if (aiLastErrorKind.isNotEmpty) return 'AI ERROR · ${aiLastErrorKind.toUpperCase()}';
+    if (aiLastErrorKind.isNotEmpty)
+      return 'AI ERROR · ${aiLastErrorKind.toUpperCase()}';
     if (aiVerified) return 'AI ONLINE · $aiLastOkModel';
     return 'AI NOT VERIFIED · run test';
   }
@@ -160,7 +199,9 @@ class SettingsService extends ChangeNotifier {
       providers[provider]?.model ??
       'deepseek-chat';
   Future<void> setModel(String value) async {
+    if (value.trim() == model) return;
     await _prefs?.setString('ai_model', value.trim());
+    await _prefs?.setString('ai_saved_model_$provider', value.trim());
     notifyListeners();
   }
 
@@ -320,7 +361,8 @@ class SettingsService extends ChangeNotifier {
 
   /// Tool-calling brain (open-ended reasoning + tools). When off, the original
   /// single-shot intent router is used.
-  bool get brainToolCalling => _prefs?.getBool('jarvis_brain_tool_calling') ?? true;
+  bool get brainToolCalling =>
+      _prefs?.getBool('jarvis_brain_tool_calling') ?? true;
   Future<void> setBrainToolCalling(bool v) async {
     await _prefs?.setBool('jarvis_brain_tool_calling', v);
     notifyListeners();
@@ -329,8 +371,11 @@ class SettingsService extends ChangeNotifier {
   /// Reply language: auto (follow the user's Tamil / English / Tanglish), or fixed.
   String get replyLanguage {
     final v = _prefs?.getString('jarvis_reply_language') ?? 'auto';
-    return const ['auto', 'english', 'tamil', 'tanglish'].contains(v) ? v : 'auto';
+    return const ['auto', 'english', 'tamil', 'tanglish'].contains(v)
+        ? v
+        : 'auto';
   }
+
   Future<void> setReplyLanguage(String v) async {
     if (!const ['auto', 'english', 'tamil', 'tanglish'].contains(v)) return;
     await _prefs?.setString('jarvis_reply_language', v);
@@ -338,7 +383,8 @@ class SettingsService extends ChangeNotifier {
   }
 
   /// Prefer a female voice (Edge neural Pallavi/Neerja, or a female local TTS voice).
-  bool get preferFemaleVoice => _prefs?.getBool('jarvis_prefer_female_voice') ?? true;
+  bool get preferFemaleVoice =>
+      _prefs?.getBool('jarvis_prefer_female_voice') ?? true;
   Future<void> setPreferFemaleVoice(bool v) async {
     await _prefs?.setBool('jarvis_prefer_female_voice', v);
     notifyListeners();
@@ -362,7 +408,9 @@ class SettingsService extends ChangeNotifier {
   /// Indian English is a better default for local accents; Tamil can be selected.
   String get speechInputLocale {
     final locale = _prefs?.getString('jarvis_speech_input_locale') ?? 'en-IN';
-    return const ['en-IN', 'ta-IN', 'en-GB'].contains(locale) ? locale : 'en-IN';
+    return const ['en-IN', 'ta-IN', 'en-GB'].contains(locale)
+        ? locale
+        : 'en-IN';
   }
 
   Future<void> setSpeechInputLocale(String locale) async {
@@ -388,8 +436,7 @@ class SettingsService extends ChangeNotifier {
   }
 
   /// Whether to prioritize ultra-realistic neural human voices over offline TTS.
-  bool get useNeuralVoice =>
-      _prefs?.getBool('jarvis_use_neural_voice') ?? true;
+  bool get useNeuralVoice => _prefs?.getBool('jarvis_use_neural_voice') ?? true;
   Future<void> setUseNeuralVoice(bool value) async {
     await _prefs?.setBool('jarvis_use_neural_voice', value);
     notifyListeners();
@@ -458,7 +505,8 @@ class SettingsService extends ChangeNotifier {
 
   /// Smart Home / Home Assistant URL (e.g. http://192.168.1.100:8123)
   String get homeAssistantUrl =>
-      _prefs?.getString('smart_home_ha_url') ?? 'http://homeassistant.local:8123';
+      _prefs?.getString('smart_home_ha_url') ??
+      'http://homeassistant.local:8123';
   Future<void> setHomeAssistantUrl(String value) async {
     await _prefs?.setString('smart_home_ha_url', value.trim());
     notifyListeners();
@@ -473,8 +521,7 @@ class SettingsService extends ChangeNotifier {
   }
 
   /// Whether Smart Home integration is enabled
-  bool get smartHomeEnabled =>
-      _prefs?.getBool('smart_home_enabled') ?? true;
+  bool get smartHomeEnabled => _prefs?.getBool('smart_home_enabled') ?? true;
   Future<void> setSmartHomeEnabled(bool value) async {
     await _prefs?.setBool('smart_home_enabled', value);
     notifyListeners();
@@ -505,8 +552,7 @@ class SettingsService extends ChangeNotifier {
   }
 
   /// Commute travel mode: 'driving', 'transit', 'walking', 'cycling'
-  String get commuteMode =>
-      _prefs?.getString('commute_mode') ?? 'driving';
+  String get commuteMode => _prefs?.getString('commute_mode') ?? 'driving';
   Future<void> setCommuteMode(String value) async {
     await _prefs?.setString('commute_mode', value);
     notifyListeners();
@@ -521,8 +567,7 @@ class SettingsService extends ChangeNotifier {
   }
 
   /// Jarvis Eye Multimodal Camera Perception
-  bool get jarvisEyeEnabled =>
-      _prefs?.getBool('jarvis_eye_enabled') ?? true;
+  bool get jarvisEyeEnabled => _prefs?.getBool('jarvis_eye_enabled') ?? true;
   Future<void> setJarvisEyeEnabled(bool value) async {
     await _prefs?.setBool('jarvis_eye_enabled', value);
     notifyListeners();

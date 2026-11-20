@@ -15,11 +15,13 @@ import 'settings_service.dart';
 class AiException implements Exception {
   final String message;
   final int? statusCode;
+
   /// Classified cause (DNS, TLS, auth, model, …); null for legacy call sites.
   final AiFailureKind? kind;
   const AiException(this.message, {this.statusCode, this.kind});
 
-  factory AiException.from(AiFailure f) => AiException(f.userMessage, statusCode: f.status, kind: f.kind);
+  factory AiException.from(AiFailure f) =>
+      AiException(f.userMessage, statusCode: f.status, kind: f.kind);
 
   @override
   String toString() =>
@@ -149,7 +151,8 @@ class JarvisIntent {
         lower.contains('anti-theft') ||
         lower.contains('watchdog protocol') ||
         lower.contains('watchdog mode')) {
-      final isDisarm = lower.contains('deactivat') ||
+      final isDisarm =
+          lower.contains('deactivat') ||
           lower.contains('disarm') ||
           lower.contains('turn off') ||
           lower.contains('disable') ||
@@ -171,7 +174,11 @@ class JarvisIntent {
         lower.contains('zero touch') ||
         lower.contains('touchless') ||
         lower.contains('hand wave gesture')) {
-      final isOff = lower.contains('off') || lower.contains('disable') || lower.contains('deactivat') || lower.contains('stop');
+      final isOff =
+          lower.contains('off') ||
+          lower.contains('disable') ||
+          lower.contains('deactivat') ||
+          lower.contains('stop');
       return JarvisIntent(
         type: JarvisIntentType.airGestures,
         spoken: isOff
@@ -225,10 +232,16 @@ class JarvisIntent {
         lower.contains('floating assistant') ||
         lower.contains('screen copilot') ||
         lower.contains('screen assistant')) {
-      final isOff = lower.contains('hide') || lower.contains('close') || lower.contains('stop') || lower.contains('dismiss');
+      final isOff =
+          lower.contains('hide') ||
+          lower.contains('close') ||
+          lower.contains('stop') ||
+          lower.contains('dismiss');
       return JarvisIntent(
         type: JarvisIntentType.floatingCopilot,
-        spoken: isOff ? 'Floating co-pilot dismissed, sir.' : 'Holographic floating co-pilot active, sir.',
+        spoken: isOff
+            ? 'Floating co-pilot dismissed, sir.'
+            : 'Holographic floating co-pilot active, sir.',
         toolArg: command,
       );
     }
@@ -252,10 +265,16 @@ class JarvisIntent {
     if (lower.startsWith('brain dump') ||
         lower.startsWith('process this dump') ||
         lower.startsWith('decouple:') ||
-        (lower.contains(' and ') && (lower.contains('remind') || lower.contains('schedule')) && (lower.contains('draft') || lower.contains('whatsapp') || lower.contains('todo') || lower.contains('calculate')))) {
+        (lower.contains(' and ') &&
+            (lower.contains('remind') || lower.contains('schedule')) &&
+            (lower.contains('draft') ||
+                lower.contains('whatsapp') ||
+                lower.contains('todo') ||
+                lower.contains('calculate')))) {
       return JarvisIntent(
         type: JarvisIntentType.multiTaskDump,
-        spoken: 'Deconstructing chaotic multi-task dump into parallel directives, sir.',
+        spoken:
+            'Deconstructing chaotic multi-task dump into parallel directives, sir.',
         toolArg: command,
       );
     }
@@ -303,12 +322,12 @@ class JarvisIntent {
       );
     }
     if ((lower == 'good night' ||
-        lower == 'goodnight' ||
-        lower.contains('evening routine') ||
-        lower.contains('night routine') ||
-        lower == 'bedtime' ||
-        lower.contains('bedtime routine') ||
-        lower == 'time for bed') &&
+            lower == 'goodnight' ||
+            lower.contains('evening routine') ||
+            lower.contains('night routine') ||
+            lower == 'bedtime' ||
+            lower.contains('bedtime routine') ||
+            lower == 'time for bed') &&
         !lower.contains('story')) {
       return const JarvisIntent(
         type: JarvisIntentType.routine,
@@ -464,28 +483,36 @@ class JarvisIntent {
     ).hasMatch(lower);
 
     if (!isQuestion) {
-      if (RegExp(r'\b(study mode|study protocol|study session|start studying)\b').hasMatch(lower)) {
+      if (RegExp(
+        r'\b(study mode|study protocol|study session|start studying)\b',
+      ).hasMatch(lower)) {
         return const JarvisIntent(
           type: JarvisIntentType.workflow,
           spoken: 'Initiating Study Protocol, sir.',
           toolArg: 'study',
         );
       }
-      if (RegExp(r'\b(sleep mode|sleep protocol|night mode|night protocol|goodnight|bedtime|go to sleep)\b').hasMatch(lower)) {
+      if (RegExp(
+        r'\b(sleep mode|sleep protocol|night mode|night protocol|goodnight|bedtime|go to sleep)\b',
+      ).hasMatch(lower)) {
         return const JarvisIntent(
           type: JarvisIntentType.workflow,
           spoken: 'Activating Night Protocol, sir.',
           toolArg: 'night',
         );
       }
-      if (RegExp(r'\b(work mode|work protocol|focus mode|focus protocol|deep work)\b').hasMatch(lower)) {
+      if (RegExp(
+        r'\b(work mode|work protocol|focus mode|focus protocol|deep work)\b',
+      ).hasMatch(lower)) {
         return const JarvisIntent(
           type: JarvisIntentType.workflow,
           spoken: 'Focus Protocol engaged, sir.',
           toolArg: 'work',
         );
       }
-      if (RegExp(r'\b(cinema mode|cinema protocol|movie mode|theatre mode)\b').hasMatch(lower)) {
+      if (RegExp(
+        r'\b(cinema mode|cinema protocol|movie mode|theatre mode)\b',
+      ).hasMatch(lower)) {
         return const JarvisIntent(
           type: JarvisIntentType.workflow,
           spoken: 'Cinema Mode active, sir.',
@@ -516,7 +543,9 @@ class JarvisIntent {
     }
 
     // Fast date/time check
-    if (RegExp(r'\b(what time is it|what time|current time|what is the time|what date|what day is it|today\x27s date)\b').hasMatch(lower) ||
+    if (RegExp(
+          r'\b(what time is it|what time|current time|what is the time|what date|what day is it|today\x27s date)\b',
+        ).hasMatch(lower) ||
         (lower == 'time' || lower == 'date')) {
       return const JarvisIntent(
         type: JarvisIntentType.datetime,
@@ -588,7 +617,9 @@ class JarvisIntent {
         systemCommand: 'screenshot',
       );
     }
-    if (lower.contains('home screen') || lower == 'go home' || lower == 'home') {
+    if (lower.contains('home screen') ||
+        lower == 'go home' ||
+        lower == 'home') {
       return const JarvisIntent(
         type: JarvisIntentType.system,
         spoken: 'Navigating to home screen, sir.',
@@ -616,10 +647,7 @@ class JarvisIntent {
         actionGoal: command,
       );
     }
-    return const JarvisIntent(
-      type: JarvisIntentType.chat,
-      spoken: '',
-    );
+    return const JarvisIntent(type: JarvisIntentType.chat, spoken: '');
   }
 }
 
@@ -638,7 +666,8 @@ class AiService {
   /// True for local backends (Ollama etc.) that accept any/empty API key.
   bool get _isLocalBackend {
     final settings = SettingsService.instance;
-    if (settings.provider == 'ollama' || settings.localFirstPrivacyMode) return true;
+    if (settings.provider == 'ollama' || settings.localFirstPrivacyMode)
+      return true;
     final host = Uri.tryParse(settings.baseUrl)?.host ?? '';
     return host == 'localhost' || host == '127.0.0.1' || host == '[::1]';
   }
@@ -769,8 +798,7 @@ You cannot directly tap the screen in this mode. If the user asks you to perform
     final settings = SettingsService.instance;
     final systemPrompt = buildSystemPrompt();
     final messages = <Map<String, String>>[
-      if (settings.useSystemPrompt)
-        {'role': 'system', 'content': systemPrompt},
+      if (settings.useSystemPrompt) {'role': 'system', 'content': systemPrompt},
       ...history,
       {
         'role': 'user',
@@ -790,8 +818,7 @@ You cannot directly tap the screen in this mode. If the user asks you to perform
     final settings = SettingsService.instance;
     final systemPrompt = buildChatSystemPrompt(message);
     final messages = <Map<String, String>>[
-      if (settings.useSystemPrompt)
-        {'role': 'system', 'content': systemPrompt},
+      if (settings.useSystemPrompt) {'role': 'system', 'content': systemPrompt},
       ...history,
       {
         'role': 'user',
@@ -842,10 +869,13 @@ You cannot directly tap the screen in this mode. If the user asks you to perform
     List<Map<String, String>> history = const [],
   }) async* {
     final settings = SettingsService.instance;
+    if (settings.provider == 'gemini') {
+      yield await chat(message: message, history: history);
+      return;
+    }
     final systemPrompt = buildChatSystemPrompt(message);
     final messages = <Map<String, String>>[
-      if (settings.useSystemPrompt)
-        {'role': 'system', 'content': systemPrompt},
+      if (settings.useSystemPrompt) {'role': 'system', 'content': systemPrompt},
       ...history,
       {
         'role': 'user',
@@ -957,7 +987,8 @@ You cannot directly tap the screen in this mode. If the user asks you to perform
     final persona = PersonalityService.instance.buildPersonaPrompt(speech);
     final memory = ConversationalMemoryService.instance.buildMemoryContext();
 
-    final systemPrompt = '''
+    final systemPrompt =
+        '''
 $hermes
 
 $persona
@@ -1009,8 +1040,7 @@ Respond with ONLY a single JSON object:
 ''';
 
     final messages = <Map<String, String>>[
-      if (settings.useSystemPrompt)
-        {'role': 'system', 'content': systemPrompt},
+      if (settings.useSystemPrompt) {'role': 'system', 'content': systemPrompt},
       ...history,
       {
         'role': 'user',
@@ -1169,7 +1199,9 @@ Respond with ONLY a single JSON object:
           return JarvisIntent(
             type: type,
             spoken: spoken,
-            actionGoal: type == JarvisIntentType.action ? (toolArg ?? speech) : null,
+            actionGoal: type == JarvisIntentType.action
+                ? (toolArg ?? speech)
+                : null,
             systemCommand: type == JarvisIntentType.system ? toolArg : null,
             toolArg: toolArg,
           );
@@ -1188,7 +1220,8 @@ Respond with ONLY a single JSON object:
     List<Map<String, String>> history = const [],
   }) async {
     final settings = SettingsService.instance;
-    final systemPrompt = '''
+    final systemPrompt =
+        '''
 You are GreenSoil JARVIS, a personal AI customized for GreenSoil; the open-source foundation was created by AbuZar Ansarii.
 The user asked: "$userQuestion"
 Retrieved real-time information:
@@ -1216,7 +1249,10 @@ HUMAN SPOKEN DELIVERY GUIDELINES:
     final messages = <Map<String, String>>[
       {'role': 'system', 'content': systemPrompt},
       ...history,
-      {'role': 'user', 'content': 'Please answer based on the retrieved information.'},
+      {
+        'role': 'user',
+        'content': 'Please answer based on the retrieved information.',
+      },
     ];
 
     try {
@@ -1233,7 +1269,8 @@ HUMAN SPOKEN DELIVERY GUIDELINES:
   /// text (values it cannot read must be null — never guessed).
   Future<String> readTradingChart(String base64Image) async {
     final settings = SettingsService.instance;
-    const sys = 'You read trading chart screenshots for a PAPER-only analysis tool. Report ONLY values that are '
+    const sys =
+        'You read trading chart screenshots for a PAPER-only analysis tool. Report ONLY values that are '
         'clearly visible on the image. If a value is not visible or not legible, use null. Never estimate prices. '
         'Reply with one JSON object and nothing else: {"readable":bool,"instrument":str|null,"timeframe":str|null,'
         '"last_price":num|null,"ema9":num|null,"ma9":num|null,"vwap":num|null,"supertrend":num|null,'
@@ -1241,10 +1278,20 @@ HUMAN SPOKEN DELIVERY GUIDELINES:
         '"oi_or_volume_note":str|null,"visible_indicators":[str],"notes":str}';
     return _postChatCompletion([
       {'role': 'system', 'content': sys},
-      {'role': 'user', 'content': [
-        {'type': 'text', 'text': 'Read this chart.'},
-        {'type': 'image_url', 'image_url': {'url': base64Image.startsWith('data:image') ? base64Image : 'data:image/jpeg;base64,$base64Image'}},
-      ]},
+      {
+        'role': 'user',
+        'content': [
+          {'type': 'text', 'text': 'Read this chart.'},
+          {
+            'type': 'image_url',
+            'image_url': {
+              'url': base64Image.startsWith('data:image')
+                  ? base64Image
+                  : 'data:image/jpeg;base64,$base64Image',
+            },
+          },
+        ],
+      },
     ], settings);
   }
 
@@ -1305,7 +1352,8 @@ The user is viewing an article or screen on their device and requested an execut
       {'role': 'system', 'content': systemPrompt},
       {
         'role': 'user',
-        'content': 'Please provide an executive summary of this screen content, sir:\n\n$screenText',
+        'content':
+            'Please provide an executive summary of this screen content, sir:\n\n$screenText',
       },
     ];
 
@@ -1338,18 +1386,33 @@ The user is viewing an article or screen on their device and requested an execut
   /// Embeddings via the OpenAI-compatible `/embeddings` endpoint (Gemini
   /// supports it). Used for semantic memory recall; callers fall back to
   /// keyword search on any failure.
-  Future<List<List<double>>> embedTexts(List<String> texts,
-      {String model = 'gemini-embedding-001', Duration timeout = const Duration(seconds: 8)}) async {
+  Future<List<List<double>>> embedTexts(
+    List<String> texts, {
+    String model = 'gemini-embedding-001',
+    Duration timeout = const Duration(seconds: 8),
+  }) async {
     final settings = SettingsService.instance;
     _enforceAiPrivacy(settings);
-    if (settings.apiKey.isEmpty) throw const AiException('No API key configured.');
+    if (settings.apiKey.isEmpty)
+      throw const AiException('No API key configured.');
     final base = settings.baseUrl.replaceAll(RegExp(r'/+$'), '');
-    final r = await _client.post(Uri.parse('$base/embeddings'),
-        headers: {'Content-Type': 'application/json', 'Authorization': 'Bearer ${settings.apiKey}'},
-        body: jsonEncode({'model': model, 'input': texts})).timeout(timeout);
-    if (r.statusCode != 200) throw AiException.from(AiFailure.fromHttp(r.statusCode, r.body));
+    final r = await _client
+        .post(
+          Uri.parse('$base/embeddings'),
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer ${settings.apiKey}',
+          },
+          body: jsonEncode({'model': model, 'input': texts}),
+        )
+        .timeout(timeout);
+    if (r.statusCode != 200)
+      throw AiException.from(AiFailure.fromHttp(r.statusCode, r.body));
     final data = (jsonDecode(utf8.decode(r.bodyBytes))['data'] as List);
-    return [for (final d in data) [for (final v in (d['embedding'] as List)) (v as num).toDouble()]];
+    return [
+      for (final d in data)
+        [for (final v in (d['embedding'] as List)) (v as num).toDouble()],
+    ];
   }
 
   /// Tool-calling entry point for the JARVIS brain. Returns the assistant
@@ -1401,11 +1464,26 @@ The user is viewing an article or screen on their device and requested an execut
       },
     };
 
-    // Try the configured model, then (on HTTP 404 only) models discovered for
-    // this key. Transient failures (429/5xx/timeouts) retry with backoff.
-    Future<http.Response> send(String model) => withRetry(() async {
-          final r = await _client
-              .post(uri, headers: headers, body: jsonEncode({
+    final connectionId = settings.aiConnectionId;
+    final preferred = settings.model;
+    final key = settings.apiKey;
+    try {
+      final result = await completeWithFallback(
+        preferred: preferred,
+        cached: settings.discoveredModels,
+        allowDiscovery: !_isLocalBackend,
+        discover: () async {
+          final models = await discoverModels(_client, base, key);
+          if (settings.aiConnectionId == connectionId) {
+            await settings.setDiscoveredModels(models);
+          }
+          return models;
+        },
+        send: (model) => _client
+            .post(
+              uri,
+              headers: headers,
+              body: jsonEncode({
                 'model': model,
                 'messages': messages,
                 'max_tokens': settings.maxTokens,
@@ -1413,75 +1491,23 @@ The user is viewing an article or screen on their device and requested an execut
                 'stream': false,
                 if (tools.isNotEmpty) 'tools': tools,
                 if (tools.isNotEmpty) 'tool_choice': 'auto',
-              }))
-              .timeout(const Duration(seconds: 60));
-          if (r.statusCode != 200) throw AiFailure.fromHttp(r.statusCode, r.body);
-          return r;
-        });
-
-    http.Response res;
-    try {
-      try {
-        res = await send(settings.model);
-      } on AiFailure catch (f) {
-        if (f.kind != AiFailureKind.modelNotFound || _isLocalBackend) rethrow;
-        final discovered = await discoverModels(_client, base, settings.apiKey);
-        await settings.setDiscoveredModels(discovered);
-        AiFailure last = f;
-        http.Response? ok;
-        for (final m in fallbackOrder('', discovered).where((m) => m != settings.model).take(3)) {
-          try {
-            ok = await send(m);
-            await settings.setModel(m); // remember the model that works
-            break;
-          } on AiFailure catch (e) {
-            last = e;
-          }
-        }
-        if (ok == null) throw last;
-        res = ok;
+              }),
+            )
+            .timeout(const Duration(seconds: 30)),
+      );
+      if (settings.aiConnectionId != connectionId ||
+          settings.model != preferred) {
+        throw const AiFailure(AiFailureKind.cancelled);
       }
-      await settings.recordAiSuccess(settings.model);
+      await settings.recordAiSuccess(result.model);
+      return result.message;
     } catch (e) {
       final f = AiFailure.fromException(e);
-      await settings.recordAiFailure(f.kind.name);
+      if (settings.aiConnectionId == connectionId &&
+          settings.model == preferred) {
+        await settings.recordAiFailure(f.kind.name);
+      }
       throw AiException.from(f);
-    }
-
-    try {
-      final decoded = jsonDecode(utf8.decode(res.bodyBytes));
-      final choices = decoded['choices'];
-      if (choices is! List || choices.isEmpty) {
-        throw const AiException('Response contained no choices.');
-      }
-      final choice = choices[0];
-      final content = choice?['message']?['content'];
-      final rawCalls = choice?['message']?['tool_calls'];
-      final calls = rawCalls is List && rawCalls.isNotEmpty ? rawCalls : null;
-      String text = '';
-      if (content is String) text = content;
-      // Some providers return content as a list of parts.
-      if (content is List) {
-        text = content
-            .map((p) => p is Map ? '${p['text'] ?? ''}' : '$p')
-            .join();
-      }
-      if (text.trim().isNotEmpty || calls != null) {
-        return {'role': 'assistant', 'content': text, if (calls != null) 'tool_calls': calls};
-      }
-      // Reasoning models can spend the entire completion budget on hidden
-      // reasoning and return empty content with finish_reason == 'length'.
-      if (choice?['finish_reason'] == 'length') {
-        throw const AiException(
-          'Model used the whole token budget before replying '
-          '(reasoning model?). Raise Max tokens in Settings.',
-        );
-      }
-      throw const AiException('Empty assistant message in response.');
-    } on AiException {
-      rethrow;
-    } catch (e) {
-      throw AiException('Failed to parse response: $e');
     }
   }
 }

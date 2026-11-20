@@ -21,8 +21,8 @@ class BuildProfile {
 
   static const standardNotice =
       'Standard build: screen automation (accessibility), the floating bubble, contacts, '
-      'app-usage stats, system-settings writes and Shizuku are not included, so Play Protect '
-      'has nothing high-risk to flag. Install the separate "JARVIS Full Control" build if you '
+      'app-usage stats, system-settings writes and Shizuku are not included. Play Protect '
+      'verification is still required. Install the separate "JARVIS Full Control" build if you '
       'want those features.';
 
   static String unavailable(String feature) =>

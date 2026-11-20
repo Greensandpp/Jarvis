@@ -1,4 +1,4 @@
-import 'dart:ui';
+import '../../widgets/neon_composer.dart';
 // ignore: deprecated_member_use
 import '../../core/build_profile.dart';
 import 'package:flutter/material.dart';
@@ -181,7 +181,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   Future<void> _toggleOverlay() async {
     if (!BuildProfile.fullControl) {
       ScaffoldMessenger.maybeOf(context)?.showSnackBar(
-          SnackBar(content: Text(BuildProfile.unavailable('The floating bubble'))));
+        SnackBar(
+          content: Text(BuildProfile.unavailable('The floating bubble')),
+        ),
+      );
       return;
     }
     try {
@@ -226,25 +229,26 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         backgroundColor: Colors.transparent,
         elevation: 0,
         scrolledUnderElevation: 0,
-        iconTheme:
-            isJarvis ? const IconThemeData(color: Color(0xFF00E5FF)) : null,
+        iconTheme: isJarvis
+            ? const IconThemeData(color: Color(0xFF00E5FF))
+            : null,
         title: Row(
           children: [
             GestureDetector(
               onLongPress: _showModePicker,
               child: Text(
-              isJarvis ? 'JARVIS' : 'PrivateAgent',
-              style: isJarvis
-                  ? const TextStyle(
-                      color: Color(0xFF00E5FF),
-                      fontWeight: FontWeight.w900,
-                      letterSpacing: 2.8,
-                      fontFamily: 'monospace',
-                    )
-                  : const TextStyle(
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: 0.4,
-                    ),
+                isJarvis ? 'JARVIS' : 'PrivateAgent',
+                style: isJarvis
+                    ? const TextStyle(
+                        color: Color(0xFF00E5FF),
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: 2.8,
+                        fontFamily: 'monospace',
+                      )
+                    : const TextStyle(
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 0.4,
+                      ),
               ),
             ),
             const SizedBox(width: 10),
@@ -257,20 +261,25 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             icon: const Icon(Icons.tune_rounded),
             onPressed: _showModePicker,
           ),
-          if (BuildProfile.fullControl) IconButton(
-            tooltip: _overlayActive
-                ? 'Hide floating bubble'
-                : 'Show floating bubble',
-            onPressed: _toggleOverlay,
-            icon: Icon(
-              _overlayActive ? Icons.bubble_chart : Icons.bubble_chart_outlined,
-              color: isJarvis ? const Color(0xFF00E5FF) : null,
+          if (BuildProfile.fullControl)
+            IconButton(
+              tooltip: _overlayActive
+                  ? 'Hide floating bubble'
+                  : 'Show floating bubble',
+              onPressed: _toggleOverlay,
+              icon: Icon(
+                _overlayActive
+                    ? Icons.bubble_chart
+                    : Icons.bubble_chart_outlined,
+                color: isJarvis ? const Color(0xFF00E5FF) : null,
+              ),
             ),
-          ),
           IconButton(
             tooltip: 'Settings',
-            icon: Icon(Icons.settings_outlined,
-                color: isJarvis ? const Color(0xFF00E5FF) : null),
+            icon: Icon(
+              Icons.settings_outlined,
+              color: isJarvis ? const Color(0xFF00E5FF) : null,
+            ),
             onPressed: () => Navigator.of(
               context,
             ).push(MaterialPageRoute(builder: (_) => const SettingsScreen())),
@@ -283,7 +292,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           // long-pressing the title or through the compact menu below.
 
           // The Standard build has no accessibility service, so never nag about it.
-          if (BuildProfile.fullControl && !_serviceEnabled &&
+          if (BuildProfile.fullControl &&
+              !_serviceEnabled &&
               (_mode == AppMode.agent || _mode == AppMode.jarvis))
             _serviceWarning(theme),
           if (_mode != AppMode.jarvis &&
@@ -317,7 +327,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     final isDark = theme.brightness == Brightness.dark;
 
     return Drawer(
-      backgroundColor: isDark ? const Color(0xEE090E17) : const Color(0xEEFFFFFF),
+      backgroundColor: isDark
+          ? const Color(0xEE090E17)
+          : const Color(0xEEFFFFFF),
       elevation: 0,
       child: SafeArea(
         child: ListView(
@@ -399,7 +411,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             ),
             ListTile(
               leading: const Icon(Icons.checklist_outlined),
-              title: const Text('Tasks & To-Do', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+              title: const Text(
+                'Tasks & To-Do',
+                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+              ),
               subtitle: Text(
                 '${TodoService.instance.pendingItems.length} pending items',
                 style: const TextStyle(fontSize: 11),
@@ -411,7 +426,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             ),
             ListTile(
               leading: const Icon(Icons.calendar_month_outlined),
-              title: const Text('Calendar & Schedule', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+              title: const Text(
+                'Calendar & Schedule',
+                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+              ),
               subtitle: Text(
                 '${CalendarReminderService.instance.items.length} scheduled events',
                 style: const TextStyle(fontSize: 11),
@@ -423,7 +441,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             ),
             ListTile(
               leading: const Icon(Icons.menu_book_outlined),
-              title: const Text('Notes & Knowledge Base', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+              title: const Text(
+                'Notes & Knowledge Base',
+                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+              ),
               subtitle: Text(
                 '${NotesKnowledgeService.instance.notes.length} notes stored',
                 style: const TextStyle(fontSize: 11),
@@ -434,8 +455,14 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               },
             ),
             ListTile(
-              leading: const Icon(Icons.alt_route_rounded, color: Color(0xFF00E5FF)),
-              title: const Text('Multi-Task Decoupler', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+              leading: const Icon(
+                Icons.alt_route_rounded,
+                color: Color(0xFF00E5FF),
+              ),
+              title: const Text(
+                'Multi-Task Decoupler',
+                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+              ),
               subtitle: const Text(
                 'Chaotic Brain Dump parallel engine',
                 style: TextStyle(fontSize: 11),
@@ -532,11 +559,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         onTap: _automation.openAccessibilitySettings,
         child: const Row(
           children: [
-            Icon(
-              Icons.warning_amber_rounded,
-              color: AppTheme.danger,
-              size: 22,
-            ),
+            Icon(Icons.warning_amber_rounded, color: AppTheme.danger, size: 22),
             SizedBox(width: 12),
             Expanded(
               child: Column(
@@ -672,16 +695,16 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                     ),
                   ),
                   child: Icon(
-                    isAgent ? Icons.smart_toy_rounded : Icons.chat_bubble_rounded,
+                    isAgent
+                        ? Icons.smart_toy_rounded
+                        : Icons.chat_bubble_rounded,
                     size: 28,
                     color: theme.colorScheme.primary,
                   ),
                 ),
                 const SizedBox(height: 18),
                 Text(
-                  isAgent
-                      ? 'Autonomous Phone Agent'
-                      : 'Private AI Assistant',
+                  isAgent ? 'Autonomous Phone Agent' : 'Private AI Assistant',
                   style: theme.textTheme.titleMedium?.copyWith(
                     fontWeight: FontWeight.w800,
                     letterSpacing: 0.3,
@@ -708,10 +731,26 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                   runSpacing: 8,
                   alignment: WrapAlignment.center,
                   children: [
-                    _suggestionChip('“What’s flying above me?”', () => _submit("What's flying above me?"), theme),
-                    _suggestionChip('“Activate air gestures”', () => _submit("Activate air gestures"), theme),
-                    _suggestionChip('“Who is on my Wi-Fi?”', () => _submit("Scan devices on my wifi"), theme),
-                    _suggestionChip('“Play Closer on YouTube”', () => _submit("Play Closer on YouTube"), theme),
+                    _suggestionChip(
+                      '“What’s flying above me?”',
+                      () => _submit("What's flying above me?"),
+                      theme,
+                    ),
+                    _suggestionChip(
+                      '“Activate air gestures”',
+                      () => _submit("Activate air gestures"),
+                      theme,
+                    ),
+                    _suggestionChip(
+                      '“Who is on my Wi-Fi?”',
+                      () => _submit("Scan devices on my wifi"),
+                      theme,
+                    ),
+                    _suggestionChip(
+                      '“Play Closer on YouTube”',
+                      () => _submit("Play Closer on YouTube"),
+                      theme,
+                    ),
                   ],
                 ),
               ],
@@ -750,114 +789,21 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
   Widget _inputBar(ThemeData theme) {
     final isAgent = _mode == AppMode.agent;
-    final isDark = theme.brightness == Brightness.dark;
-
     return SafeArea(
       top: false,
       child: Padding(
         padding: const EdgeInsets.fromLTRB(14, 6, 14, 12),
-        child: Container(
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(28),
-            boxShadow: [
-              BoxShadow(
-                color: isDark
-                    ? Colors.black.withValues(alpha: 0.35)
-                    : Colors.black.withValues(alpha: 0.08),
-                blurRadius: 16,
-                offset: const Offset(0, 4),
-              ),
-            ],
-          ),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(28),
-            child: BackdropFilter(
-              filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
-              child: Container(
-                padding: const EdgeInsets.fromLTRB(14, 4, 6, 4),
-                decoration: BoxDecoration(
-                  color: isDark
-                      ? Colors.white.withValues(alpha: 0.06)
-                      : Colors.white.withValues(alpha: 0.85),
-                  borderRadius: BorderRadius.circular(28),
-                  border: Border.all(
-                    color: isDark
-                        ? Colors.white.withValues(alpha: 0.14)
-                        : Colors.black.withValues(alpha: 0.08),
-                    width: 1.0,
-                  ),
-                ),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: TextField(
-                        controller: _inputController,
-                        enabled: !_busy,
-                        textInputAction: TextInputAction.send,
-                        onSubmitted: _submit,
-                        minLines: 1,
-                        maxLines: 4,
-                        style: const TextStyle(fontSize: 14),
-                        decoration: InputDecoration(
-                          hintText: _busy
-                              ? (isAgent ? 'Agent is executing…' : 'Thinking…')
-                              : (isAgent ? 'Describe a phone task…' : 'Ask anything…'),
-                          hintStyle: TextStyle(
-                            fontSize: 13.5,
-                            color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.7),
-                          ),
-                          prefixIcon: Icon(
-                            isAgent ? Icons.smart_toy_outlined : Icons.chat_bubble_outline_rounded,
-                            size: 19,
-                            color: theme.colorScheme.primary.withValues(alpha: 0.8),
-                          ),
-                          border: InputBorder.none,
-                          enabledBorder: InputBorder.none,
-                          focusedBorder: InputBorder.none,
-                          contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 4),
-                    IconButton(
-                      tooltip: 'Voice input',
-                      onPressed: _busy ? null : _toggleListening,
-                      icon: Icon(
-                        _listening ? Icons.mic : Icons.mic_none_rounded,
-                        color: _listening ? AppTheme.danger : theme.colorScheme.primary,
-                      ),
-                    ),
-                    Container(
-                      margin: const EdgeInsets.only(right: 2),
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          colors: [
-                            theme.colorScheme.primary,
-                            const Color(0xFF4F46E5),
-                          ],
-                        ),
-                        shape: BoxShape.circle,
-                        boxShadow: [
-                          BoxShadow(
-                            color: theme.colorScheme.primary.withValues(alpha: 0.35),
-                            blurRadius: 8,
-                            offset: const Offset(0, 2),
-                          ),
-                        ],
-                      ),
-                      child: IconButton(
-                        tooltip: isAgent ? 'Run task' : 'Send',
-                        onPressed: _busy ? null : () => _submit(_inputController.text),
-                        icon: const Icon(Icons.arrow_upward_rounded, color: Colors.white, size: 20),
-                        padding: const EdgeInsets.all(8),
-                        constraints: const BoxConstraints(),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
+        child: NeonComposer(
+          controller: _inputController,
+          enabled: !_busy,
+          listening: _listening,
+          onSend: () => _submit(_inputController.text),
+          onMicrophone: _toggleListening,
+          hint: _busy
+              ? 'Thinking…'
+              : isAgent
+              ? 'Describe a phone task…'
+              : 'Ask anything…',
         ),
       ),
     );
@@ -885,17 +831,26 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             ListTile(
               leading: const Icon(Icons.graphic_eq_rounded),
               title: const Text('JARVIS voice & Arc Reactor'),
-              onTap: () { Navigator.pop(context); _selectMode(AppMode.jarvis); },
+              onTap: () {
+                Navigator.pop(context);
+                _selectMode(AppMode.jarvis);
+              },
             ),
             ListTile(
               leading: const Icon(Icons.chat_bubble_outline),
               title: const Text('Chat'),
-              onTap: () { Navigator.pop(context); _selectMode(AppMode.chat); },
+              onTap: () {
+                Navigator.pop(context);
+                _selectMode(AppMode.chat);
+              },
             ),
             ListTile(
               leading: const Icon(Icons.smart_toy_outlined),
               title: const Text('Agent actions'),
-              onTap: () { Navigator.pop(context); _selectMode(AppMode.agent); },
+              onTap: () {
+                Navigator.pop(context);
+                _selectMode(AppMode.agent);
+              },
             ),
           ],
         ),
@@ -913,11 +868,17 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       child: GlassCard(
         borderRadius: 18,
         padding: const EdgeInsets.all(12),
-        backgroundColor: theme.colorScheme.primaryContainer.withValues(alpha: 0.25),
+        backgroundColor: theme.colorScheme.primaryContainer.withValues(
+          alpha: 0.25,
+        ),
         borderColor: theme.colorScheme.primary.withValues(alpha: 0.35),
         child: Row(
           children: [
-            Icon(Icons.auto_awesome, color: theme.colorScheme.primary, size: 20),
+            Icon(
+              Icons.auto_awesome,
+              color: theme.colorScheme.primary,
+              size: 20,
+            ),
             const SizedBox(width: 10),
             Expanded(
               child: Column(
@@ -925,7 +886,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                 children: [
                   Text(
                     suggestion.title,
-                    style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700),
+                    style: const TextStyle(
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
                   Text(
                     suggestion.description,
@@ -939,17 +903,25 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               style: ElevatedButton.styleFrom(
                 backgroundColor: theme.colorScheme.primary,
                 foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 6,
+                ),
                 minimumSize: const Size(0, 0),
                 tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
               ),
               onPressed: () {
                 final goal = suggestion.actionGoal;
                 proactive.dismissSuggestion();
                 _submit(goal);
               },
-              child: const Text('Execute', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700)),
+              child: const Text(
+                'Execute',
+                style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700),
+              ),
             ),
             const SizedBox(width: 4),
             IconButton(
@@ -1027,15 +999,27 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                           items: const [
                             DropdownMenuItem(
                               value: TodoPriority.low,
-                              child: Text('Low', style: TextStyle(fontSize: 12)),
+                              child: Text(
+                                'Low',
+                                style: TextStyle(fontSize: 12),
+                              ),
                             ),
                             DropdownMenuItem(
                               value: TodoPriority.medium,
-                              child: Text('Med', style: TextStyle(fontSize: 12)),
+                              child: Text(
+                                'Med',
+                                style: TextStyle(fontSize: 12),
+                              ),
                             ),
                             DropdownMenuItem(
                               value: TodoPriority.high,
-                              child: Text('High', style: TextStyle(fontSize: 12, color: Colors.red)),
+                              child: Text(
+                                'High',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: Colors.red,
+                                ),
+                              ),
                             ),
                           ],
                           onChanged: (p) {
@@ -1048,7 +1032,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                           onPressed: () async {
                             final text = addController.text.trim();
                             if (text.isNotEmpty) {
-                              await todoService.addTask(text, priority: priority);
+                              await todoService.addTask(
+                                text,
+                                priority: priority,
+                              );
                               addController.clear();
                               setModalState(() {});
                               setState(() {});
@@ -1088,7 +1075,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                                     item.title,
                                     style: TextStyle(
                                       fontSize: 13,
-                                      decoration: item.isDone ? TextDecoration.lineThrough : null,
+                                      decoration: item.isDone
+                                          ? TextDecoration.lineThrough
+                                          : null,
                                       color: item.isDone ? Colors.grey : null,
                                     ),
                                   ),
@@ -1098,13 +1087,17 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                                       fontSize: 11,
                                       color: item.priority == TodoPriority.high
                                           ? Colors.red
-                                          : (item.priority == TodoPriority.medium
-                                              ? Colors.orange
-                                              : Colors.blueGrey),
+                                          : (item.priority ==
+                                                    TodoPriority.medium
+                                                ? Colors.orange
+                                                : Colors.blueGrey),
                                     ),
                                   ),
                                   trailing: IconButton(
-                                    icon: const Icon(Icons.delete_outline, size: 18),
+                                    icon: const Icon(
+                                      Icons.delete_outline,
+                                      size: 18,
+                                    ),
                                     onPressed: () async {
                                       await todoService.deleteTask(item.id);
                                       setModalState(() {});
@@ -1175,7 +1168,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                           child: TextField(
                             controller: titleController,
                             decoration: const InputDecoration(
-                              hintText: 'Add reminder (e.g. "Doctor appointment")',
+                              hintText:
+                                  'Add reminder (e.g. "Doctor appointment")',
                               isDense: true,
                             ),
                           ),
@@ -1188,7 +1182,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                             if (text.isNotEmpty) {
                               await calendar.addItem(
                                 title: text,
-                                dateTime: DateTime.now().add(const Duration(hours: 1)),
+                                dateTime: DateTime.now().add(
+                                  const Duration(hours: 1),
+                                ),
                                 isReminder: true,
                               );
                               titleController.clear();
@@ -1204,11 +1200,16 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                       alignment: Alignment.centerRight,
                       child: TextButton.icon(
                         icon: const Icon(Icons.open_in_new, size: 16),
-                        label: const Text('Open Native Calendar', style: TextStyle(fontSize: 12)),
+                        label: const Text(
+                          'Open Native Calendar',
+                          style: TextStyle(fontSize: 12),
+                        ),
                         onPressed: () async {
                           await calendar.openNativeCalendarInsert(
                             title: 'New Schedule',
-                            beginTime: DateTime.now().add(const Duration(hours: 1)),
+                            beginTime: DateTime.now().add(
+                              const Duration(hours: 1),
+                            ),
                           );
                         },
                       ),
@@ -1233,16 +1234,26 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                                 return ListTile(
                                   dense: true,
                                   leading: Icon(
-                                    item.isReminder ? Icons.alarm : Icons.event_note,
+                                    item.isReminder
+                                        ? Icons.alarm
+                                        : Icons.event_note,
                                     size: 20,
                                   ),
-                                  title: Text(item.title, style: const TextStyle(fontSize: 13)),
+                                  title: Text(
+                                    item.title,
+                                    style: const TextStyle(fontSize: 13),
+                                  ),
                                   subtitle: Text(
-                                    DateFormat.yMMMd().add_jm().format(item.dateTime),
+                                    DateFormat.yMMMd().add_jm().format(
+                                      item.dateTime,
+                                    ),
                                     style: const TextStyle(fontSize: 11),
                                   ),
                                   trailing: IconButton(
-                                    icon: const Icon(Icons.delete_outline, size: 18),
+                                    icon: const Icon(
+                                      Icons.delete_outline,
+                                      size: 18,
+                                    ),
                                     onPressed: () async {
                                       await calendar.deleteItem(item.id);
                                       setModalState(() {});
@@ -1357,7 +1368,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                                   dense: true,
                                   title: Text(
                                     note.title,
-                                    style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
+                                    style: const TextStyle(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w700,
+                                    ),
                                   ),
                                   subtitle: Text(
                                     note.content,
@@ -1366,7 +1380,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                                     style: const TextStyle(fontSize: 11),
                                   ),
                                   trailing: IconButton(
-                                    icon: const Icon(Icons.delete_outline, size: 18),
+                                    icon: const Icon(
+                                      Icons.delete_outline,
+                                      size: 18,
+                                    ),
                                     onPressed: () async {
                                       await notesService.deleteNote(note.id);
                                       setModalState(() {});

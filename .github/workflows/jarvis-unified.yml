@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - feature/jarvis-unified-20261120
+      - fix/jarvis-final-ui-voice-security-20261120
   workflow_dispatch:
 
 permissions:
@@ -36,7 +37,7 @@ jobs:
           set -o pipefail
           flutter test --reporter expanded 2>&1 | tee flutter-test.txt
           tail -1 flutter-test.txt
-      - name: Build standard + full (debug, for emulator) and release (size)
+      - name: Build debug test runners after unit and widget gates
         shell: bash
         run: |
           set -euo pipefail
@@ -44,8 +45,6 @@ jobs:
           for f in standard full; do
             flutter build apk --debug --flavor $f
             cp build/app/outputs/flutter-apk/app-$f-debug.apk out/JARVIS-UNIFIED-$f-debug.apk
-            flutter build apk --release --flavor $f
-            cp build/app/outputs/flutter-apk/app-$f-release.apk out/JARVIS-UNIFIED-$f-release.apk
           done
           ls -la out
       - name: Identity, permissions, signature, 16 KB, size
@@ -64,13 +63,13 @@ jobs:
           done
           grep -q "package: name='com.greensoil.jarvis.unified.visualstaging'" evidence/JARVIS-UNIFIED-standard-debug-badging.txt
           grep -q "package: name='com.greensoil.jarvis.unified.full.visualstaging'" evidence/JARVIS-UNIFIED-full-debug-badging.txt
-          for v in debug release; do
+          for v in debug; do
             if grep -E "QUERY_ALL_PACKAGES|SYSTEM_ALERT_WINDOW|READ_CONTACTS|WRITE_SETTINGS|PACKAGE_USAGE_STATS|BIND_ACCESSIBILITY|REQUEST_INSTALL_PACKAGES|REQUEST_DELETE_PACKAGES|shizuku" "evidence/JARVIS-UNIFIED-standard-$v-permissions.txt"; then
               echo "::error::high-risk permission in standard $v"; exit 1
             fi
           done
           grep -q "SYSTEM_ALERT_WINDOW" evidence/JARVIS-UNIFIED-full-debug-permissions.txt
-          python3 scripts/check_apk_elf_16kb.py out/JARVIS-UNIFIED-standard-release.apk evidence/standard-release-elf-16kb.json
+          python3 scripts/check_apk_elf_16kb.py out/JARVIS-UNIFIED-standard-debug.apk evidence/standard-debug-elf-16kb.json
           (cd out && sha256sum *.apk) | tee evidence/SHA256SUMS.txt
           echo "commit=${GITHUB_SHA} run=${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID} signing=CI debug key (test only)" > evidence/PROVENANCE.txt
           cp analyze.txt flutter-test.txt evidence/
@@ -126,11 +125,12 @@ jobs:
           disable-animations: false
           emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -cores 3
           script: |
+            set -euo pipefail
             bash scripts/unified_acceptance.sh ev-api${{ matrix.api-level }} apks/JARVIS-UNIFIED-standard-debug.apk apks/JARVIS-UNIFIED-full-debug.apk || echo "device checks reported failures" > ev-api${{ matrix.api-level }}/device-failed
             adb uninstall com.greensoil.jarvis.unified.visualstaging || true
-            SHOT_DIR=ev-api${{ matrix.api-level }} flutter drive --flavor standard --dart-define=EXPECT_FLAVOR=standard --driver test_driver/integration_test.dart --target integration_test/unified_acceptance_test.dart -d emulator-5554 2>&1 | tee ev-api${{ matrix.api-level }}/drive-standard.txt || true
+            SHOT_DIR=ev-api${{ matrix.api-level }} flutter drive --flavor standard --dart-define=EXPECT_FLAVOR=standard --driver test_driver/integration_test.dart --target integration_test/unified_acceptance_test.dart -d emulator-5554 2>&1 | tee ev-api${{ matrix.api-level }}/drive-standard.txt
             adb uninstall com.greensoil.jarvis.unified.full.visualstaging || true
-            SHOT_DIR=ev-api${{ matrix.api-level }} flutter drive --flavor full --dart-define=EXPECT_FLAVOR=full --driver test_driver/integration_test.dart --target integration_test/unified_acceptance_test.dart -d emulator-5554 2>&1 | tee ev-api${{ matrix.api-level }}/drive-full.txt || true
+            SHOT_DIR=ev-api${{ matrix.api-level }} flutter drive --flavor full --dart-define=EXPECT_FLAVOR=full --driver test_driver/integration_test.dart --target integration_test/unified_acceptance_test.dart -d emulator-5554 2>&1 | tee ev-api${{ matrix.api-level }}/drive-full.txt
       - name: Summary + contact sheet (printed for review)
         if: always()
         shell: bash
@@ -156,4 +156,51 @@ jobs:
         with:
           name: JARVIS-UNIFIED-EMULATOR-API${{ matrix.api-level }}
           path: ev-api${{ matrix.api-level }}/
+          retention-days: 14
+
+  gated-release-apks:
+    needs: [build, emulator-acceptance]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - run: flutter pub get
+      - name: Build and verify both release QA APKs
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p out evidence
+          TOOLS="$(find "$ANDROID_HOME/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -n 1)"
+          for f in standard full; do
+            flutter build apk --release --flavor "$f"
+            a="build/app/outputs/flutter-apk/app-$f-release.apk"
+            cp "$a" "out/JARVIS-$f-release-QA.apk"
+            "$TOOLS/aapt" dump badging "$a" > "evidence/$f-badging.txt"
+            "$TOOLS/aapt" dump permissions "$a" > "evidence/$f-permissions.txt"
+            "$TOOLS/apksigner" verify --print-certs "$a" > "evidence/$f-signing.txt"
+            python3 scripts/check_apk_elf_16kb.py "$a" "evidence/$f-elf-16kb.json"
+          done
+          grep -q "name='com.greensoil.jarvis.unified.visualrelease'" evidence/standard-badging.txt
+          grep -q "name='com.greensoil.jarvis.unified.full.visualrelease'" evidence/full-badging.txt
+          if grep -E "QUERY_ALL_PACKAGES|MANAGE_EXTERNAL_STORAGE|WRITE_CONTACTS|REQUEST_INSTALL_PACKAGES|REQUEST_DELETE_PACKAGES|shizuku" evidence/*-permissions.txt; then exit 1; fi
+          (cd out && sha256sum *.apk) > evidence/SHA256SUMS.txt
+          echo "commit=$GITHUB_SHA; signing=ephemeral CI debug key, QA only; Play Protect=UNVERIFIED" > evidence/PROVENANCE.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: JARVIS-GATED-RELEASE-QA-APKS
+          path: out/
+          retention-days: 14
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: JARVIS-GATED-RELEASE-EVIDENCE
+          path: evidence/
           retention-days: 14

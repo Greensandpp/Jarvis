@@ -167,11 +167,8 @@ class PermissionManagerService extends ChangeNotifier {
 
   /// Requests all standard runtime dialog permissions in one batch.
   Future<void> requestAllCorePermissions() async {
-    await [
-      Permission.microphone,
-      Permission.contacts,
-      Permission.notification,
-    ].request();
+    // Microphone and contacts are requested by their individual user actions.
+    await Permission.notification.request();
     await refresh();
   }
 

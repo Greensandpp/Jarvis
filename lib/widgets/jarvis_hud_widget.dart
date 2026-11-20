@@ -107,7 +107,7 @@ class _JarvisHudWidgetState extends State<JarvisHudWidget>
     SettingsService.instance.addListener(_onSettingsUpdate);
     ProactiveAgentService.instance.addListener(_onProactiveUpdate);
     ProactiveAgentService.instance.evaluateProactiveNeeds();
-    _jarvis.onEnterJarvisMode();
+    if (!widget.minimalist) _jarvis.onEnterJarvisMode();
   }
 
   void _onSettingsUpdate() {
@@ -119,7 +119,7 @@ class _JarvisHudWidgetState extends State<JarvisHudWidget>
     _jarvis.removeListener(_onJarvisUpdate);
     SettingsService.instance.removeListener(_onSettingsUpdate);
     ProactiveAgentService.instance.removeListener(_onProactiveUpdate);
-    _jarvis.onExitJarvisMode();
+    if (!widget.minimalist) _jarvis.onExitJarvisMode();
     _pacingController.dispose();
     _ringsController.dispose();
     _pulseController.dispose();

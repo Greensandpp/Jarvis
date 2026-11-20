@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../core/build_profile.dart';
+import '../avatar/avatar_settings.dart';
 import '../models/task_history_entry.dart';
 import '../services/ai_service.dart';
 import '../services/app_launcher_service.dart';
@@ -178,6 +179,28 @@ class JarvisBrainService {
     final full = BuildProfile.fullControl;
     return [
       // ── Commander ────────────────────────────────────────────────────
+      ToolSpec(
+        name: 'switch_avatar',
+        description:
+            'Select an avatar from the saved library. New humanoids are procedural prototypes.',
+        parameters: {
+          'avatar': _p(
+            'string',
+            'Avatar id',
+            values: AvatarModel.values.map((v) => v.name).toList(),
+          ),
+        },
+        required: const ['avatar'],
+        agent: JarvisAgent.commander,
+        run: (a) async {
+          final model = AvatarModel.values
+              .where((v) => v.name == _s(a, 'avatar'))
+              .firstOrNull;
+          if (model == null) return const ToolResult.fail('Unknown avatar.');
+          await requestAvatar(model);
+          return ToolResult(true, 'Selected ${model.label}.', verified: true);
+        },
+      ),
       ToolSpec(
         name: 'switch_visual',
         description:

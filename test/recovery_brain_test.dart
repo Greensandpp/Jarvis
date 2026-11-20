@@ -3,6 +3,11 @@ import 'dart:convert';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:private_agent/brain/brain.dart';
 import 'package:private_agent/brain/jarvis_brain_service.dart';
+import 'package:private_agent/brain/local_intents.dart';
+import 'package:private_agent/brain/language.dart';
+import 'package:private_agent/avatar/avatar_settings.dart';
+import 'package:private_agent/services/settings_service.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 Map<String, dynamic> call(String args) => {
   'tool_calls': [
@@ -13,6 +18,27 @@ Map<String, dynamic> call(String args) => {
   ],
 };
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+  test(
+    'offline avatar commands persist; informational questions do not switch',
+    () async {
+      SharedPreferences.setMockInitialValues({});
+      await SettingsService.instance.init();
+      final reply = await LocalIntents.handle(
+        'serpent guardian-ku maathu',
+        ReplyLanguage.tanglish,
+      );
+      expect(reply, contains('Serpent Guardian'));
+      final reloaded = AvatarPreferences();
+      await reloaded.load();
+      expect(reloaded.selected, AvatarModel.serpent);
+      expect(
+        await LocalIntents.handle('what is snake', ReplyLanguage.english),
+        isNull,
+      );
+    },
+  );
+
   test('qualified approval text never authorizes a sensitive action', () {
     for (final answer in [
       "yes but don't send",

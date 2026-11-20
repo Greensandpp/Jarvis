@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_tts/flutter_tts.dart';
 import 'package:permission_handler/permission_handler.dart';
 
+import '../avatar/avatar_runtime.dart' show publishAvatarSpeech;
 import 'edge_tts_service.dart';
 import 'settings_service.dart';
 
@@ -270,6 +271,7 @@ class VoiceService {
   Future<void> speak(String text) async {
     final clean = sanitizeForSpeech(text);
     if (clean.isEmpty) return;
+    publishAvatarSpeech(clean);
 
     // Temporarily pause microphone while speaking to eliminate echo and feedback
     final wasListening = _listening;
@@ -318,6 +320,7 @@ class VoiceService {
   Future<void> speakIn(String text, {required String languageTag, required String neuralVoice, required bool female}) async {
     final clean = sanitizeForSpeech(text);
     if (clean.isEmpty) return;
+    publishAvatarSpeech(clean, languageTag: languageTag);
     final wasListening = _listening;
     if (wasListening) await stopListening();
     await stopSpeaking();

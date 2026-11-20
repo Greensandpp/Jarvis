@@ -41,12 +41,13 @@ class LocalIntents {
     }
 
     // Visual switching: "switch to aira", "aira mode", "AIRA-ku maathu", "show apex", "aira jellyfish"
-    final vm = RegExp(r'\b(core|jarvis core|arc|aira|office|agent office|apex|mira)\b').firstMatch(t);
+    final vm = RegExp(r'\b(core|jarvis core|arc|aira|office|agent office|apex|mira|serpent guardian|serpent|naagam)\b').firstMatch(t);
     final switchVerb = RegExp(r'\b(switch|change|show|open|mode|maathu|maathu|maattu|மாற்று|காட்டு|style|visual|look)\b').hasMatch(t) ||
         t.split(RegExp(r'\s+')).length <= 3;
     if (vm != null && switchVerb && !t.contains('?') && !t.startsWith('what')) {
       var mode = vm.group(1)!;
-      mode = switch (mode) { 'jarvis core' || 'arc' => 'core', 'agent office' => 'office', _ => mode };
+      mode = switch (mode) { 'jarvis core' || 'arc' => 'core', 'agent office' => 'office',
+        'serpent guardian' || 'naagam' => 'serpent', _ => mode };
       String? model;
       if (mode == 'aira') {
         for (final e in _airaModels.entries) {

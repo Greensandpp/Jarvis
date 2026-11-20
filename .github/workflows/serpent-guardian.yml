@@ -1,0 +1,203 @@
+name: JARVIS Serpent Guardian real-time avatar (prototype)
+
+on:
+  push:
+    branches:
+      - feature/serpent-guardian-rt3d-20261120
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - run: flutter --version
+      - run: flutter pub get
+      - name: Analyze (errors and warnings fatal)
+        shell: bash
+        run: |
+          set -o pipefail
+          flutter analyze --no-fatal-infos 2>&1 | tee analyze.txt
+      - name: Full test suite
+        shell: bash
+        run: |
+          set -o pipefail
+          flutter test --reporter expanded 2>&1 | tee flutter-test.txt
+          tail -1 flutter-test.txt
+      - name: Build standard + full (debug, for emulator) and release (size)
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p out evidence
+          for f in standard full; do
+            flutter build apk --debug --flavor $f
+            cp build/app/outputs/flutter-apk/app-$f-debug.apk out/JARVIS-UNIFIED-$f-debug.apk
+            flutter build apk --release --flavor $f
+            cp build/app/outputs/flutter-apk/app-$f-release.apk out/JARVIS-UNIFIED-$f-release.apk
+          done
+          ls -la out
+      - name: Identity, permissions, signature, 16 KB, size
+        shell: bash
+        run: |
+          set -euo pipefail
+          TOOLS="$(find "$ANDROID_HOME/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -n 1)"
+          for a in out/*.apk; do
+            n=$(basename "$a" .apk)
+            "$TOOLS/aapt" dump badging "$a" > "evidence/$n-badging.txt"
+            "$TOOLS/aapt" dump permissions "$a" > "evidence/$n-permissions.txt"
+            "$TOOLS/apksigner" verify --print-certs "$a" > "evidence/$n-signing.txt"
+            echo "== $n  $(stat -c %s "$a") bytes"
+            grep -E "^package:|application-label:|targetSdkVersion" "evidence/$n-badging.txt"
+            echo "-- permissions"; grep -oE "name='[^']+'" "evidence/$n-permissions.txt" | sort -u
+          done
+          grep -q "package: name='com.greensoil.jarvis.unified.visualstaging'" evidence/JARVIS-UNIFIED-standard-debug-badging.txt
+          grep -q "package: name='com.greensoil.jarvis.unified.full.visualstaging'" evidence/JARVIS-UNIFIED-full-debug-badging.txt
+          for v in debug release; do
+            if grep -E "QUERY_ALL_PACKAGES|SYSTEM_ALERT_WINDOW|READ_CONTACTS|WRITE_SETTINGS|PACKAGE_USAGE_STATS|BIND_ACCESSIBILITY|REQUEST_INSTALL_PACKAGES|REQUEST_DELETE_PACKAGES|shizuku" "evidence/JARVIS-UNIFIED-standard-$v-permissions.txt"; then
+              echo "::error::high-risk permission in standard $v"; exit 1
+            fi
+          done
+          grep -q "SYSTEM_ALERT_WINDOW" evidence/JARVIS-UNIFIED-full-debug-permissions.txt
+          python3 scripts/check_apk_elf_16kb.py out/JARVIS-UNIFIED-standard-release.apk evidence/standard-release-elf-16kb.json
+          (cd out && sha256sum *.apk) | tee evidence/SHA256SUMS.txt
+          echo "commit=${GITHUB_SHA} run=${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID} signing=CI debug key (test only)" > evidence/PROVENANCE.txt
+          cp analyze.txt flutter-test.txt evidence/
+      - uses: actions/upload-artifact@v4
+        with:
+          name: JARVIS-UNIFIED-APKS-TEST-ONLY
+          path: out/*.apk
+          retention-days: 14
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: JARVIS-UNIFIED-BUILD-EVIDENCE
+          path: evidence/
+          retention-days: 14
+
+  emulator-acceptance:
+    needs: build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        api-level: [35, 36]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Reclaim disk
+        run: sudo rm -rf /usr/share/dotnet /opt/hostedtoolcache/CodeQL /usr/local/lib/android/sdk/ndk || true
+      - name: Enable KVM
+        run: sudo chmod a+rw /dev/kvm
+      - uses: actions/download-artifact@v4
+        with:
+          name: JARVIS-UNIFIED-APKS-TEST-ONLY
+          path: apks
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - run: flutter pub get
+      - name: Acceptance (Android ${{ matrix.api-level }})
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: ${{ matrix.api-level }}
+          target: google_apis
+          arch: x86_64
+          profile: pixel_7
+          ram-size: 4096M
+          heap-size: 512M
+          emulator-boot-timeout: 600
+          disable-animations: false
+          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -cores 3
+          script: |
+            bash scripts/unified_acceptance.sh ev-api${{ matrix.api-level }} apks/JARVIS-UNIFIED-standard-debug.apk apks/JARVIS-UNIFIED-full-debug.apk || echo "device checks reported failures" > ev-api${{ matrix.api-level }}/device-failed
+            adb uninstall com.greensoil.jarvis.unified.visualstaging || true
+            SHOT_DIR=ev-api${{ matrix.api-level }} flutter drive --flavor standard --dart-define=EXPECT_FLAVOR=standard --driver test_driver/integration_test.dart --target integration_test/unified_acceptance_test.dart -d emulator-5554 2>&1 | tee ev-api${{ matrix.api-level }}/drive-standard.txt || true
+            adb uninstall com.greensoil.jarvis.unified.full.visualstaging || true
+            SHOT_DIR=ev-api${{ matrix.api-level }} flutter drive --flavor full --dart-define=EXPECT_FLAVOR=full --driver test_driver/integration_test.dart --target integration_test/unified_acceptance_test.dart -d emulator-5554 2>&1 | tee ev-api${{ matrix.api-level }}/drive-full.txt || true
+      - name: Summary + contact sheet (printed for review)
+        if: always()
+        shell: bash
+        run: |
+          set +e +o pipefail
+          cd ev-api${{ matrix.api-level }} || exit 0
+          echo "== device checks"; cat summary.txt
+          for f in drive-standard.txt drive-full.txt; do
+            echo "== in-app acceptance ($f)"
+            grep -oE "ACCEPT .*" "$f" | sed 's/^ACCEPT //' | tee -a in-app-summary.txt
+            grep -E "All tests passed|Some tests failed|EXCEPTION|Error:" "$f" | head -5
+          done
+          python3 -c "import PIL" 2>/dev/null || python3 -m pip install --quiet --user --break-system-packages pillow
+          python3 "$GITHUB_WORKSPACE/scripts/contact_sheet.py" .
+          fails=$(grep -c " FAIL " in-app-summary.txt 2>/dev/null); dev=$([ -f device-failed ] && echo 1 || echo 0)
+          # Any Flutter-level failure (uncaught exception, framework assertion) fails the job too.
+          fw=$(grep -lE "Some tests failed|EXCEPTION CAUGHT" drive-standard.txt drive-full.txt 2>/dev/null | wc -l)
+          for f in drive-standard.txt drive-full.txt; do grep -A12 "EXCEPTION CAUGHT" "$f" | head -14; done
+          echo "in-app FAIL count=$fails device-failed=$dev framework-failures=$fw"
+          [ "$fails" = 0 ] && [ "$dev" = 0 ] && [ "$fw" = 0 ] && grep -q "I08 PASS" in-app-summary.txt
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: JARVIS-UNIFIED-EMULATOR-API${{ matrix.api-level }}
+          path: ev-api${{ matrix.api-level }}/
+          retention-days: 14
+
+  publish-evidence:
+    # Test-only prerelease so the owner can install from the phone and the
+    # evidence (screenshots, perf, test logs) is reviewable without login.
+    needs: [build, emulator-acceptance]
+    if: always() && needs.build.result == 'success'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dl
+      - name: Pack evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p rel
+          cp dl/JARVIS-UNIFIED-APKS-TEST-ONLY/JARVIS-UNIFIED-standard-release.apk rel/JARVIS-SerpentGuardian-proto-standard-release.apk
+          cp dl/JARVIS-UNIFIED-APKS-TEST-ONLY/JARVIS-UNIFIED-full-release.apk rel/JARVIS-SerpentGuardian-proto-full-release.apk
+          for d in dl/JARVIS-UNIFIED-EMULATOR-API*; do
+            [ -d "$d" ] || continue
+            n=$(basename "$d" | sed 's/JARVIS-UNIFIED-EMULATOR-//')
+            [ -f "$d/summary.txt" ] && cp "$d/summary.txt" "rel/device-summary-$n.txt"
+            [ -f "$d/in-app-summary.txt" ] && cp "$d/in-app-summary.txt" "rel/in-app-summary-$n.txt"
+            [ -f "$d/serpent-perf.txt" ] && cp "$d/serpent-perf.txt" "rel/serpent-perf-$n.txt"
+            for f in "$d"/serpent-*.png; do [ -f "$f" ] && cp "$f" "rel/$n-$(basename "$f")"; done
+            for f in "$d"/mode-*-a.png; do [ -f "$f" ] && cp "$f" "rel/$n-$(basename "$f")"; done
+          done
+          ev=dl/JARVIS-UNIFIED-BUILD-EVIDENCE
+          cp $ev/flutter-test.txt rel/flutter-test.txt || true
+          cp $ev/analyze.txt rel/analyze.txt || true
+          cp $ev/SHA256SUMS.txt rel/SHA256SUMS.txt || true
+          ls -la rel
+      - name: Create test-only prerelease
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag="serpent-guardian-proto-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          gh release create "$tag" rel/* --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --prerelease \
+            --title "TEST ONLY - Serpent Guardian real-time avatar prototype (run ${GITHUB_RUN_ID})" \
+            --notes "Procedural placeholder geometry (not the final model). CI debug signing key, release application IDs com.greensoil.jarvis.unified.visualrelease and com.greensoil.jarvis.unified.full.visualrelease - installs beside existing apps, replaces nothing. Commit ${GITHUB_SHA}. Device acceptance: ${{ needs.emulator-acceptance.result }}."

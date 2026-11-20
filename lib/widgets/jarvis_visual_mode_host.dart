@@ -5,6 +5,7 @@ import 'package:flutter/scheduler.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../avatar/serpent_guardian_view.dart';
 import '../services/agent_office/agent_office.dart';
 import '../services/gemini_live/live_voice_controller.dart';
 import '../services/jarvis_service.dart';
@@ -23,7 +24,8 @@ enum JarvisVisualMode {
   aira('AIRA', 'AIRA', Icons.auto_awesome),
   office('Agent Office', 'Office', Icons.groups_2_outlined),
   apex('APEX', 'APEX', Icons.change_history),
-  mira('MIRA', 'MIRA', Icons.bubble_chart_outlined);
+  mira('MIRA', 'MIRA', Icons.bubble_chart_outlined),
+  serpent('Serpent Guardian', 'Serpent', Icons.all_inclusive);
 
   const JarvisVisualMode(this.label, this.shortLabel, this.icon);
   final String label;
@@ -214,6 +216,8 @@ class JarvisVisualModeHostState extends State<JarvisVisualModeHost> {
           ),
         JarvisVisualMode.apex => const JarvisLocalVisual(apex: true),
         JarvisVisualMode.mira => const JarvisLocalVisual(apex: false),
+        JarvisVisualMode.serpent => SerpentGuardianView(
+            phaseSource: _phaseSource, phaseReader: _phase, soundReader: _sound),
       };
 
   @override

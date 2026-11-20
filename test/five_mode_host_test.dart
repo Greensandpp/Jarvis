@@ -57,7 +57,7 @@ Future<void> _settle(WidgetTester t) async {
 void main() {
   setUp(() => SharedPreferences.setMockInitialValues({}));
 
-  testWidgets('all five modes are selectable and Core is the default', (tester) async {
+  testWidgets('all modes (five originals + Serpent Guardian) are selectable and Core is the default', (tester) async {
     tester.view.physicalSize = const Size(1236, 2745);
     tester.view.devicePixelRatio = 3;
     addTearDown(tester.view.reset);
@@ -65,7 +65,7 @@ void main() {
     await tester.pumpWidget(h.build());
     await _settle(tester);
     expect(JarvisVisualMode.values.map((m) => m.label),
-        ['JARVIS Core', 'AIRA', 'Agent Office', 'APEX', 'MIRA']);
+        ['JARVIS Core', 'AIRA', 'Agent Office', 'APEX', 'MIRA', 'Serpent Guardian']);
     for (final m in JarvisVisualMode.values) {
       expect(find.byKey(ValueKey('mode-${m.name}')), findsOneWidget);
     }

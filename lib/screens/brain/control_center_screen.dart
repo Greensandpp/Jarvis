@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../brain/brain.dart';
 import '../../brain/jarvis_brain_service.dart';
 import '../../brain/semantic_memory.dart';
+import '../../avatar/avatar_settings_screen.dart';
 import '../../brain/visual_bus.dart';
 import '../../core/build_profile.dart';
 import '../../services/conversational_memory_service.dart';
@@ -429,6 +430,14 @@ class _VisualsPage extends StatelessWidget {
                 }
               }, child: Text(m.toUpperCase())),
           ]),
+          const SizedBox(height: 12),
+          ListTile(
+            key: const ValueKey('vis-serpent-settings'),
+            leading: const Icon(Icons.all_inclusive, color: Color(0xFF00E8A2)),
+            title: const Text('Serpent Guardian avatar settings'),
+            subtitle: const Text('Colours (RGB/HEX), particles, size, position, speed, glow, lightning, sounds, performance'),
+            onTap: () => Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => const AvatarSettingsScreen())),
+          ),
           const SizedBox(height: 12),
           const Text('AIRA models'),
           Wrap(spacing: 6, children: [

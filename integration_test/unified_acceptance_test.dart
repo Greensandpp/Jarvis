@@ -157,8 +157,7 @@ void main() {
         final secs = DateTime.now().difference(started).inSeconds;
         await pumpFor(t, const Duration(seconds: 2));
         await shot(t, 'i-command-result');
-        final viaBrain = js.statusMessage.contains('OFFLINE') || js.statusMessage.contains('ANSWERED') ||
-            js.statusMessage.contains('AGENTS') || js.lastJarvisSpeech.contains('Privacy Lock') || js.lastJarvisSpeech.contains('No AI key');
+        final viaBrain = js.lastHandledByBrain;
         report('I03', stuck || !viaBrain ? 'FAIL' : 'PASS',
             '${stuck ? "still THINKING" : "left THINKING"} after ${secs}s via ${viaBrain ? "brain" : "legacy path"}; phase=${js.phase.name}; '
             'status="${js.statusMessage}"; reply="${js.lastJarvisSpeech.replaceAll('\n', ' ')}"');
@@ -370,21 +369,30 @@ void main() {
       await pumpFor(t, const Duration(seconds: 1));
       await t.enterText(find.byType(TextField).last, 'owner-pass-1');
       await t.tap(find.text('OK'));
-      await pumpFor(t, const Duration(seconds: 6)); // PBKDF2 on device
-      final clip = (await Clipboard.getData(Clipboard.kTextPlain))?.text ?? '';
+      // PBKDF2 runs in a background isolate; wait for the clipboard (max 90 s).
+      var clip = '';
+      final until = DateTime.now().add(const Duration(seconds: 90));
+      while (DateTime.now().isBefore(until) && !clip.contains('jarvis-memory-backup')) {
+        await pumpFor(t, const Duration(seconds: 1));
+        clip = (await Clipboard.getData(Clipboard.kTextPlain))?.text ?? '';
+      }
       final exported = clip.contains('jarvis-memory-backup') && !clip.contains('75000');
       await mem.clearAllFacts();
       await t.pageBack();
       await pumpFor(t, const Duration(seconds: 1));
       await openCc(t, 'Memory & Backup', fromCc: true);
       Future<void> restore(String pass) async {
+        t.state<ScaffoldMessengerState>(find.byType(ScaffoldMessenger).first).clearSnackBars();
+        await pumpFor(t, const Duration(milliseconds: 500));
         await t.tap(find.byKey(const ValueKey('mem-import')));
         await pumpFor(t, const Duration(seconds: 1));
         await t.tap(find.text('OK')); // backup text pre-filled from clipboard
         await pumpFor(t, const Duration(seconds: 1));
         await t.enterText(find.byType(TextField).last, pass);
         await t.tap(find.text('OK'));
-        await pumpFor(t, const Duration(seconds: 6));
+        // wait for the result snackbar (decryption runs in an isolate)
+        await waitFor(t, find.byType(SnackBar), const Duration(seconds: 90));
+        await pumpFor(t, const Duration(seconds: 1));
       }
       await restore('wrong-pass');
       final rejected = mem.facts.isEmpty && find.textContaining('Wrong passphrase').evaluate().isNotEmpty;

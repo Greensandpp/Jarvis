@@ -1,3 +1,4 @@
+import 'dart:isolate';
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -249,7 +250,9 @@ class ConversationalMemoryService extends ChangeNotifier {
   /// Passphrase-encrypted export of long-term facts (see memory_backup.dart).
   Future<String> exportEncrypted(String passphrase, {int iterations = 60000}) async {
     await init();
-    return encryptBackup(jsonEncode(_facts.map((f) => f.toJson()).toList()), passphrase, iterations: iterations);
+    final plain = jsonEncode(_facts.map((f) => f.toJson()).toList());
+    // Key derivation is deliberately slow; keep it off the UI thread.
+    return Isolate.run(() => encryptBackup(plain, passphrase, iterations: iterations));
   }
 
   /// Verifies and merges an encrypted backup. Returns how many new facts were
@@ -257,7 +260,7 @@ class ConversationalMemoryService extends ChangeNotifier {
   /// passphrase or tampered file.
   Future<int> importEncrypted(String backup, String passphrase) async {
     await init();
-    final list = jsonDecode(decryptBackup(backup, passphrase));
+    final list = jsonDecode(await Isolate.run(() => decryptBackup(backup, passphrase)));
     if (list is! List) throw const BackupException('Backup content is not a fact list.');
     var added = 0;
     for (final item in list) {

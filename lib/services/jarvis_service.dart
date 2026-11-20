@@ -875,6 +875,7 @@ class JarvisService extends ChangeNotifier {
   JarvisPhase get debugPhase => _phase;
 
   Future<void> _processCommandInner(String command) async {
+    lastHandledByBrain = false;
     _wakeUp();
 
     final trimmed = command.trim();
@@ -1907,7 +1908,8 @@ Mastering the boundless road.
     }
 
     // 4b. High-Priority Knowledge, Concept & Educational Question Filter (No accidental workflow collision)
-    final isKnowledgeQuestion = RegExp(
+    // With the tool-calling brain on, open questions go to the brain instead.
+    final isKnowledgeQuestion = !SettingsService.instance.brainToolCalling && RegExp(
       r'^(what\s+is|what\s+are|what\x27s|who\s+is|who\s+was|who\s+were|why\s+is|why\s+do|why\s+does|why\s+are|how\s+does|how\s+do|how\s+can|how\s+to|explain|tell\s+me\s+about|describe|define|can\s+you\s+explain|what\s+do\s+you\s+know\s+about)\b',
       caseSensitive: false,
     ).hasMatch(trimmed) &&
@@ -3048,6 +3050,7 @@ Mastering the boundless road.
       return;
     }
     lastBrainSteps = r.steps;
+    lastHandledByBrain = true;
     _dialogHistory.add({'role': 'user', 'content': text});
     _dialogHistory.add({'role': 'assistant', 'content': r.reply});
     if (_dialogHistory.length > 10) _dialogHistory.removeRange(0, 2);
@@ -3070,6 +3073,8 @@ Mastering the boundless road.
 
   /// Steps of the last brain request (shown in the Agents / audit screen).
   List<AuditEntry> lastBrainSteps = const [];
+  /// True when the most recent command was answered by the tool-calling brain.
+  bool lastHandledByBrain = false;
 
   Future<void> _handleSystemCommand(String cmd, String spoken) async {
     final speech = spoken.isNotEmpty ? spoken : PersonalityService.instance.getGeneralAck();

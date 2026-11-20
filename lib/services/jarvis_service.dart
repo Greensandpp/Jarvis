@@ -213,12 +213,13 @@ class JarvisService extends ChangeNotifier {
           _phase = _executor.isBusy ? JarvisPhase.executing : JarvisPhase.idle;
           notifyListeners();
         }
-        // Continuous listening trigger: when speech output finishes, resume passive wake-word listening
-        if (_shouldListenContinuously) {
+        // A manual ARC interrupt owns the next listening transition.
+        // Do not race it with this automatic TTS completion callback.
+        if (_shouldListenContinuously && !_arcTapTransitioning) {
           if (_isAwake) {
             _keepAwake();
           }
-          startListening();
+          unawaited(startListening());
         }
       }
     });

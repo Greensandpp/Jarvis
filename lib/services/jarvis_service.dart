@@ -440,7 +440,7 @@ class JarvisService extends ChangeNotifier {
     _standDown();
     if (isAlwaysOn) startListening();
     // Arm mid-air proximity sensor for zero-touch gestures while in JARVIS mode
-    unawaited(AirGestureService.instance.start());
+    unawaited(AirGestureService.instance.start(announce: false));
     _statusMessage = 'STANDBY // SAY "HEY JARVIS"';
     notifyListeners();
   }
@@ -448,7 +448,7 @@ class JarvisService extends ChangeNotifier {
   /// Called when user leaves JARVIS mode to prevent background audio captures.
   void onExitJarvisMode() {
     _isInJarvisMode = false;
-    unawaited(AirGestureService.instance.stop());
+    unawaited(AirGestureService.instance.stop(announce: false));
     // Always-On mode listens continuously across the app like Google Assistant
     if (!isAlwaysOn) {
       ProactiveAgentService.instance.stopProactiveMonitor();

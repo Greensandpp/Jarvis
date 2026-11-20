@@ -59,7 +59,7 @@ class AirGestureService extends ChangeNotifier {
   }
 
   /// Arms optical proximity sensor for mid-air gesture monitoring.
-  Future<bool> start() async {
+  Future<bool> start({bool announce = true}) async {
     try {
       final res = await _channel.invokeMethod<bool>('startAirGestures');
       _isEnabled = res ?? true;
@@ -67,7 +67,7 @@ class AirGestureService extends ChangeNotifier {
           ? 'Optical proximity matrix active. Wave or hover hand to control.'
           : 'Proximity sensor unavailable. Simulated gestures ready.';
       notifyListeners();
-      if (_voiceFeedback) {
+      if (_voiceFeedback && announce) {
         unawaited(VoiceService.instance.speak(
           'Zero-touch air gestures engaged, sir. Sensors monitoring overhead space.',
         ));
@@ -82,14 +82,14 @@ class AirGestureService extends ChangeNotifier {
   }
 
   /// Disarms air gesture sensors.
-  Future<bool> stop() async {
+  Future<bool> stop({bool announce = true}) async {
     try {
       await _channel.invokeMethod<bool>('stopAirGestures');
     } catch (_) {}
     _isEnabled = false;
     _statusMessage = 'Air Gestures offline';
     notifyListeners();
-    if (_voiceFeedback) {
+    if (_voiceFeedback && announce) {
       unawaited(VoiceService.instance.speak(
         'Air gesture sensors disengaged, sir.',
       ));

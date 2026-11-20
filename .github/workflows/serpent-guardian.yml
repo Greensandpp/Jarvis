@@ -74,6 +74,7 @@ jobs:
           (cd out && sha256sum *.apk) | tee evidence/SHA256SUMS.txt
           echo "commit=${GITHUB_SHA} run=${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID} signing=CI debug key (test only)" > evidence/PROVENANCE.txt
           cp analyze.txt flutter-test.txt evidence/
+          python3 scripts/permission_audit.py evidence evidence/PERMISSION_AUDIT.md
       - uses: actions/upload-artifact@v4
         with:
           name: JARVIS-UNIFIED-APKS-TEST-ONLY
@@ -184,12 +185,15 @@ jobs:
             [ -f "$d/in-app-summary.txt" ] && cp "$d/in-app-summary.txt" "rel/in-app-summary-$n.txt"
             [ -f "$d/serpent-perf.txt" ] && cp "$d/serpent-perf.txt" "rel/serpent-perf-$n.txt"
             for f in "$d"/serpent-*.png; do [ -f "$f" ] && cp "$f" "rel/$n-$(basename "$f")"; done
-            for f in "$d"/mode-*-a.png; do [ -f "$f" ] && cp "$f" "rel/$n-$(basename "$f")"; done
+            for f in "$d"/mode-*-a.png "$d"/i-*.png; do [ -f "$f" ] && cp "$f" "rel/$n-$(basename "$f")"; done
           done
           ev=dl/JARVIS-UNIFIED-BUILD-EVIDENCE
           cp $ev/flutter-test.txt rel/flutter-test.txt || true
           cp $ev/analyze.txt rel/analyze.txt || true
           cp $ev/SHA256SUMS.txt rel/SHA256SUMS.txt || true
+          cp $ev/PERMISSION_AUDIT.md rel/PERMISSION_AUDIT.md || true
+          cp $ev/PROVENANCE.txt rel/PROVENANCE.txt || true
+          for f in $ev/JARVIS-UNIFIED-*-release-permissions.txt $ev/JARVIS-UNIFIED-*-release-badging.txt; do [ -f "$f" ] && cp "$f" rel/; done
           ls -la rel
       - name: Create test-only prerelease
         env:
@@ -199,5 +203,5 @@ jobs:
           set -euo pipefail
           tag="serpent-guardian-proto-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
           gh release create "$tag" rel/* --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --prerelease \
-            --title "TEST ONLY - Serpent Guardian real-time avatar prototype (run ${GITHUB_RUN_ID})" \
-            --notes "Procedural placeholder geometry (not the final model). CI debug signing key, release application IDs com.greensoil.jarvis.unified.visualrelease and com.greensoil.jarvis.unified.full.visualrelease - installs beside existing apps, replaces nothing. Commit ${GITHUB_SHA}. Device acceptance: ${{ needs.emulator-acceptance.result }}."
+            --title "TEST ONLY - JARVIS Standard + Full (Gemini model fallback, voices, Serpent Guardian prototype) run ${GITHUB_RUN_ID}" \
+            --notes "Serpent Guardian uses procedural placeholder geometry (not the final model). CI debug signing key, release application IDs com.greensoil.jarvis.unified.visualrelease and com.greensoil.jarvis.unified.full.visualrelease - installs beside existing apps, replaces nothing. Commit ${GITHUB_SHA}. Device acceptance: ${{ needs.emulator-acceptance.result }}."

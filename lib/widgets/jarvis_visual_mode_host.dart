@@ -10,6 +10,7 @@ import '../services/agent_office/agent_office.dart';
 import '../services/gemini_live/live_voice_controller.dart';
 import '../services/jarvis_service.dart';
 import '../services/live_voice_session.dart';
+import '../services/settings_service.dart';
 import '../services/task_executor.dart';
 import 'agent_office_view.dart';
 import 'aira/aira_models.dart';
@@ -299,10 +300,11 @@ class _SharedDock extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ListenableBuilder(
-      listenable: Listenable.merge([phaseSource, live]),
+      listenable: Listenable.merge([phaseSource, live, SettingsService.instance]),
       builder: (context, _) {
         final p = phase();
         final listening = p == JarvisPhase.listening;
+        final model = SettingsService.instance.model;
         return Padding(
           padding: const EdgeInsets.fromLTRB(10, 2, 6, 6),
           child: Column(mainAxisSize: MainAxisSize.min, children: [
@@ -310,7 +312,10 @@ class _SharedDock extends StatelessWidget {
               Text('JARVIS · ${p.name.toUpperCase()}',
                 key: const ValueKey('dock-phase'),
                 style: const TextStyle(color: Colors.white60, fontSize: 11, letterSpacing: 1)),
-              const Spacer(),
+              // Same selected model as Settings / Diagnostics / Control Center.
+              Expanded(child: Text(model.isEmpty ? '' : ' · $model',
+                key: const ValueKey('dock-model'), maxLines: 1, overflow: TextOverflow.ellipsis,
+                style: const TextStyle(color: Colors.white38, fontSize: 11))),
               Flexible(child: Text(live.message ?? _liveLabel(),
                 key: const ValueKey('dock-live-status'),
                 maxLines: 1, overflow: TextOverflow.ellipsis,

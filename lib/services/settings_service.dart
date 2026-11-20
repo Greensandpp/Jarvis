@@ -36,6 +36,12 @@ class SettingsService extends ChangeNotifier {
     if (_prefs?.getBool('ai_use_system_prompt') != true) {
       await _prefs?.setBool('ai_use_system_prompt', true);
     }
+    // The default provider changed to Gemini. Owners who saved a key while
+    // the old DeepSeek default applied keep exactly what they had.
+    final p = _prefs;
+    if (p != null && p.getString('ai_provider') == null && (p.getString('ai_api_key') ?? '').isNotEmpty) {
+      await p.setString('ai_provider', (p.getString('ai_api_key') ?? '').startsWith('AIza') ? 'gemini' : 'deepseek');
+    }
   }
 
   /// Ordered, user-selected Arc Reactor shortcut keys.
@@ -96,7 +102,9 @@ class SettingsService extends ChangeNotifier {
     'custom': (label: 'Custom (OpenAI-compatible)', baseUrl: '', model: ''),
   };
 
-  String get provider => _prefs?.getString('ai_provider') ?? 'deepseek';
+  /// Google Gemini is the preferred provider for new installs; an existing
+  /// stored choice is never overwritten.
+  String get provider => _prefs?.getString('ai_provider') ?? 'gemini';
   Future<void> setProvider(String value) async {
     await _prefs?.setString('ai_provider', value);
     final preset = providers[value];
@@ -104,13 +112,16 @@ class SettingsService extends ChangeNotifier {
       await _prefs?.setString('ai_base_url', preset.baseUrl);
       await _prefs?.setString('ai_model', preset.model);
     }
+    // Models discovered for another provider do not apply here.
+    await _prefs?.setStringList('ai_discovered_models', const []);
+    await _prefs?.setInt('ai_models_discovered_at', 0);
     notifyListeners();
   }
 
   String get baseUrl =>
       _prefs?.getString('ai_base_url') ??
       providers[provider]?.baseUrl ??
-      providers['deepseek']!.baseUrl;
+      providers['gemini']!.baseUrl;
   Future<void> setBaseUrl(String value) async {
     await _prefs?.setString('ai_base_url', value.trim());
     notifyListeners();
@@ -130,15 +141,41 @@ class SettingsService extends ChangeNotifier {
   String get aiLastErrorKind => _prefs?.getString('ai_last_error_kind') ?? '';
 
   Future<void> recordAiSuccess(String model) async {
+    final changed = aiLastOkModel != model || aiLastErrorKind.isNotEmpty || !aiVerified;
     await _prefs?.setBool('ai_verified', true);
     await _prefs?.setInt('ai_last_ok_at', DateTime.now().millisecondsSinceEpoch);
     await _prefs?.setString('ai_last_ok_model', model);
     await _prefs?.setString('ai_last_error_kind', '');
+    if (changed) notifyListeners();
   }
 
   Future<void> recordAiFailure(String kind) async {
+    final changed = aiLastErrorKind != kind;
     await _prefs?.setString('ai_last_error_kind', kind);
     if (kind == 'auth' || kind == 'noKey' || kind == 'modelNotFound') await _prefs?.setBool('ai_verified', false);
+    if (changed) notifyListeners();
+  }
+
+  /// Automatic model selection (default ON). Choosing a model by hand in
+  /// Settings or Diagnostics pins it (auto OFF) until auto is re-enabled.
+  bool get modelAuto => _prefs?.getBool('ai_model_auto') ?? true;
+  Future<void> setModelAuto(bool value) async {
+    await _prefs?.setBool('ai_model_auto', value);
+    notifyListeners();
+  }
+
+  /// When the model list was last discovered for this key (epoch ms).
+  int get modelsDiscoveredAt => _prefs?.getInt('ai_models_discovered_at') ?? 0;
+  Future<void> setModelsDiscoveredAt(int ms) async {
+    await _prefs?.setInt('ai_models_discovered_at', ms);
+  }
+
+  /// One line shown everywhere the model appears (Settings, Diagnostics,
+  /// Control Center, chat dock) so they can never disagree.
+  String get modelLabel {
+    final used = aiLastOkModel;
+    final temp = used.isNotEmpty && used != model && aiVerified ? ' · last reply via $used' : '';
+    return '$model (${modelAuto ? 'auto' : 'manual'})$temp';
   }
 
   /// Honest status line: never ONLINE without a verified request.
@@ -151,16 +188,32 @@ class SettingsService extends ChangeNotifier {
 
   String get apiKey => _prefs?.getString('ai_api_key') ?? '';
   Future<void> setApiKey(String value) async {
-    await _prefs?.setString('ai_api_key', value.trim());
+    final key = value.trim();
+    final changed = key != apiKey;
+    await _prefs?.setString('ai_api_key', key);
+    if (changed) {
+      // A new key has its own model list; rediscover on next use.
+      await _prefs?.setInt('ai_models_discovered_at', 0);
+    }
+    // Google AI Studio keys ("AIza…") only work with Gemini: select it so the
+    // default settings work without further changes. A custom endpoint is kept.
+    if (key.startsWith('AIza') && provider != 'gemini' && provider != 'custom') {
+      await setProvider('gemini');
+      return;
+    }
     notifyListeners();
   }
 
   String get model =>
       _prefs?.getString('ai_model') ??
       providers[provider]?.model ??
-      'deepseek-chat';
-  Future<void> setModel(String value) async {
-    await _prefs?.setString('ai_model', value.trim());
+      'gemini-2.5-flash';
+  /// [pin] = chosen by the owner (turns automatic selection off).
+  Future<void> setModel(String value, {bool pin = false}) async {
+    final v = value.trim();
+    final changed = v != model;
+    await _prefs?.setString('ai_model', v);
+    if (pin && changed) await _prefs?.setBool('ai_model_auto', false);
     notifyListeners();
   }
 
@@ -360,14 +413,57 @@ class SettingsService extends ChangeNotifier {
 
   /// Microphone recognition language is independent of the spoken JARVIS voice.
   /// Indian English is a better default for local accents; Tamil can be selected.
+  /// Microphone language: 'auto' = Tamil + English + Tanglish (Indian English
+  /// recogniser with Tamil language detection on Android 14+, Gemini voice
+  /// input fallback), or a fixed 'en-IN' / 'ta-IN' / 'en-GB'.
+  static const speechLocales = ['auto', 'en-IN', 'ta-IN', 'en-GB'];
   String get speechInputLocale {
-    final locale = _prefs?.getString('jarvis_speech_input_locale') ?? 'en-IN';
-    return const ['en-IN', 'ta-IN', 'en-GB'].contains(locale) ? locale : 'en-IN';
+    final locale = _prefs?.getString('jarvis_speech_input_locale') ?? 'auto';
+    return speechLocales.contains(locale) ? locale : 'auto';
   }
 
   Future<void> setSpeechInputLocale(String locale) async {
-    if (!const ['en-IN', 'ta-IN', 'en-GB'].contains(locale)) return;
+    if (!speechLocales.contains(locale)) return;
     await _prefs?.setString('jarvis_speech_input_locale', locale);
+    notifyListeners();
+  }
+
+  /// Speech engine: 'auto' (phone recogniser; Gemini voice input on a mic tap
+  /// when the phone recogniser is missing or keeps failing), 'device', 'gemini'.
+  static const speechEngines = ['auto', 'device', 'gemini'];
+  String get speechEngine {
+    final e = _prefs?.getString('jarvis_speech_engine') ?? 'auto';
+    return speechEngines.contains(e) ? e : 'auto';
+  }
+
+  Future<void> setSpeechEngine(String e) async {
+    if (!speechEngines.contains(e)) return;
+    await _prefs?.setString('jarvis_speech_engine', e);
+    notifyListeners();
+  }
+
+  /// Set when the phone recogniser failed repeatedly (auto engine then uses
+  /// Gemini voice input for mic taps). Cleared from Settings → Voice.
+  bool get deviceSpeechBroken => _prefs?.getBool('jarvis_device_speech_broken') ?? false;
+  Future<void> setDeviceSpeechBroken(bool v) async {
+    if (v == deviceSpeechBroken) return;
+    await _prefs?.setBool('jarvis_device_speech_broken', v);
+    notifyListeners();
+  }
+
+  /// Local TTS voice per language: pinned by the owner ('' = automatic) and
+  /// the automatic choice with its reason (for Diagnostics).
+  String ttsVoicePinned(String lang) => _prefs?.getString('tts_voice_pinned_$lang') ?? '';
+  Future<void> setTtsVoicePinned(String lang, String name) async {
+    await _prefs?.setString('tts_voice_pinned_$lang', name);
+    notifyListeners();
+  }
+
+  String ttsVoiceAuto(String lang) => _prefs?.getString('tts_voice_auto_$lang') ?? '';
+  String ttsVoiceAutoReason(String lang) => _prefs?.getString('tts_voice_auto_reason_$lang') ?? '';
+  Future<void> setTtsVoiceAuto(String lang, String name, String reason) async {
+    await _prefs?.setString('tts_voice_auto_$lang', name);
+    await _prefs?.setString('tts_voice_auto_reason_$lang', reason);
     notifyListeners();
   }
 

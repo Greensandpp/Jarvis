@@ -53,6 +53,10 @@ class MainActivity : FlutterActivity() {
     private var speechRecognizer: SpeechRecognizer? = null
     private var recognitionIntent: Intent? = null
     private var recognitionLocale = "en-IN"
+    // "auto" = Tamil + English + Tanglish: Indian English model plus Tamil
+    // language detection / switching where the recogniser supports it
+    // (Android 14+ extras; older recognisers ignore unknown extras).
+    private var bilingualRecognition = false
     private var isContinuousListening = false
     private var isRestartPending = false
     private val mainHandler = Handler(Looper.getMainLooper())
@@ -683,6 +687,13 @@ class MainActivity : FlutterActivity() {
             putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, 3000L)
             putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS, 2500L)
             putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_MINIMUM_LENGTH_MILLIS, 100L)
+            if (bilingualRecognition) {
+                val langs = arrayListOf("en-IN", "ta-IN")
+                putExtra("android.speech.extra.ENABLE_LANGUAGE_DETECTION", true)
+                putStringArrayListExtra("android.speech.extra.LANGUAGE_DETECTION_ALLOWED_LANGUAGES", langs)
+                putExtra("android.speech.extra.ENABLE_LANGUAGE_SWITCH", "balanced")
+                putStringArrayListExtra("android.speech.extra.LANGUAGE_SWITCH_ALLOWED_LANGUAGES", langs)
+            }
         }
     }
 
@@ -700,6 +711,7 @@ class MainActivity : FlutterActivity() {
                     val continuous = call.argument<Boolean>("continuous") ?: true
                     val manual = call.argument<Boolean>("manual") ?: false
                     val requestedLocale = call.argument<String>("locale") ?: "en-IN"
+                    bilingualRecognition = requestedLocale == "auto"
                     recognitionLocale = if (requestedLocale in setOf("ta-IN", "en-IN", "en-GB")) requestedLocale else "en-IN"
                     recognitionIntent = null
                     startNativeListening(continuous, manual)

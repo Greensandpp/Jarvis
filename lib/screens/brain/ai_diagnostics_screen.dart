@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 
 import '../../brain/ai_reliability.dart';
+import '../../brain/model_selector.dart';
+import '../../services/ai_service.dart';
 import '../../services/settings_service.dart';
 
 /// Real connection test: DNS → TLS → key + model discovery → generation.
@@ -24,7 +26,10 @@ class _AiDiagnosticsScreenState extends State<AiDiagnosticsScreen> {
     setState(() { _running = true; _report = null; });
     final client = widget.client ?? http.Client();
     final rep = await runDiagnostics(client: client, base: _s.baseUrl, key: _s.apiKey, model: _s.model);
-    if (rep.models.isNotEmpty) await _s.setDiscoveredModels(rep.models);
+    if (rep.models.isNotEmpty) {
+      await _s.setDiscoveredModels(rankModels(rep.models, provider: _s.provider));
+      await _s.setModelsDiscoveredAt(DateTime.now().millisecondsSinceEpoch);
+    }
     if (rep.online) {
       if (rep.workingModel != _s.model) await _s.setModel(rep.workingModel);
       await _s.recordAiSuccess(rep.workingModel);
@@ -37,26 +42,43 @@ class _AiDiagnosticsScreenState extends State<AiDiagnosticsScreen> {
   }
 
   Future<void> _pickModel() async {
-    final ms = _s.discoveredModels;
+    final ms = rankModels(_s.discoveredModels, provider: _s.provider);
     if (ms.isEmpty) return;
+    const auto = '__auto__';
     final chosen = await showDialog<String>(context: context, builder: (ctx) => SimpleDialog(
       title: const Text('Choose model'),
-      children: [for (final m in ms) SimpleDialogOption(onPressed: () => Navigator.pop(ctx, m),
-        child: Text(m + (m == _s.model ? '  ✓' : '')))],
+      children: [
+        SimpleDialogOption(key: const ValueKey('model-auto'), onPressed: () => Navigator.pop(ctx, auto),
+          child: Text('Automatic (recommended) — ${ms.first}${_s.modelAuto ? '  ✓' : ''}')),
+        for (final m in ms) SimpleDialogOption(key: ValueKey('model-$m'), onPressed: () => Navigator.pop(ctx, m),
+          child: Text(m + (!_s.modelAuto && m == _s.model ? '  ✓' : '')))],
     ));
-    if (chosen != null) { await _s.setModel(chosen); setState(() {}); }
+    if (chosen == auto) {
+      await _s.setModelAuto(true);
+      await _s.setModel(ms.first);
+    } else if (chosen != null) {
+      await _s.setModel(chosen, pin: true);
+    }
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) => ListenableBuilder(
+      listenable: _s, builder: (context, _) => _build(context));
+
+  Widget _build(BuildContext context) {
     final rep = _report;
+    final attempts = AiService.instance.lastModelAttempts;
     return Scaffold(
       appBar: AppBar(title: const Text('AI connection & diagnostics')),
       body: ListView(padding: const EdgeInsets.all(16), children: [
         Text('Status: ${_s.aiStatusLabel}', key: const ValueKey('ai-status'),
           style: const TextStyle(fontWeight: FontWeight.w700)),
         const SizedBox(height: 4),
-        Text('Provider: ${_s.provider} · Model: ${_s.model}\nEndpoint: ${_s.baseUrl}'),
+        Text('Provider: ${_s.provider}${_s.provider == 'gemini' ? ' (preferred)' : ''}\n'
+            'Model: ${_s.modelLabel}\nEndpoint: ${_s.baseUrl}', key: const ValueKey('diag-model')),
+        if (attempts.isNotEmpty)
+          Text('Last request: ${attempts.join(' → ')}', key: const ValueKey('diag-attempts'),
+            style: const TextStyle(fontSize: 12)),
         const SizedBox(height: 4),
         const Text('ONLINE is shown only after a real request succeeds. Errors are classified as DNS, TLS, '
           'connection, timeout, key, model, quota or server problems.', style: TextStyle(fontSize: 12)),
@@ -69,7 +91,8 @@ class _AiDiagnosticsScreenState extends State<AiDiagnosticsScreen> {
           label: Text(_running ? 'Testing…' : 'Test connection & discover models'),
         ),
         if (_s.discoveredModels.isNotEmpty)
-          OutlinedButton(onPressed: _pickModel, child: Text('Choose from ${_s.discoveredModels.length} discovered models')),
+          OutlinedButton(key: const ValueKey('diag-pick-model'), onPressed: _pickModel,
+            child: Text('Choose from ${_s.discoveredModels.length} discovered models')),
         if (rep != null) ...[
           const SizedBox(height: 12),
           Text(rep.online ? 'ONLINE via ${rep.workingModel}' : 'NOT ONLINE', key: const ValueKey('diag-result'),

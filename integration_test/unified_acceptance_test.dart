@@ -12,6 +12,11 @@ import 'package:private_agent/main.dart' as app;
 import 'package:private_agent/screens/brain/memory_tools.dart';
 import 'package:private_agent/services/conversational_memory_service.dart';
 import 'package:private_agent/services/jarvis_service.dart';
+import 'package:private_agent/avatar/core/render_list.dart';
+import 'package:private_agent/avatar/serpent_guardian_view.dart';
+import 'package:private_agent/brain/visual_bus.dart';
+import 'package:private_agent/services/settings_service.dart';
+import 'package:private_agent/services/voice_service.dart';
 
 const expectFlavor = String.fromEnvironment('EXPECT_FLAVOR', defaultValue: 'standard');
 
@@ -451,6 +456,78 @@ void main() {
       return (p1 == 'apex' && p.getString('jarvis_visual_mode_v1') == 'aira' && p.getString('aira_model_v1') == 'jellyfish',
           'after "switch to apex": $p1 (heard "$heard", status "$st", reply "$reply"); after "aira jellyfish mode": '
           '${p.getString('jarvis_visual_mode_v1')}/${p.getString('aira_model_v1')}');
+    });
+
+    // I14 voices: automatic Tamil / English voice discovery on the real device TTS
+    await section('I14', () async {
+      await home(t);
+      final choices = await VoiceService.instance.autoSelectVoices();
+      final all = await VoiceService.instance.installedVoices();
+      await openCc(t, 'Voice');
+      await shot(t, 'i-voice-page');
+      final d = choices.entries.map((e) => '${e.key}=${e.value.voice?.name ?? 'engine default'} (${e.value.reason})').join('; ');
+      final s = SettingsService.instance;
+      final stored = s.ttsVoiceAutoReason('ta-IN').isNotEmpty && s.ttsVoiceAutoReason('en-IN').isNotEmpty;
+      return (choices.length == 2 && stored, '${all.length} installed voices; $d');
+    });
+
+    // I15 one selected model shown identically in chat dock, Settings and Control Center
+    await section('I15', () async {
+      final s = SettingsService.instance;
+      await s.setModel('gemini-2.5-flash-lite', pin: true);
+      await home(t);
+      await requestVisual(mode: 'aira');
+      await pumpFor(t, const Duration(seconds: 2));
+      final dock = find.byKey(const ValueKey('dock-model'));
+      final dockText = dock.evaluate().isEmpty ? '(no dock)' : textOf(dock);
+      await home(t);
+      await t.tap(find.byTooltip('Settings').first);
+      await pumpFor(t, const Duration(seconds: 2));
+      final cc = find.byKey(const ValueKey('open-control-center'));
+      await scrollTo(t, cc);
+      await t.tap(cc);
+      await pumpFor(t, const Duration(seconds: 2));
+      final ccText = textOf(find.byKey(const ValueKey('cc-model')));
+      await shot(t, 'i-model-sync-cc');
+      await s.setModelAuto(true);
+      await pumpFor(t, const Duration(seconds: 1));
+      final ccAuto = textOf(find.byKey(const ValueKey('cc-model')));
+      final ok = dockText.contains('gemini-2.5-flash-lite') && ccText.contains('gemini-2.5-flash-lite (manual)') &&
+          ccAuto.contains('(auto)') && s.provider.isNotEmpty;
+      return (ok, 'dock "$dockText" · control center "$ccText" → after auto "$ccAuto" · provider ${s.provider}');
+    });
+
+    // I16 Serpent Guardian framing: humanoid and serpent stay inside the canvas
+    await section('I16', () async {
+      await home(t);
+      await requestVisual(mode: 'serpent');
+      await pumpFor(t, const Duration(seconds: 9));
+      final f = find.byType(SerpentGuardianView);
+      if (f.evaluate().isEmpty) return (false, 'serpent view not shown');
+      final st = t.state<SerpentGuardianViewState>(f);
+      // The software-GPU emulator renders slowly; advance the avatar clock so
+      // the fully formed pose (largest extent) is measured.
+      for (var i = 0; i < 90; i++) {
+        st.scene.update(0.1);
+      }
+      await pumpFor(t, const Duration(seconds: 1));
+      final size = t.getSize(find.byKey(const ValueKey('serpent-guardian-canvas')));
+      final list = st.scene.build(size.width, size.height);
+      var minX = double.infinity, maxX = -double.infinity, minY = double.infinity, maxY = -double.infinity;
+      for (final tri in list.ops.whereType<TriOp>()) {
+        for (final i in tri.indices) {
+          final x = tri.positions[i * 2], y = tri.positions[i * 2 + 1];
+          if (x < minX) minX = x;
+          if (x > maxX) maxX = x;
+          if (y < minY) minY = y;
+          if (y > maxY) maxY = y;
+        }
+      }
+      await shot(t, 'i-serpent-framing');
+      final inside = minX >= 0 && maxX <= size.width && minY >= 0 && maxY <= size.height;
+      return (inside && list.triangleCount > 1000,
+          'state ${st.state.name}; canvas ${size.width.round()}x${size.height.round()}; meshes x ${minX.round()}..${maxX.round()} '
+          'y ${minY.round()}..${maxY.round()}; ${list.triangleCount} triangles');
     });
   }, timeout: const Timeout(Duration(minutes: 15)));
 }

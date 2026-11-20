@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:http/http.dart' as http;
 
 import '../brain/ai_reliability.dart';
+import '../brain/model_selector.dart';
 
 import 'conversational_memory_service.dart';
 import 'hermes_evolution_service.dart';
@@ -635,6 +636,51 @@ class AiService {
   @visibleForTesting
   set debugClient(http.Client c) => _client = c;
 
+  /// Shared per-model cool-downs (429 / 503) across all requests.
+  final ModelCooldowns cooldowns = ModelCooldowns();
+
+  /// Attempts of the most recent request (Diagnostics, tests).
+  List<ModelAttempt> lastModelAttempts = const [];
+
+  /// Backoff sleeper (tests replace it to run instantly).
+  Sleeper? retrySleep;
+
+  bool _discovering = false;
+
+  /// Discovers the chat models available for the current key, persists the
+  /// list and — when automatic selection is on — selects the best one.
+  /// Throttled to once per [maxAge] unless [force]. Respects the Privacy Lock
+  /// (no network call unless cloud AI is allowed). Returns the selected model
+  /// or null when nothing was done.
+  Future<String?> discoverAndSelectModels({bool force = false, Duration maxAge = const Duration(hours: 12)}) async {
+    final settings = SettingsService.instance;
+    if (_discovering || settings.apiKey.isEmpty || _isLocalBackend) return null;
+    if (!settings.allowCloudAi && !_isLoopbackAiUrl(settings.baseUrl)) return null;
+    final age = DateTime.now().millisecondsSinceEpoch - settings.modelsDiscoveredAt;
+    if (!force && settings.discoveredModels.isNotEmpty && age < maxAge.inMilliseconds) return null;
+    _discovering = true;
+    try {
+      final base = settings.baseUrl.replaceAll(RegExp(r'/+$'), '');
+      final found = await discoverModels(_client, base, settings.apiKey);
+      if (found.isEmpty) return null;
+      final ranked = rankModels(found, provider: settings.provider);
+      await settings.setDiscoveredModels(ranked);
+      await settings.setModelsDiscoveredAt(DateTime.now().millisecondsSinceEpoch);
+      if (settings.modelAuto) {
+        final best = ranked.first;
+        if (best != settings.model) await settings.setModel(best);
+        return best;
+      }
+      return settings.model;
+    } catch (e) {
+      final f = AiFailure.fromException(e);
+      if (f.kind == AiFailureKind.auth) await settings.recordAiFailure(f.kind.name);
+      return null;
+    } finally {
+      _discovering = false;
+    }
+  }
+
   /// True for local backends (Ollama etc.) that accept any/empty API key.
   bool get _isLocalBackend {
     final settings = SettingsService.instance;
@@ -908,6 +954,12 @@ You cannot directly tap the screen in this mode. If the user asks you to perform
 
     if (res.statusCode != 200) {
       final resBody = await res.stream.bytesToString();
+      // Quota / overload / missing model: nothing was streamed yet, so use the
+      // non-streaming path, which has the bounded model fallback.
+      if (res.statusCode == 429 || res.statusCode == 404 || res.statusCode >= 500) {
+        yield await chat(message: message, history: history);
+        return;
+      }
       final snippet = resBody.length > 300
           ? '${resBody.substring(0, 300)}…'
           : resBody;
@@ -1401,47 +1453,59 @@ The user is viewing an article or screen on their device and requested an execut
       },
     };
 
-    // Try the configured model, then (on HTTP 404 only) models discovered for
-    // this key. Transient failures (429/5xx/timeouts) retry with backoff.
-    Future<http.Response> send(String model) => withRetry(() async {
-          final r = await _client
-              .post(uri, headers: headers, body: jsonEncode({
-                'model': model,
-                'messages': messages,
-                'max_tokens': settings.maxTokens,
-                'temperature': settings.temperature,
-                'stream': false,
-                if (tools.isNotEmpty) 'tools': tools,
-                if (tools.isNotEmpty) 'tool_choice': 'auto',
-              }))
-              .timeout(const Duration(seconds: 60));
-          if (r.statusCode != 200) throw AiFailure.fromHttp(r.statusCode, r.body);
-          return r;
-        });
+    // One chat request per attempt. Only this side-effect-free HTTP call is
+    // ever repeated; tool / Android actions run later, exactly once, by the
+    // caller after a reply arrives.
+    Future<http.Response> send(String model) async {
+      final r = await _client
+          .post(uri, headers: headers, body: jsonEncode({
+            'model': model,
+            'messages': messages,
+            'max_tokens': settings.maxTokens,
+            'temperature': settings.temperature,
+            'stream': false,
+            if (tools.isNotEmpty) 'tools': tools,
+            if (tools.isNotEmpty) 'tool_choice': 'auto',
+          }))
+          .timeout(const Duration(seconds: 45));
+      if (r.statusCode != 200) throw AiFailure.fromHttp(r.statusCode, r.body);
+      return r;
+    }
 
     http.Response res;
     try {
-      try {
-        res = await send(settings.model);
-      } on AiFailure catch (f) {
-        if (f.kind != AiFailureKind.modelNotFound || _isLocalBackend) rethrow;
-        final discovered = await discoverModels(_client, base, settings.apiKey);
-        await settings.setDiscoveredModels(discovered);
-        AiFailure last = f;
-        http.Response? ok;
-        for (final m in fallbackOrder('', discovered).where((m) => m != settings.model).take(3)) {
-          try {
-            ok = await send(m);
-            await settings.setModel(m); // remember the model that works
-            break;
-          } on AiFailure catch (e) {
-            last = e;
-          }
+      if (_isLocalBackend) {
+        res = await withRetry(() => send(settings.model));
+        lastModelAttempts = [ModelAttempt(settings.model, 'ok')];
+      } else {
+        // Selected model first; on 429 / 503 / timeouts fall back through the
+        // ranked models discovered for this key (bounded, with cool-downs).
+        var ranked = rankModels(settings.discoveredModels, provider: settings.provider);
+        FallbackResult<http.Response> r;
+        try {
+          r = await callWithModelFallback<http.Response>(
+            selected: settings.model, ranked: ranked, attempt: send,
+            cooldowns: cooldowns, sleep: retrySleep);
+        } on AiFailure catch (f) {
+          // 404 with nothing discovered yet: discover once, then retry.
+          if (f.kind != AiFailureKind.modelNotFound || ranked.isNotEmpty) rethrow;
+          final discovered = await discoverModels(_client, base, settings.apiKey);
+          await settings.setDiscoveredModels(discovered);
+          ranked = rankModels(discovered, provider: settings.provider);
+          r = await callWithModelFallback<http.Response>(
+            selected: settings.model, ranked: ranked, attempt: send,
+            cooldowns: cooldowns, sleep: retrySleep);
         }
-        if (ok == null) throw last;
-        res = ok;
+        lastModelAttempts = r.attempts;
+        res = r.value;
+        // The selected model is gone for this key (404): remember the one that
+        // works. A temporary 429/503 fallback does not change the selection.
+        if (r.model != settings.model && r.selectedUnavailable) {
+          await settings.setModel(r.model);
+        }
+        await settings.recordAiSuccess(r.model);
       }
-      await settings.recordAiSuccess(settings.model);
+      if (_isLocalBackend) await settings.recordAiSuccess(settings.model);
     } catch (e) {
       final f = AiFailure.fromException(e);
       await settings.recordAiFailure(f.kind.name);

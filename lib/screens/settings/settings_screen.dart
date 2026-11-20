@@ -1,7 +1,10 @@
+import 'dart:async';
+
 import 'dart:ui';
 import 'package:flutter/material.dart';
 
 import '../../services/personality_service.dart';
+import '../../services/ai_service.dart';
 import '../../services/settings_service.dart';
 import '../../services/telegram_service.dart';
 import '../../widgets/glass_widgets.dart';
@@ -35,6 +38,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   bool _obscureToken = true;
 
   String _lastSyncedProvider = '';
+  String _lastSyncedModel = '';
 
   @override
   void initState() {
@@ -46,6 +50,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _chatsController =
         TextEditingController(text: _settings.telegramAllowedChats.join(', '));
     _lastSyncedProvider = _settings.provider;
+    _lastSyncedModel = _settings.model;
 
     PersonalityService.instance.init().then((_) {
       if (mounted) setState(() {});
@@ -101,6 +106,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
       _lastSyncedProvider = _settings.provider;
       _baseUrlController.text = _settings.baseUrl;
       _modelController.text = _settings.model;
+      _lastSyncedModel = _settings.model;
+    } else if (_settings.model != _lastSyncedModel) {
+      // Model changed elsewhere (auto-selection, Diagnostics, fallback after
+      // 404): follow it unless the owner is typing a different one here.
+      if (_modelController.text.trim() == _lastSyncedModel) _modelController.text = _settings.model;
+      _lastSyncedModel = _settings.model;
     }
     setState(() {});
   }
@@ -162,9 +173,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Future<void> _saveAiSettings() async {
+    final keyChanged = _apiKeyController.text.trim() != _settings.apiKey;
+    final typedModel = _modelController.text.trim();
+    final modelEdited = typedModel != _lastSyncedModel;
     await _settings.setBaseUrl(_baseUrlController.text);
     await _settings.setApiKey(_apiKeyController.text);
-    await _settings.setModel(_modelController.text);
+    // A model typed here by the owner is pinned; otherwise auto-selection stays on.
+    if (modelEdited && typedModel.isNotEmpty) await _settings.setModel(typedModel, pin: true);
+    unawaited(AiService.instance.discoverAndSelectModels(force: keyChanged));
     if (!mounted) return;
     setState(() {});
     ScaffoldMessenger.of(context)
@@ -384,8 +400,21 @@ class _SettingsScreenState extends State<SettingsScreen> {
           GlassTextField(
             controller: _modelController,
             labelText: 'Model',
-            hintText: 'deepseek-chat',
+            hintText: 'gemini-2.5-flash',
             prefixIcon: const Icon(Icons.psychology_outlined, size: 20),
+          ),
+          SwitchListTile(
+            key: const ValueKey('settings-model-auto'),
+            contentPadding: EdgeInsets.zero,
+            title: const Text('Choose the best model automatically'),
+            subtitle: Text('Active: ${_settings.modelLabel}'
+                '${_settings.discoveredModels.isEmpty ? '' : ' · ${_settings.discoveredModels.length} models found for this key'}',
+                key: const ValueKey('settings-model-label')),
+            value: _settings.modelAuto,
+            onChanged: (v) async {
+              await _settings.setModelAuto(v);
+              if (v) unawaited(AiService.instance.discoverAndSelectModels(force: true));
+            },
           ),
           const SizedBox(height: 16),
           // Save button with liquid glass styling

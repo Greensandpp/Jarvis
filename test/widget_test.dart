@@ -228,7 +228,8 @@ void main() {
       await settings.setAllowCloudTts(false);
       await settings.setAllowExternalLookups(false);
       await settings.setAllowSmartHomeNetwork(false);
-      expect(settings.speechInputLocale, 'en-IN');
+      // Default is bilingual Tamil + English + Tanglish input.
+      expect(settings.speechInputLocale, 'auto');
       await settings.setSpeechInputLocale('ta-IN');
       expect(settings.speechInputLocale, 'ta-IN');
       await settings.setSpeechInputLocale('en-IN');

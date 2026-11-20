@@ -400,7 +400,8 @@ class _JarvisSettingsScreenState extends State<JarvisSettingsScreen> {
               initialValue: _settings.speechInputLocale,
               isExpanded: true,
               items: const [
-                DropdownMenuItem(value: 'en-IN', child: Text('Indian English (recommended)')),
+                DropdownMenuItem(value: 'auto', child: Text('Tamil + English + Tanglish (recommended)')),
+                DropdownMenuItem(value: 'en-IN', child: Text('Indian English')),
                 DropdownMenuItem(value: 'ta-IN', child: Text('Tamil')),
                 DropdownMenuItem(value: 'en-GB', child: Text('British English')),
               ],

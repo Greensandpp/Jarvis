@@ -129,6 +129,20 @@ class JarvisBrain {
   PendingApproval? pending;
   int _generation = 0;
 
+  /// Device actions (Operator agent) executed recently, keyed by tool + args.
+  /// A duplicate request inside [actionDedupWindow] (double speech result,
+  /// re-sent command after an AI fallback) returns the first result instead
+  /// of acting on the phone twice.
+  final Map<String, ({DateTime at, ToolResult result})> _recentActions = {};
+  Duration actionDedupWindow = const Duration(seconds: 12);
+  DateTime Function() clock = DateTime.now;
+
+  /// Canonical key for a tool call (argument order does not matter).
+  static String actionKey(String tool, Map<String, dynamic> args) {
+    final keys = args.keys.toList()..sort();
+    return '$tool:${jsonEncode({for (final k in keys) k: args[k]})}';
+  }
+
   void cancel() => _generation++;
 
   ToolSpec? tool(String name) {
@@ -174,11 +188,36 @@ class JarvisBrain {
       audit.add(e);
       return BrainResult('Okay, I did not do it.', [e], usedAi: false);
     }
-    final r = await _safeRun(p.tool, p.args);
+    final r = await _runOnce(p.tool, p.args, <String, ToolResult>{});
     final e = AuditEntry(p.tool.name, p.tool.agent, p.args, r.ok ? 'approved · ok' : 'approved · failed', r.summary);
     audit.add(e);
     return BrainResult(r.ok ? r.summary : 'I tried, but it failed: ${r.summary}', [e], usedAi: false);
   }
+
+  /// Runs a tool at most once per request (identical repeated calls reuse the
+  /// first result) and at most once per [actionDedupWindow] for device
+  /// actions, so retries/fallbacks can never repeat an Android action.
+  Future<ToolResult> _runOnce(ToolSpec t, Map<String, dynamic> args, Map<String, ToolResult> thisRun) async {
+    final key = actionKey(t.name, args);
+    final same = thisRun[key];
+    if (same != null) return same;
+    final now = clock();
+    _recentActions.removeWhere((_, v) => now.difference(v.at) > actionDedupWindow);
+    final recent = t.agent == JarvisAgent.operator ? _recentActions[key] : null;
+    if (recent != null) {
+      final r = ToolResult(recent.result.ok, '${recent.result.summary} (already done a moment ago — not repeated)',
+          data: recent.result.data, verified: recent.result.verified);
+      thisRun[key] = r;
+      return r;
+    }
+    final r = await _safeRun(t, args);
+    thisRun[key] = r;
+    if (t.agent == JarvisAgent.operator) _recentActions[key] = (at: clock(), result: r);
+    return r;
+  }
+
+  /// Number of device actions remembered for de-duplication (tests).
+  int get recentActionCount => _recentActions.length;
 
   Future<ToolResult> _safeRun(ToolSpec t, Map<String, dynamic> args) async {
     try {
@@ -201,6 +240,7 @@ class JarvisBrain {
       {'role': 'user', 'content': userText},
     ];
     final catalog = tools.where((t) => t.available && t.risk != ToolRisk.blocked).map((t) => t.toOpenAi()).toList();
+    final executed = <String, ToolResult>{};
 
     for (var step = 0; step < maxSteps; step++) {
       if (gen != _generation) throw BrainCancelled();
@@ -241,8 +281,9 @@ class JarvisBrain {
           audit.addAll(steps);
           return BrainResult('$d — shall I go ahead? Say yes or no.', steps, pending: pending);
         } else {
-          r = await _safeRun(t, args);
-          steps.add(AuditEntry(name, t.agent, args, r.ok ? 'ok' : 'failed', r.summary));
+          final dup = executed.containsKey(actionKey(t.name, args));
+          r = await _runOnce(t, args, executed);
+          steps.add(AuditEntry(name, t.agent, args, dup ? 'deduplicated' : (r.ok ? 'ok' : 'failed'), r.summary));
         }
         messages.add({'role': 'tool', 'tool_call_id': id, 'name': name, 'content': jsonEncode(r.toJson())});
       }
@@ -263,7 +304,7 @@ class JarvisBrain {
       return steps.isEmpty ? 'I have no answer for that.' : steps.map((s) => s.summary).join(' ');
     }
     final acted = steps.where((s) => s.outcome != 'awaiting approval').toList();
-    if (acted.isNotEmpty && acted.every((s) => s.outcome != 'ok')) {
+    if (acted.isNotEmpty && acted.every((s) => s.outcome != 'ok' && s.outcome != 'deduplicated')) {
       final admits = RegExp(r"fail|couldn|could not|can't|cannot|unable|not available|error|blocked|முடிய|illa", caseSensitive: false)
           .hasMatch(reply);
       if (!admits) return '${_failures(acted)}. $reply';

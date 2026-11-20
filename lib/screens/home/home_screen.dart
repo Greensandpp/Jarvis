@@ -299,6 +299,17 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                     children: [
                       if (_executor.isBusy) _activeTaskBar(theme),
                       Expanded(child: _transcript(theme)),
+                      // Same model line as Settings / Diagnostics / Control Center.
+                      ListenableBuilder(
+                        listenable: SettingsService.instance,
+                        builder: (context, _) => Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 18),
+                          child: Text('AI model: ${SettingsService.instance.modelLabel}',
+                              key: const ValueKey('chat-model-label'),
+                              maxLines: 1, overflow: TextOverflow.ellipsis,
+                              style: theme.textTheme.labelSmall?.copyWith(color: theme.hintColor)),
+                        ),
+                      ),
                       _inputBar(theme),
                     ],
                   ),

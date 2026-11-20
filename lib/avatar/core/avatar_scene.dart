@@ -340,7 +340,7 @@ class AvatarScene {
 
     final s = settings;
     const fov = 0.8;
-    final dist = 3.25 / s.scale / (2 * math.tan(fov / 2));
+    final dist = 3.8 / s.scale / (2 * math.tan(fov / 2)); // fits arms + serpent head on a 20:9 phone
     final push = 0.06 * (1 - machine.humanoidFormation) * (machine.state == AvatarState.closing ? 0 : 1);
     final cam = PerspectiveCamera(
       width: width,

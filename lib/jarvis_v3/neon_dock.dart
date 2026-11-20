@@ -64,7 +64,14 @@ class NeonInputDock extends StatelessWidget {
                 counterText: '',
                 hintText: 'Message JARVIS…',
                 hintStyle: TextStyle(color: Color(0x99FFE2A8)),
+                // Override the app theme (filled, outlined fields): the dock
+                // itself is the field's frame.
+                filled: false,
+                fillColor: Colors.transparent,
                 border: InputBorder.none,
+                enabledBorder: InputBorder.none,
+                focusedBorder: InputBorder.none,
+                disabledBorder: InputBorder.none,
                 isCollapsed: true,
                 contentPadding: EdgeInsets.symmetric(vertical: 14),
               ),

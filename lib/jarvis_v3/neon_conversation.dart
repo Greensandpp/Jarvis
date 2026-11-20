@@ -109,7 +109,7 @@ class NeonConversationPanel extends StatelessWidget {
     required this.onScrollActive,
     required this.onTap,
     this.reduceMotion = false,
-    this.maxRecent = 6,
+    this.maxRecent = 4,
   });
 
   final List<ConversationEntry> entries;

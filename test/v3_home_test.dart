@@ -7,6 +7,7 @@ import 'package:private_agent/jarvis_v3/chat_interface_settings.dart';
 import 'package:private_agent/jarvis_v3/jarvis_v3_home.dart';
 import 'package:private_agent/jarvis_v3/reference_avatar_stage.dart';
 import 'package:private_agent/jarvis_v3/visual_mode_store.dart';
+import 'package:private_agent/theme/app_theme.dart';
 import 'package:private_agent/widgets/jarvis_visual_mode_host.dart';
 
 import 'fixtures/v3_fixtures.dart';
@@ -242,5 +243,26 @@ void main() {
     await tester.runAsync(() => requestVisual(mode: 'core'));
     await tester.pump(const Duration(milliseconds: 600));
     expect(find.byKey(const ValueKey('v3-visual-core')), findsOneWidget);
+  });
+
+  testWidgets('dock text field stays transparent under the real app theme (light and dark)', (tester) async {
+    for (final theme in [AppTheme.light(), AppTheme.dark()]) {
+      SharedPreferences.setMockInitialValues({});
+      ChatInterfaceSettings.instance.resetForTest();
+      final fake = FakeConversation();
+      await tester.pumpWidget(MaterialApp(
+        theme: theme,
+        home: Scaffold(body: JarvisV3Home(
+            key: UniqueKey(), bindings: fake.bindings(), onOpenMenu: () {}, onOpenSettings: () {}, playIntro: false)),
+      ));
+      await tester.pump(const Duration(milliseconds: 100));
+      await tester.tap(find.byKey(const ValueKey('v3-dock-input')));
+      await tester.pump();
+      final deco = tester.widget<InputDecorator>(find.descendant(
+          of: find.byKey(const ValueKey('v3-dock-input')), matching: find.byType(InputDecorator))).decoration;
+      expect(deco.filled, isFalse, reason: 'no theme fill inside the neon dock');
+      expect(deco.focusedBorder, InputBorder.none);
+      expect(deco.enabledBorder, InputBorder.none);
+    }
   });
 }

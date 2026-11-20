@@ -43,7 +43,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   bool _serviceEnabled = false;
   bool _overlayActive = false;
   bool _listening = false;
-  AppMode _mode = AppMode.agent;
+  AppMode _mode = AppMode.jarvis;
 
   /// True while either an agent task or a chat reply is in flight.
   bool get _busy => _executor.isBusy || _executor.isChatBusy;
@@ -53,22 +53,22 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _executor.addListener(_onExecutorUpdate);
-    _mode = SettingsService.instance.appMode;
+    // Owner-selected startup: always show the JARVIS ARC, never Phone Agent.
+    // Other modes remain accessible through the mode picker.
+    _mode = AppMode.jarvis;
 
     // Connect Google Assistant style wake-word trigger to auto-switch into JARVIS HUD
     JarvisService.instance.onWakeWordTriggered = () {
       if (mounted && _mode != AppMode.jarvis) {
         setState(() => _mode = AppMode.jarvis);
         SettingsService.instance.setAppMode(AppMode.jarvis);
-        JarvisService.instance.speakGreeting(force: true);
+        // Wake transitions are silent; a single voice reply follows the command.
       }
     };
 
     if (_mode == AppMode.jarvis) {
+      // Startup is silent: no unsolicited executive briefing, no dual TTS.
       JarvisService.instance.onEnterJarvisMode();
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        JarvisService.instance.speakGreeting();
-      });
     }
     if (SettingsService.instance.jarvisAlwaysOn) {
       JarvisService.instance.ensureAlwaysOnRunning();
@@ -821,7 +821,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     setState(() => _mode = mode);
     SettingsService.instance.setAppMode(mode);
     if (mode == AppMode.jarvis) {
-      JarvisService.instance.speakGreeting(force: true);
+      // Enter ARC silently; greet only after an explicit user interaction.
+      JarvisService.instance.onEnterJarvisMode();
     } else if (previousMode == AppMode.jarvis) {
       JarvisService.instance.onExitJarvisMode();
     }

@@ -643,6 +643,19 @@ class AiService {
     return host == 'localhost' || host == '127.0.0.1' || host == '[::1]';
   }
 
+  /// Why the AI brain cannot be used right now (null = usable). Lets JARVIS
+  /// say so honestly and fall back to offline shortcuts.
+  String? get aiBlockedReason {
+    final s = SettingsService.instance;
+    if (!s.allowCloudAi && !_isLoopbackAiUrl(s.baseUrl)) {
+      return 'Cloud AI is switched off (Privacy Lock). Enable it in Settings → AI to use the brain.';
+    }
+    if (s.apiKey.isEmpty && !_isLocalBackend) {
+      return 'No AI key is set. Add your Gemini key in Settings → AI, then run the connection test.';
+    }
+    return null;
+  }
+
   /// Only the loopback interface is considered fully on-device.
   /// A remote Ollama server on LAN is not phone-local and requires consent.
   bool _isLoopbackAiUrl(String baseUrl) {
@@ -1299,6 +1312,43 @@ The user is viewing an article or screen on their device and requested an execut
     List<Map<String, dynamic>> messages,
     SettingsService settings,
   ) async {
+    final msg = await _postChatCompletionMessage(messages, settings);
+    return msg['content'] as String;
+  }
+
+  /// Embeddings via the OpenAI-compatible `/embeddings` endpoint (Gemini
+  /// supports it). Used for semantic memory recall; callers fall back to
+  /// keyword search on any failure.
+  Future<List<List<double>>> embedTexts(List<String> texts,
+      {String model = 'gemini-embedding-001', Duration timeout = const Duration(seconds: 8)}) async {
+    final settings = SettingsService.instance;
+    _enforceAiPrivacy(settings);
+    if (settings.apiKey.isEmpty) throw const AiException('No API key configured.');
+    final base = settings.baseUrl.replaceAll(RegExp(r'/+$'), '');
+    final r = await _client.post(Uri.parse('$base/embeddings'),
+        headers: {'Content-Type': 'application/json', 'Authorization': 'Bearer ${settings.apiKey}'},
+        body: jsonEncode({'model': model, 'input': texts})).timeout(timeout);
+    if (r.statusCode != 200) throw AiException.from(AiFailure.fromHttp(r.statusCode, r.body));
+    final data = (jsonDecode(utf8.decode(r.bodyBytes))['data'] as List);
+    return [for (final d in data) [for (final v in (d['embedding'] as List)) (v as num).toDouble()]];
+  }
+
+  /// Tool-calling entry point for the JARVIS brain. Returns the assistant
+  /// message map: `content` (may be empty) and optional `tool_calls`
+  /// (OpenAI-compatible; Gemini's /v1beta/openai endpoint supports this).
+  Future<Map<String, dynamic>> chatWithTools(
+    List<Map<String, dynamic>> messages, {
+    List<Map<String, dynamic>> tools = const [],
+  }) async {
+    final settings = SettingsService.instance;
+    return _postChatCompletionMessage(messages, settings, tools: tools);
+  }
+
+  Future<Map<String, dynamic>> _postChatCompletionMessage(
+    List<Map<String, dynamic>> messages,
+    SettingsService settings, {
+    List<Map<String, dynamic>> tools = const [],
+  }) async {
     _enforceAiPrivacy(settings);
     if (settings.apiKey.isEmpty && !_isLocalBackend) {
       throw const AiException(
@@ -1342,6 +1392,8 @@ The user is viewing an article or screen on their device and requested an execut
                 'max_tokens': settings.maxTokens,
                 'temperature': settings.temperature,
                 'stream': false,
+                if (tools.isNotEmpty) 'tools': tools,
+                if (tools.isNotEmpty) 'tool_choice': 'auto',
               }))
               .timeout(const Duration(seconds: 60));
           if (r.statusCode != 200) throw AiFailure.fromHttp(r.statusCode, r.body);
@@ -1385,13 +1437,18 @@ The user is viewing an article or screen on their device and requested an execut
       }
       final choice = choices[0];
       final content = choice?['message']?['content'];
-      if (content is String && content.trim().isNotEmpty) return content;
+      final rawCalls = choice?['message']?['tool_calls'];
+      final calls = rawCalls is List && rawCalls.isNotEmpty ? rawCalls : null;
+      String text = '';
+      if (content is String) text = content;
       // Some providers return content as a list of parts.
       if (content is List) {
-        final joined = content
+        text = content
             .map((p) => p is Map ? '${p['text'] ?? ''}' : '$p')
             .join();
-        if (joined.trim().isNotEmpty) return joined;
+      }
+      if (text.trim().isNotEmpty || calls != null) {
+        return {'role': 'assistant', 'content': text, if (calls != null) 'tool_calls': calls};
       }
       // Reasoning models can spend the entire completion budget on hidden
       // reasoning and return empty content with finish_reason == 'length'.

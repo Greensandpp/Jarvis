@@ -1,4 +1,5 @@
 // ignore: deprecated_member_use
+import '../brain/visual_bus.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:permission_handler/permission_handler.dart';
@@ -150,6 +151,15 @@ class JarvisVisualModeHostState extends State<JarvisVisualModeHost> {
     _aira = AiraPhaseBinding(_phaseSource, _phase);
     _live.load();
     _restore();
+    visualBus.addListener(_onVisualRequest);
+  }
+
+  void _onVisualRequest() {
+    final m = visualBus.value?.mode;
+    if (m == null) return;
+    for (final v in JarvisVisualMode.values) {
+      if (v.name == m) select(v, persist: false);
+    }
   }
 
   Future<void> _restore() async {
@@ -181,6 +191,7 @@ class JarvisVisualModeHostState extends State<JarvisVisualModeHost> {
 
   @override
   void dispose() {
+    visualBus.removeListener(_onVisualRequest);
     command.dispose();
     _aira.dispose();
     if (_ownsLive) _live.dispose();

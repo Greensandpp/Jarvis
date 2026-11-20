@@ -1,4 +1,7 @@
 import 'dart:async';
+import '../brain/brain.dart';
+import '../brain/jarvis_brain_service.dart';
+import '../brain/language.dart';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
@@ -793,6 +796,7 @@ class JarvisService extends ChangeNotifier {
 
   /// Aborts any running task immediately.
   Future<void> abortTask() async {
+    JarvisBrainService.instance.cancel();
     _standDown();
     if (_executor.isBusy) {
       _executor.cancel();
@@ -873,6 +877,13 @@ class JarvisService extends ChangeNotifier {
         lower.contains('stop task') ||
         lower.contains('cancel task')) {
       await abortTask();
+      return;
+    }
+
+    // Brain approval answers ("yes" / "no" / "seri" / "vendam") go straight back
+    // to the brain before any other shortcut can capture them.
+    if (JarvisBrainService.instance.hasPending) {
+      await _runBrain(trimmed);
       return;
     }
 
@@ -2272,7 +2283,14 @@ Mastering the boundless road.
       return;
     }
 
-    // 12. Full AI Intent Interpretation via AiService
+    // 12. Tool-calling brain (default). The original single-shot intent router
+    //     below stays available when the brain is switched off in Settings.
+    if (SettingsService.instance.brainToolCalling) {
+      await _runBrain(trimmed);
+      return;
+    }
+
+    // 12b. Original AI Intent Interpretation via AiService
     JarvisIntent intent;
     try {
       intent = await _ai.interpretJarvisCommand(
@@ -2991,6 +3009,47 @@ Mastering the boundless road.
     // Follow-up hands-free continuous listening
     await _startFollowUpListening();
   }
+
+  /// Runs the tool-calling brain and speaks the verified answer in the
+  /// detected reply language. Errors propagate to the processCommand guard.
+  Future<void> _runBrain(String text) async {
+    _phase = JarvisPhase.thinking;
+    _statusMessage = 'BRAIN // PLANNING';
+    notifyListeners();
+    final brain = JarvisBrainService.instance;
+    final BrainResult r;
+    try {
+      r = await brain.handle(text);
+    } on BrainCancelled {
+      _lastJarvisSpeech = 'Cancelled.';
+      _phase = JarvisPhase.idle;
+      _statusMessage = 'CANCELLED';
+      notifyListeners();
+      return;
+    }
+    lastBrainSteps = r.steps;
+    _dialogHistory.add({'role': 'user', 'content': text});
+    _dialogHistory.add({'role': 'assistant', 'content': r.reply});
+    if (_dialogHistory.length > 10) _dialogHistory.removeRange(0, 2);
+    _lastJarvisSpeech = r.reply;
+    _phase = JarvisPhase.speaking;
+    _statusMessage = r.pending != null
+        ? 'AWAITING YOUR APPROVAL'
+        : r.steps.isEmpty
+            ? (r.usedAi ? 'ANSWERED' : 'OFFLINE SHORTCUT')
+            : 'AGENTS: ${r.steps.map((s) => s.agent.title.toUpperCase()).toSet().join(' + ')}';
+    notifyListeners();
+    final lang = brain.lastLanguage;
+    final s = SettingsService.instance;
+    await _voice.speakIn(r.reply,
+        languageTag: lang == ReplyLanguage.tamil ? 'ta-IN' : 'en-IN',
+        neuralVoice: neuralVoiceFor(lang, female: s.preferFemaleVoice, englishDefault: s.jarvisNeuralVoice),
+        female: s.preferFemaleVoice);
+    await _startFollowUpListening();
+  }
+
+  /// Steps of the last brain request (shown in the Agents / audit screen).
+  List<AuditEntry> lastBrainSteps = const [];
 
   Future<void> _handleSystemCommand(String cmd, String spoken) async {
     final speech = spoken.isNotEmpty ? spoken : PersonalityService.instance.getGeneralAck();

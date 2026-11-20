@@ -1,4 +1,5 @@
 // ignore: deprecated_member_use
+import '../../brain/visual_bus.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/scheduler.dart';
@@ -174,6 +175,11 @@ class _AiraModeViewState extends State<AiraModeView> {
   @override
   void initState() {
     super.initState();
+    _reload();
+    visualBus.addListener(_onVisualRequest);
+  }
+
+  void _reload() {
     AiraPreferences.load().then((p) {
       if (!mounted) return;
       setState(() {
@@ -181,6 +187,16 @@ class _AiraModeViewState extends State<AiraModeView> {
         _loaded = true;
       });
     });
+  }
+
+  void _onVisualRequest() {
+    if (visualBus.value?.airaModel != null) _reload();
+  }
+
+  @override
+  void dispose() {
+    visualBus.removeListener(_onVisualRequest);
+    super.dispose();
   }
 
   void _update(void Function(AiraPreferences p) change) {

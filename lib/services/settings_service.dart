@@ -318,6 +318,39 @@ class SettingsService extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Tool-calling brain (open-ended reasoning + tools). When off, the original
+  /// single-shot intent router is used.
+  bool get brainToolCalling => _prefs?.getBool('jarvis_brain_tool_calling') ?? true;
+  Future<void> setBrainToolCalling(bool v) async {
+    await _prefs?.setBool('jarvis_brain_tool_calling', v);
+    notifyListeners();
+  }
+
+  /// Reply language: auto (follow the user's Tamil / English / Tanglish), or fixed.
+  String get replyLanguage {
+    final v = _prefs?.getString('jarvis_reply_language') ?? 'auto';
+    return const ['auto', 'english', 'tamil', 'tanglish'].contains(v) ? v : 'auto';
+  }
+  Future<void> setReplyLanguage(String v) async {
+    if (!const ['auto', 'english', 'tamil', 'tanglish'].contains(v)) return;
+    await _prefs?.setString('jarvis_reply_language', v);
+    notifyListeners();
+  }
+
+  /// Prefer a female voice (Edge neural Pallavi/Neerja, or a female local TTS voice).
+  bool get preferFemaleVoice => _prefs?.getBool('jarvis_prefer_female_voice') ?? true;
+  Future<void> setPreferFemaleVoice(bool v) async {
+    await _prefs?.setBool('jarvis_prefer_female_voice', v);
+    notifyListeners();
+  }
+
+  /// Use Gemini embeddings for memory recall when online (keyword fallback offline).
+  bool get semanticMemory => _prefs?.getBool('jarvis_semantic_memory') ?? true;
+  Future<void> setSemanticMemory(bool v) async {
+    await _prefs?.setBool('jarvis_semantic_memory', v);
+    notifyListeners();
+  }
+
   /// Whether JARVIS listens continuously like Google Home without tapping.
   bool get jarvisAlwaysOn => _prefs?.getBool('jarvis_always_on') ?? false;
   Future<void> setJarvisAlwaysOn(bool value) async {

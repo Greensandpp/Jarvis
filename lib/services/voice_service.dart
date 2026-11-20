@@ -312,6 +312,90 @@ class VoiceService {
     }
   }
 
+  /// Speaks in the reply language chosen by the brain. Neural (Edge) voice
+  /// when cloud TTS is allowed, otherwise the phone's local TTS in that
+  /// language, preferring a voice whose name marks it female.
+  Future<void> speakIn(String text, {required String languageTag, required String neuralVoice, required bool female}) async {
+    final clean = sanitizeForSpeech(text);
+    if (clean.isEmpty) return;
+    final wasListening = _listening;
+    if (wasListening) await stopListening();
+    await stopSpeaking();
+    isSpeaking.value = true;
+    try {
+      if (SettingsService.instance.useNeuralVoice && SettingsService.instance.allowCloudTts) {
+        try {
+          if (await EdgeTtsService.instance.speak(clean, voice: neuralVoice)) {
+            lastVoiceUsed = 'neural $neuralVoice';
+            return;
+          }
+        } catch (_) {}
+      }
+      await initTts();
+      if (!_ttsReady) return;
+      try {
+        await _tts.setLanguage(languageTag);
+        if (female) {
+          final dynamic voices = await _tts.getVoices;
+          if (voices is List) {
+            for (final v in voices) {
+              if (v is! Map) continue;
+              final name = '${v['name']}'.toLowerCase(), loc = '${v['locale']}'.toLowerCase().replaceAll('_', '-');
+              if (loc.startsWith(languageTag.toLowerCase()) && (name.contains('female') || '${v['gender']}'.toLowerCase() == 'female')) {
+                await _tts.setVoice({'name': '${v['name']}', 'locale': '${v['locale']}'});
+                break;
+              }
+            }
+          }
+        }
+        lastVoiceUsed = 'local $languageTag';
+        _speakCompleter = Completer<void>();
+        await _tts.speak(clean);
+        await _speakCompleter?.future;
+      } catch (_) {
+      } finally {
+        _speakCompleter = null;
+        _ttsReady = false; // restore the owner's normal voice profile next time
+      }
+    } finally {
+      isSpeaking.value = false;
+    }
+  }
+
+  String lastVoiceUsed = 'none yet';
+
+  /// Honest microphone / TTS status for Settings → Diagnostics.
+  Future<Map<String, String>> diagnostics() async {
+    final out = <String, String>{};
+    final mic = await Permission.microphone.status;
+    out['Microphone permission'] = mic.isGranted ? 'granted' : mic.isPermanentlyDenied ? 'denied (open app settings)' : 'not granted';
+    try {
+      final ok = await _nativeSpeechChannel.invokeMethod<bool>('isAvailable');
+      out['Speech recognizer'] = ok == true ? 'available' : 'not available on this phone';
+    } catch (e) {
+      out['Speech recognizer'] = 'unknown ($e)';
+    }
+    out['Recognition language'] = SettingsService.instance.speechInputLocale;
+    try {
+      final langs = await _tts.getLanguages;
+      final l = langs is List ? langs.map((e) => '$e'.toLowerCase().replaceAll('_', '-')).toList() : <String>[];
+      out['TTS Tamil (ta-IN)'] = l.any((e) => e.startsWith('ta')) ? 'installed' : 'not installed — install Tamil in Google TTS';
+      out['TTS Indian English'] = l.any((e) => e.startsWith('en-in')) ? 'installed' : 'not listed';
+      final voices = await _tts.getVoices;
+      final fem = voices is List
+          ? voices.where((v) => v is Map && ('${v['name']}'.toLowerCase().contains('female') || '${v['gender']}'.toLowerCase() == 'female')).length
+          : 0;
+      out['Local voices'] = '${voices is List ? voices.length : 0} (named female: $fem)';
+    } catch (e) {
+      out['TTS'] = 'error: $e';
+    }
+    final s = SettingsService.instance;
+    out['Neural voice'] = s.useNeuralVoice && s.allowCloudTts ? 'enabled (needs internet)' : 'off (Privacy: cloud TTS not allowed)';
+    out['Female preference'] = s.preferFemaleVoice ? 'on' : 'off';
+    out['Last voice used'] = lastVoiceUsed;
+    return out;
+  }
+
   Future<void> stopSpeaking() async {
     try {
       await EdgeTtsService.instance.stop();

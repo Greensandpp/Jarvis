@@ -84,7 +84,9 @@ class NeonInputDock extends StatelessWidget {
               return IconButton(
                 key: const ValueKey('v3-dock-send'),
                 tooltip: 'Send',
-                onPressed: canSend ? onSend : null,
+                // Always active: a tap straight after typing must not be
+                // lost to a rebuild. An empty message is ignored by onSend.
+                onPressed: onSend,
                 icon: Icon(Icons.send_rounded,
                     color: canSend ? NeonColors.amber : NeonColors.amber.withValues(alpha: 0.35)),
               );

@@ -166,8 +166,8 @@ void main() {
 
   testWidgets('send goes to the native router once; mic toggles the real recogniser', (tester) async {
     final fake = await pumpHome(tester);
+    // No frame between typing and tapping: the tap must still dispatch.
     await tester.enterText(find.byKey(const ValueKey('v3-dock-input')), 'Set an alarm for 6');
-    await tester.pump();
     await tester.tap(find.byKey(const ValueKey('v3-dock-send')));
     await tester.pump();
     expect(fake.commands, ['Set an alarm for 6'], reason: 'exactly one dispatch');

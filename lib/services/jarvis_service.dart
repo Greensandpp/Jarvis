@@ -213,12 +213,13 @@ class JarvisService extends ChangeNotifier {
           _phase = _executor.isBusy ? JarvisPhase.executing : JarvisPhase.idle;
           notifyListeners();
         }
-        // Continuous listening trigger: when speech output finishes, resume passive wake-word listening
-        if (_shouldListenContinuously) {
+        // A manual ARC interrupt owns the next listening transition.
+        // Do not race it with this automatic TTS completion callback.
+        if (_shouldListenContinuously && !_arcTapTransitioning) {
           if (_isAwake) {
             _keepAwake();
           }
-          startListening();
+          unawaited(startListening());
         }
       }
     });
@@ -574,17 +575,43 @@ class JarvisService extends ChangeNotifier {
     return false;
   }
 
-  /// Toggles speech recognition manually via the UI.
+  /// One ARC tap starts capture; the next tap finishes that capture.
+  /// Never immediately restart the recognizer from the stop-tap path: doing
+  /// so can consume the same utterance twice or re-trigger a second reply.
+  bool _arcTapTransitioning = false;
   Future<void> toggleListening() async {
-    if (_phase == JarvisPhase.listening) {
-      await stopListening();
-      if (_shouldListenContinuously) {
-        _standDown();
-        await startListening();
+    if (_arcTapTransitioning) return;
+    _arcTapTransitioning = true;
+    try {
+      if (_phase == JarvisPhase.speaking || _voice.isSpeaking.value) {
+        // Explicit tap-to-interrupt. Hands-free acoustic barge-in is separate.
+        await _voice.stopSpeaking();
+        _speechSilenceTimer?.cancel();
+        _lastUserSpeech = '';
+        _wakeUp();
+        await startListening(manual: true);
+        return;
       }
-    } else {
+      if (_phase == JarvisPhase.listening) {
+        _speechSilenceTimer?.cancel();
+        final captured = _lastUserSpeech.trim();
+        await stopListening();
+        if (captured.isNotEmpty) {
+          await _handleSpeechResult(captured);
+        } else {
+          _standDown();
+        }
+        return;
+      }
+      if (_phase == JarvisPhase.thinking || _phase == JarvisPhase.executing) {
+        // Never enqueue an additional command while one is in flight.
+        return;
+      }
+      _lastUserSpeech = '';
       _wakeUp();
       await startListening(manual: true);
+    } finally {
+      _arcTapTransitioning = false;
     }
   }
 

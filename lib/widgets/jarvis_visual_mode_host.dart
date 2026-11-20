@@ -139,16 +139,19 @@ class JarvisVisualModeHostState extends State<JarvisVisualModeHost> {
 
   static LiveVoiceController? _sharedLive;
 
+  /// The one Gemini Live controller shared by every surface (dock, drawer).
+  static LiveVoiceController sharedLive() => _sharedLive ??= LiveVoiceController(
+        requestMicPermission: () async => (await Permission.microphone.request()).isGranted,
+        pauseOtherMic: () => JarvisService.instance.stopListening(),
+      );
+
   @override
   void initState() {
     super.initState();
     _phaseSource = widget.phaseSource ?? JarvisService.instance;
     _phase = widget.phaseReader ?? () => JarvisService.instance.phase;
     _ownsLive = false;
-    _live = widget.liveVoice ?? (_sharedLive ??= LiveVoiceController(
-      requestMicPermission: () async => (await Permission.microphone.request()).isGranted,
-      pauseOtherMic: () => JarvisService.instance.stopListening(),
-    ));
+    _live = widget.liveVoice ?? sharedLive();
     _sound = widget.soundReader ??
         () => _live.active ? _live.level : JarvisService.instance.soundLevel.clamp(0.0, 1.0);
     _aira = AiraPhaseBinding(_phaseSource, _phase);
@@ -287,7 +290,8 @@ class _SharedDock extends StatelessWidget {
   static const cyan = Color(0xFF00E5FF);
 
   String _liveLabel() {
-    if (!live.configured) return 'LIVE: DISCONNECTED';
+    // Not configured is not a connection failure: say what it is.
+    if (!live.configured) return 'LIVE: NOT SET UP';
     return switch (live.status) {
       LiveVoiceStatus.idle => 'LIVE: OFF',
       LiveVoiceStatus.connecting => 'LIVE: CONNECTING',
@@ -358,7 +362,12 @@ class _SharedDock extends StatelessWidget {
     );
   }
 
-  Future<void> _toggleLive(BuildContext context) async {
+  Future<void> _toggleLive(BuildContext context) => toggleGeminiLive(context, live);
+}
+
+/// Start or stop opt-in Gemini Live, with the disclosure on first use.
+Future<void> toggleGeminiLive(BuildContext context, LiveVoiceController live) async {
+  {
     if (live.active || live.status == LiveVoiceStatus.connecting) {
       await live.stop();
       return;

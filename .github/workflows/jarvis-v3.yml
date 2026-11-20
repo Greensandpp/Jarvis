@@ -1,0 +1,241 @@
+name: JARVIS V3 (premium UI, auto animation, least-privilege Full Control)
+
+on:
+  push:
+    branches:
+      - ccr-26a57092-mc6r1g
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - run: flutter --version
+      - run: flutter pub get
+      - name: Analyze (errors and warnings fatal)
+        shell: bash
+        run: |
+          set -o pipefail
+          flutter analyze --no-fatal-infos 2>&1 | tee analyze.txt
+      - name: Full test suite
+        shell: bash
+        run: |
+          set -o pipefail
+          flutter test --reporter expanded 2>&1 | tee flutter-test.txt
+          tail -1 flutter-test.txt
+      - name: V3 screenshots (rendered by the real widgets in flutter_tester)
+        shell: bash
+        run: |
+          set -o pipefail
+          mkdir -p evidence/v3-screens
+          flutter test test/visual_capture_test.dart --dart-define=CAPTURE_DIR=$PWD/evidence/v3-screens 2>&1 | tail -3
+          cp assets/images/jarvis_male_hologram_gold.png evidence/v3-screens/00-reference-jarvis-original.png
+          cp assets/images/serpent_guardian.jpg evidence/v3-screens/00-reference-serpent-owner.jpg
+          ls evidence/v3-screens
+      - name: Build standard + full (debug, for emulator) and release (size)
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p out evidence
+          # Retry only Gradle dependency-download outages (plugin portal), never compile/test failures.
+          gbuild() {
+            for i in 1 2 3; do
+              if flutter build apk "$@" 2>&1 | tee gradle-attempt.txt; then return 0; fi
+              grep -qE "Could not resolve all artifacts|Could not resolve|Read timed out|status code 50[0-9]" gradle-attempt.txt || return 1
+              echo "::warning::Gradle download outage, retry $i"; sleep 45
+            done
+            return 1
+          }
+          for f in standard full; do
+            gbuild --debug --flavor $f
+            cp build/app/outputs/flutter-apk/app-$f-debug.apk out/JARVIS-UNIFIED-$f-debug.apk
+            gbuild --release --flavor $f
+            cp build/app/outputs/flutter-apk/app-$f-release.apk out/JARVIS-UNIFIED-$f-release.apk
+          done
+          ls -la out
+      - name: Identity, permissions, signature, 16 KB, size
+        shell: bash
+        run: |
+          set -euo pipefail
+          TOOLS="$(find "$ANDROID_HOME/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -n 1)"
+          for a in out/*.apk; do
+            n=$(basename "$a" .apk)
+            "$TOOLS/aapt" dump badging "$a" > "evidence/$n-badging.txt"
+            "$TOOLS/aapt" dump permissions "$a" > "evidence/$n-permissions.txt"
+            "$TOOLS/apksigner" verify --print-certs "$a" > "evidence/$n-signing.txt"
+            echo "== $n  $(stat -c %s "$a") bytes"
+            grep -E "^package:|application-label:|targetSdkVersion" "evidence/$n-badging.txt"
+            echo "-- permissions"; grep -oE "name='[^']+'" "evidence/$n-permissions.txt" | sort -u
+          done
+          grep -q "package: name='com.greensoil.jarvis.unified.visualstaging'" evidence/JARVIS-UNIFIED-standard-debug-badging.txt
+          grep -q "package: name='com.greensoil.jarvis.unified.full.visualstaging'" evidence/JARVIS-UNIFIED-full-debug-badging.txt
+          for v in debug release; do
+            if grep -E "QUERY_ALL_PACKAGES|SYSTEM_ALERT_WINDOW|READ_CONTACTS|WRITE_SETTINGS|PACKAGE_USAGE_STATS|BIND_ACCESSIBILITY|REQUEST_INSTALL_PACKAGES|REQUEST_DELETE_PACKAGES|shizuku" "evidence/JARVIS-UNIFIED-standard-$v-permissions.txt"; then
+              echo "::error::high-risk permission in standard $v"; exit 1
+            fi
+          done
+          grep -q "SYSTEM_ALERT_WINDOW" evidence/JARVIS-UNIFIED-full-debug-permissions.txt
+          # V3 least-privilege gate for Full Control (merged manifest, after plugins).
+          for v in debug release; do
+            if grep -E "QUERY_ALL_PACKAGES|REQUEST_INSTALL_PACKAGES|REQUEST_DELETE_PACKAGES|MANAGE_EXTERNAL_STORAGE|WRITE_CONTACTS|READ_EXTERNAL_STORAGE|WRITE_EXTERNAL_STORAGE|shizuku" "evidence/JARVIS-UNIFIED-full-$v-permissions.txt"; then
+              echo "::error::Full Control $v still requests a removed privilege"; exit 1
+            fi
+            "$TOOLS/aapt" dump xmltree "out/JARVIS-UNIFIED-full-$v.apk" AndroidManifest.xml > "evidence/JARVIS-UNIFIED-full-$v-manifest-tree.txt"
+            if grep -qE "InboxNotificationListenerService|ShizukuProvider" "evidence/JARVIS-UNIFIED-full-$v-manifest-tree.txt"; then
+              echo "::error::Full Control $v still registers the notification listener or Shizuku provider"; exit 1
+            fi
+          done
+          python3 scripts/check_apk_elf_16kb.py out/JARVIS-UNIFIED-standard-release.apk evidence/standard-release-elf-16kb.json
+          (cd out && sha256sum *.apk) | tee evidence/SHA256SUMS.txt
+          echo "commit=${GITHUB_SHA} run=${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID} signing=CI debug key (test only)" > evidence/PROVENANCE.txt
+          cp analyze.txt flutter-test.txt evidence/
+          python3 scripts/permission_audit.py evidence evidence/PERMISSION_AUDIT.md
+      - uses: actions/upload-artifact@v4
+        with:
+          name: JARVIS-UNIFIED-APKS-TEST-ONLY
+          path: out/*.apk
+          retention-days: 14
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: JARVIS-UNIFIED-BUILD-EVIDENCE
+          path: evidence/
+          retention-days: 14
+
+  emulator-acceptance:
+    needs: build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        api-level: [35, 36]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Reclaim disk
+        run: sudo rm -rf /usr/share/dotnet /opt/hostedtoolcache/CodeQL /usr/local/lib/android/sdk/ndk || true
+      - name: Enable KVM
+        run: sudo chmod a+rw /dev/kvm
+      - uses: actions/download-artifact@v4
+        with:
+          name: JARVIS-UNIFIED-APKS-TEST-ONLY
+          path: apks
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - run: flutter pub get
+      - name: Acceptance (Android ${{ matrix.api-level }})
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: ${{ matrix.api-level }}
+          target: google_apis
+          arch: x86_64
+          profile: pixel_7
+          ram-size: 4096M
+          heap-size: 512M
+          emulator-boot-timeout: 600
+          disable-animations: false
+          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -cores 3
+          pre-emulator-launch-script: |
+            # Warm the Gradle cache before the emulator starts (retried on download outages).
+            for i in 1 2 3; do flutter build apk --debug --flavor standard && break || sleep 45; done
+          script: |
+            bash scripts/unified_acceptance.sh ev-api${{ matrix.api-level }} apks/JARVIS-UNIFIED-standard-debug.apk apks/JARVIS-UNIFIED-full-debug.apk || echo "device checks reported failures" > ev-api${{ matrix.api-level }}/device-failed
+            adb uninstall com.greensoil.jarvis.unified.visualstaging || true
+            SHOT_DIR=ev-api${{ matrix.api-level }} flutter drive --flavor standard --dart-define=EXPECT_FLAVOR=standard --driver test_driver/integration_test.dart --target integration_test/unified_acceptance_test.dart -d emulator-5554 2>&1 | tee ev-api${{ matrix.api-level }}/drive-standard.txt || true
+            adb uninstall com.greensoil.jarvis.unified.full.visualstaging || true
+            SHOT_DIR=ev-api${{ matrix.api-level }} flutter drive --flavor full --dart-define=EXPECT_FLAVOR=full --driver test_driver/integration_test.dart --target integration_test/unified_acceptance_test.dart -d emulator-5554 2>&1 | tee ev-api${{ matrix.api-level }}/drive-full.txt || true
+      - name: Summary + contact sheet (printed for review)
+        if: always()
+        shell: bash
+        run: |
+          set +e +o pipefail
+          cd ev-api${{ matrix.api-level }} || exit 0
+          echo "== device checks"; cat summary.txt
+          for f in drive-standard.txt drive-full.txt; do
+            echo "== in-app acceptance ($f)"
+            grep -oE "ACCEPT .*" "$f" | sed 's/^ACCEPT //' | tee -a in-app-summary.txt
+            grep -E "All tests passed|Some tests failed|EXCEPTION|Error:" "$f" | head -5
+          done
+          python3 -c "import PIL" 2>/dev/null || python3 -m pip install --quiet --user --break-system-packages pillow
+          python3 "$GITHUB_WORKSPACE/scripts/contact_sheet.py" .
+          fails=$(grep -c " FAIL " in-app-summary.txt 2>/dev/null); dev=$([ -f device-failed ] && echo 1 || echo 0)
+          # Any Flutter-level failure (uncaught exception, framework assertion) fails the job too.
+          fw=$(grep -lE "Some tests failed|EXCEPTION CAUGHT" drive-standard.txt drive-full.txt 2>/dev/null | wc -l)
+          for f in drive-standard.txt drive-full.txt; do grep -A12 "EXCEPTION CAUGHT" "$f" | head -14; done
+          echo "in-app FAIL count=$fails device-failed=$dev framework-failures=$fw"
+          [ "$fails" = 0 ] && [ "$dev" = 0 ] && [ "$fw" = 0 ] && grep -q "I08 PASS" in-app-summary.txt
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: JARVIS-UNIFIED-EMULATOR-API${{ matrix.api-level }}
+          path: ev-api${{ matrix.api-level }}/
+          retention-days: 14
+
+  publish-evidence:
+    # Test-only prerelease so the owner can install from the phone and the
+    # evidence (screenshots, perf, test logs) is reviewable without login.
+    needs: [build, emulator-acceptance]
+    # Only when every gate passed: analyzer, tests, permission gates, both emulators.
+    if: needs.build.result == 'success' && needs.emulator-acceptance.result == 'success'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dl
+      - name: Pack evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p rel
+          # Standard only. Full Control stays unreleased until Play Protect accepts it on the owner's device.
+          cp dl/JARVIS-UNIFIED-APKS-TEST-ONLY/JARVIS-UNIFIED-standard-release.apk rel/JARVIS-V3-DEV-standard-release.apk
+          for f in dl/JARVIS-UNIFIED-BUILD-EVIDENCE/v3-screens/*; do cp "$f" "rel/v3-$(basename "$f")"; done
+          for d in dl/JARVIS-UNIFIED-EMULATOR-API*; do
+            [ -d "$d" ] || continue
+            n=$(basename "$d" | sed 's/JARVIS-UNIFIED-EMULATOR-//')
+            [ -s "$d/summary.txt" ] && cp "$d/summary.txt" "rel/device-summary-$n.txt"
+            [ -s "$d/in-app-summary.txt" ] && cp "$d/in-app-summary.txt" "rel/in-app-summary-$n.txt"
+            [ -s "$d/serpent-perf.txt" ] && cp "$d/serpent-perf.txt" "rel/serpent-perf-$n.txt"
+            for f in "$d"/serpent-*.png; do [ -f "$f" ] && cp "$f" "rel/$n-$(basename "$f")"; done
+            for f in "$d"/mode-*-a.png "$d"/i-*.png "$d"/contact-sheet*.png; do [ -f "$f" ] && cp "$f" "rel/$n-$(basename "$f")"; done
+          done
+          ev=dl/JARVIS-UNIFIED-BUILD-EVIDENCE
+          cp $ev/flutter-test.txt rel/flutter-test.txt || true
+          cp $ev/analyze.txt rel/analyze.txt || true
+          cp $ev/SHA256SUMS.txt rel/SHA256SUMS.txt || true
+          cp $ev/PERMISSION_AUDIT.md rel/PERMISSION_AUDIT.md || true
+          cp $ev/PROVENANCE.txt rel/PROVENANCE.txt || true
+          for f in $ev/JARVIS-UNIFIED-*-release-permissions.txt $ev/JARVIS-UNIFIED-*-release-badging.txt; do [ -f "$f" ] && cp "$f" rel/; done
+          find rel -type f -size 0 -delete   # GitHub rejects empty release assets
+          ls -la rel
+      - name: Create test-only prerelease
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag="jarvis-v3-dev-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          gh release create "$tag" rel/* --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --prerelease \
+            --title "DEV/TEST ONLY - JARVIS V3 Standard (premium UI, neon chat, auto-hide, automatic animation) run ${GITHUB_RUN_ID}" \
+            --notes "Development test build, not a final release. Standard APK only (application ID com.greensoil.jarvis.unified.visualrelease, CI debug signing key, installs beside existing apps). The Full Control APK is deliberately NOT attached: its least-privilege manifest passed the CI permission gate, but Play Protect acceptance can only be confirmed on the owner's device. Commit ${GITHUB_SHA}. Emulator acceptance Android 15/16: ${{ needs.emulator-acceptance.result }}."

@@ -76,7 +76,7 @@ for mode in core aira office apex mira; do
 done
 [[ $ok == 1 ]] && res U03 PASS "core/aira/office/apex/mira launched; 2 frames each (see mode-*.png)" || res U03 FAIL "a mode crashed"
 
-# U03S Serpent Guardian real-time avatar (procedural placeholder geometry).
+# U03S Serpent Guardian (V3: owner-supplied reference render with live effects).
 # Frames across the intro/materialize timeline + SERPENT_PERF log lines per performance mode.
 SG_KEY='<string name="flutter.avatar_settings_v1_serpent_guardian">{&quot;debug&quot;:true,&quot;introSound&quot;:false,&quot;outroSound&quot;:false,&quot;performance&quot;:&quot;PERF&quot;}</string>'
 ok=1

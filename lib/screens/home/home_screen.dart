@@ -22,6 +22,8 @@ import '../../widgets/glass_widgets.dart';
 // ignore: deprecated_member_use
 import '../../widgets/jarvis_visual_mode_host.dart';
 import '../../widgets/status_chip.dart';
+import '../../jarvis_v3/appearance_settings.dart';
+import '../../jarvis_v3/jarvis_v3_home.dart';
 import '../sessions/session_detail_screen.dart';
 import '../settings/settings_screen.dart';
 
@@ -214,10 +216,33 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     await _refreshStates();
   }
 
+  final _scaffoldKey = GlobalKey<ScaffoldState>();
+  JarvisV3Bindings? _v3Bindings;
+
+  void _openSettings() => Navigator.of(context)
+      .push(MaterialPageRoute(builder: (_) => const SettingsScreen()));
+
+  /// JARVIS mode: the V3 main screen (humanoid-centred, neon chat, one dock).
+  Widget _buildJarvisV3(ThemeData theme) {
+    final bindings = _v3Bindings ??= JarvisV3Bindings.live(onCommand: _submit);
+    return Scaffold(
+      key: _scaffoldKey,
+      backgroundColor: Colors.black,
+      drawer: _sessionsDrawer(theme),
+      body: JarvisV3Home(
+        bindings: bindings,
+        onOpenMenu: () => _scaffoldKey.currentState?.openDrawer(),
+        onOpenSettings: _openSettings,
+        onLongPressTitle: () => showAssistantModeSheet(context),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isJarvis = _mode == AppMode.jarvis;
+    if (isJarvis) return _buildJarvisV3(theme);
 
     return LiquidGlassScaffold(
       isJarvis: isJarvis,
@@ -356,6 +381,59 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                 ],
               ),
             ),
+            ListTile(
+              key: const ValueKey('drawer-assistant-mode'),
+              leading: const Icon(Icons.blur_circular),
+              title: const Text('Assistant mode', style: TextStyle(fontWeight: FontWeight.w600)),
+              subtitle: const Text('JARVIS, AIRA, Office, APEX, MIRA, Serpent',
+                  style: TextStyle(fontSize: 11)),
+              onTap: () {
+                Navigator.of(context).pop();
+                if (_mode != AppMode.jarvis) _selectMode(AppMode.jarvis);
+                showAssistantModeSheet(context);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.swap_horiz_rounded),
+              title: const Text('JARVIS, Chat or Agent', style: TextStyle(fontWeight: FontWeight.w600)),
+              onTap: () {
+                Navigator.of(context).pop();
+                _showModePicker();
+              },
+            ),
+            ListTile(
+              key: const ValueKey('drawer-appearance'),
+              leading: const Icon(Icons.palette_outlined),
+              title: const Text('Appearance', style: TextStyle(fontWeight: FontWeight.w600)),
+              subtitle: const Text('Chat auto-hide, glow, intro, animation presets',
+                  style: TextStyle(fontSize: 11)),
+              onTap: () {
+                Navigator.of(context).pop();
+                Navigator.of(context).push(MaterialPageRoute<void>(
+                    builder: (_) => const AppearanceSettingsScreen()));
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.graphic_eq),
+              title: const Text('Gemini Live voice (opt-in)',
+                  style: TextStyle(fontWeight: FontWeight.w600)),
+              subtitle: const Text('Start, stop or set up', style: TextStyle(fontSize: 11)),
+              onTap: () {
+                Navigator.of(context).pop();
+                toggleGeminiLive(context, JarvisVisualModeHostState.sharedLive());
+              },
+            ),
+            if (BuildProfile.fullControl)
+              ListTile(
+                leading: Icon(_overlayActive ? Icons.bubble_chart : Icons.bubble_chart_outlined),
+                title: Text(_overlayActive ? 'Hide floating bubble' : 'Show floating bubble',
+                    style: const TextStyle(fontWeight: FontWeight.w600)),
+                onTap: () {
+                  Navigator.of(context).pop();
+                  _toggleOverlay();
+                },
+              ),
+            const Divider(indent: 12, endIndent: 12),
             if (_executor.isBusy)
               ListTile(
                 dense: true,

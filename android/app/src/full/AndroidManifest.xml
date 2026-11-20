@@ -1,8 +1,41 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- FULL CONTROL build: original JARVIS permissions (accessibility, overlay,
-     contacts, usage stats, Shizuku…). Only the launcher label differs so the
-     owner can tell the two installed apps apart. -->
+<!-- FULL CONTROL build, least privilege (V3, 2026-11-20).
+     Keeps only what Full Control exists for: screen automation (accessibility,
+     off until the owner turns it on in Android settings), the floating bubble,
+     reading contacts to place a call the owner asks for, app-usage stats and
+     system-settings writes.
+     Removed after the iQOO 13 Play Protect block ("sensitive data" warning):
+       - QUERY_ALL_PACKAGES (launcher <queries> below give the same app list
+         for opening apps by name)
+       - legacy shared-storage and MANAGE_EXTERNAL_STORAGE access
+       - install / delete packages, WRITE_CONTACTS
+       - Shizuku provider and permission (exported, cross-user)
+       - the notification listener that read SMS and e-mail notification text,
+         which includes OTPs; inbox triage is unavailable in this build
+     Plugin manifests are merged too, so the removals are explicit. -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
-    <application android:label="JARVIS Full Control" tools:replace="android:label" />
+    <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES" tools:node="remove" />
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" tools:node="remove" />
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" tools:node="remove" />
+    <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE" tools:node="remove" />
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" tools:node="remove" />
+    <uses-permission android:name="android.permission.REQUEST_DELETE_PACKAGES" tools:node="remove" />
+    <uses-permission android:name="android.permission.WRITE_CONTACTS" tools:node="remove" />
+    <uses-permission android:name="moe.shizuku.manager.permission.API_V23" tools:node="remove" />
+
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.MAIN" />
+            <category android:name="android.intent.category.LAUNCHER" />
+        </intent>
+    </queries>
+
+    <application
+        android:label="JARVIS Full Control"
+        android:requestLegacyExternalStorage="false"
+        tools:replace="android:label,android:requestLegacyExternalStorage">
+        <provider android:name="rikka.shizuku.ShizukuProvider" tools:node="remove" />
+        <service android:name=".InboxNotificationListenerService" tools:node="remove" />
+    </application>
 </manifest>

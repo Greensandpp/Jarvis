@@ -19,6 +19,14 @@
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" tools:node="remove" />
     <uses-permission android:name="moe.shizuku.manager.permission.API_V23" tools:node="remove" />
 
+    <!-- Open user-facing apps by name without QUERY_ALL_PACKAGES. -->
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.MAIN" />
+            <category android:name="android.intent.category.LAUNCHER" />
+        </intent>
+    </queries>
+
     <application
         android:label="JARVIS"
         android:requestLegacyExternalStorage="false"

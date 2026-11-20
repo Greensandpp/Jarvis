@@ -1,5 +1,6 @@
 // ignore: deprecated_member_use
 import 'package:flutter/material.dart';
+import '../../jarvis_v3/appearance_settings.dart';
 import 'package:http/http.dart' as http;
 
 import '../../brain/ai_reliability.dart';
@@ -71,6 +72,14 @@ class _AiDiagnosticsScreenState extends State<AiDiagnosticsScreen> {
     return Scaffold(
       appBar: AppBar(title: const Text('AI connection & diagnostics')),
       body: ListView(padding: const EdgeInsets.all(16), children: [
+        OutlinedButton.icon(
+          key: const ValueKey('diag-animation-preview'),
+          icon: const Icon(Icons.animation),
+          label: const Text('Developer: animation state preview'),
+          onPressed: () => Navigator.of(context).push(MaterialPageRoute<void>(
+              builder: (_) => const AnimationPreviewScreen())),
+        ),
+        const SizedBox(height: 8),
         Text('Status: ${_s.aiStatusLabel}', key: const ValueKey('ai-status'),
           style: const TextStyle(fontWeight: FontWeight.w700)),
         const SizedBox(height: 4),

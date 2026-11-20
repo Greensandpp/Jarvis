@@ -13,7 +13,6 @@ import 'package:private_agent/screens/brain/memory_tools.dart';
 import 'package:private_agent/services/conversational_memory_service.dart';
 import 'package:private_agent/services/jarvis_service.dart';
 import 'package:private_agent/avatar/core/render_list.dart';
-import 'package:private_agent/avatar/serpent_guardian_view.dart';
 import 'package:private_agent/brain/visual_bus.dart';
 import 'package:private_agent/services/settings_service.dart';
 import 'package:private_agent/services/voice_service.dart';
@@ -141,17 +140,23 @@ void main() {
     // I01 build profile matches the flavor this APK was built with
     report('I01', BuildProfile.flavor == expectFlavor ? 'PASS' : 'FAIL',
         'appFlavor=${BuildProfile.flavor} expected=$expectFlavor');
-    final bubble = find.byTooltip('Show floating bubble');
-    final hasBubble = bubble.evaluate().isNotEmpty;
+    // V3: the floating-bubble switch lives in the menu, not on the main screen.
+    await t.tap(find.byKey(const ValueKey('v3-menu')));
+    await pumpFor(t, const Duration(seconds: 1));
+    final hasBubble = find.text('Show floating bubble').evaluate().isNotEmpty ||
+        find.text('Hide floating bubble').evaluate().isNotEmpty;
+    await home(t);
+    t.state<ScaffoldState>(find.byType(Scaffold).first).closeDrawer();
+    await pumpFor(t, const Duration(seconds: 1));
     report('I02', hasBubble == (expectFlavor == 'full') ? 'PASS' : 'FAIL',
         'floating-bubble button ${hasBubble ? "shown" : "hidden"} in $expectFlavor build');
 
     if (expectFlavor == 'standard') {
       // I03 THINKING guard on the real router (no key configured)
-      final input = find.byKey(const ValueKey('dock-input'));
+      final input = find.byKey(const ValueKey('v3-dock-input'));
       if (await waitFor(t, input, const Duration(seconds: 10))) {
         await t.enterText(input, 'what is the capital of france');
-        await t.tap(find.byKey(const ValueKey('dock-send')));
+        await t.tap(find.byKey(const ValueKey('v3-dock-send')));
         final started = DateTime.now();
         await pumpFor(t, const Duration(seconds: 2));
         await shot(t, 'i-command-sent');
@@ -427,10 +432,10 @@ void main() {
       await home(t);
       final sp = await SharedPreferences.getInstance();
       await sp.setString('aira_model_v1', 'neuralReactor');
-      final input = find.byKey(const ValueKey('dock-input'));
+      final input = find.byKey(const ValueKey('v3-dock-input'));
       if (!await waitFor(t, input, const Duration(seconds: 8))) return (false, 'dock not visible');
       await t.enterText(input, 'switch to apex');
-      await t.tap(find.byKey(const ValueKey('dock-send')));
+      await t.tap(find.byKey(const ValueKey('v3-dock-send')));
       String? p1;
       final until = DateTime.now().add(const Duration(seconds: 20));
       while (DateTime.now().isBefore(until) && p1 != 'apex') {
@@ -441,10 +446,10 @@ void main() {
       await shot(t, 'i-voice-switch-apex');
       final reply = JarvisService.instance.lastJarvisSpeech;
       await pumpFor(t, const Duration(seconds: 3));
-      final input2 = find.byKey(const ValueKey('dock-input'));
+      final input2 = find.byKey(const ValueKey('v3-dock-input'));
       if (input2.evaluate().isNotEmpty) {
         await t.enterText(input2, 'aira jellyfish mode');
-        await t.tap(find.byKey(const ValueKey('dock-send')));
+        await t.tap(find.byKey(const ValueKey('v3-dock-send')));
         final until2 = DateTime.now().add(const Duration(seconds: 20));
         while (DateTime.now().isBefore(until2) &&
             (await SharedPreferences.getInstance()).getString('aira_model_v1') != 'jellyfish') {
@@ -478,8 +483,11 @@ void main() {
       await home(t);
       await requestVisual(mode: 'aira');
       await pumpFor(t, const Duration(seconds: 2));
-      final dock = find.byKey(const ValueKey('dock-model'));
-      final dockText = dock.evaluate().isEmpty ? '(no dock)' : textOf(dock);
+      // V3: the chat shows the model in its conversation view (title tap).
+      await t.tap(find.byKey(const ValueKey('v3-title')));
+      await pumpFor(t, const Duration(seconds: 2));
+      final dock = find.byKey(const ValueKey('chat-model'));
+      final dockText = dock.evaluate().isEmpty ? '(no chat model line)' : textOf(dock);
       await home(t);
       await t.tap(find.byTooltip('Settings').first);
       await pumpFor(t, const Duration(seconds: 2));
@@ -497,37 +505,43 @@ void main() {
       return (ok, 'dock "$dockText" · control center "$ccText" → after auto "$ccAuto" · provider ${s.provider}');
     });
 
-    // I16 Serpent Guardian framing: humanoid and serpent stay inside the canvas
+    // I16 Serpent Guardian: the owner-supplied reference render, framed on screen
     await section('I16', () async {
       await home(t);
       await requestVisual(mode: 'serpent');
-      await pumpFor(t, const Duration(seconds: 9));
-      final f = find.byType(SerpentGuardianView);
-      if (f.evaluate().isEmpty) return (false, 'serpent view not shown');
-      final st = t.state<SerpentGuardianViewState>(f);
-      // The software-GPU emulator renders slowly; advance the avatar clock so
-      // the fully formed pose (largest extent) is measured.
-      for (var i = 0; i < 90; i++) {
-        st.scene.update(0.1);
-      }
-      await pumpFor(t, const Duration(seconds: 1));
-      final size = t.getSize(find.byKey(const ValueKey('serpent-guardian-canvas')));
-      final list = st.scene.build(size.width, size.height);
-      var minX = double.infinity, maxX = -double.infinity, minY = double.infinity, maxY = -double.infinity;
-      for (final tri in list.ops.whereType<TriOp>()) {
-        for (final i in tri.indices) {
-          final x = tri.positions[i * 2], y = tri.positions[i * 2 + 1];
-          if (x < minX) minX = x;
-          if (x > maxX) maxX = x;
-          if (y < minY) minY = y;
-          if (y > maxY) maxY = y;
-        }
-      }
+      await pumpFor(t, const Duration(seconds: 6));
+      final img = find.byKey(const ValueKey('avatar-serpent-guardian'));
+      if (img.evaluate().isEmpty) return (false, 'serpent render not shown');
+      final r = t.getRect(img);
+      final screen = t.view.physicalSize / t.view.devicePixelRatio;
       await shot(t, 'i-serpent-framing');
-      final inside = minX >= 0 && maxX <= size.width && minY >= 0 && maxY <= size.height;
-      return (inside && list.triangleCount > 1000,
-          'state ${st.state.name}; canvas ${size.width.round()}x${size.height.round()}; meshes x ${minX.round()}..${maxX.round()} '
-          'y ${minY.round()}..${maxY.round()}; ${list.triangleCount} triangles');
+      final inside = r.left >= -1 && r.right <= screen.width + 1 && r.top >= 0 && r.bottom <= screen.height;
+      return (inside && r.height > screen.height * 0.5,
+          'render ${r.width.round()}x${r.height.round()} at (${r.left.round()},${r.top.round()}) on ${screen.width.round()}x${screen.height.round()}');
+    });
+
+    // I17 V3 main screen: clean layout, humanoid visible, dock above the system bars
+    await section('I17', () async {
+      await home(t);
+      await requestVisual(mode: 'core');
+      await pumpFor(t, const Duration(seconds: 6));
+      final screen = t.view.physicalSize / t.view.devicePixelRatio;
+      final pad = t.view.padding.bottom / t.view.devicePixelRatio;
+      final human = find.byKey(const ValueKey('avatar-jarvis-gold'));
+      final dock = find.byKey(const ValueKey('v3-dock'));
+      final title = find.byKey(const ValueKey('v3-title'));
+      if (human.evaluate().isEmpty || dock.evaluate().isEmpty || title.evaluate().isEmpty) {
+        return (false, 'humanoid=${human.evaluate().length} dock=${dock.evaluate().length} title=${title.evaluate().length}');
+      }
+      final d = t.getRect(dock), h = t.getRect(human), ti = t.getRect(title);
+      final clutter = find.byKey(const ValueKey('mode-selector')).evaluate().length +
+          find.byType(ChoiceChip).evaluate().length + find.textContaining('PREVIEW').evaluate().length;
+      final status = textOf(find.byKey(const ValueKey('v3-status')));
+      await shot(t, 'i-v3-home');
+      final ok = clutter == 0 && d.left >= 0 && d.right <= screen.width && d.bottom <= screen.height - pad + 0.5 &&
+          h.center.dy < d.top && ti.bottom < h.center.dy && !status.contains('ONLINE');
+      return (ok, 'dock ${d.top.round()}-${d.bottom.round()} (screen ${screen.height.round()}, nav inset ${pad.round()}); '
+          'humanoid centre y ${h.center.dy.round()}; clutter widgets $clutter; status "$status" (no key, so never ONLINE)');
     });
   }, timeout: const Timeout(Duration(minutes: 15)));
 }

@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import '../../jarvis_v3/appearance_settings.dart';
 
 import '../../services/personality_service.dart';
 import '../../services/ai_service.dart';
@@ -308,6 +309,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   icon: Icons.palette_outlined,
                   title: 'Appearance & Visual Theme',
                   color: const Color(0xFFF472B6),
+                ),
+                ListTile(
+                  key: const ValueKey('settings-appearance-v3'),
+                  leading: const Icon(Icons.chat_bubble_outline),
+                  title: const Text('Chat interface, intro and animation presets'),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () => Navigator.of(context).push(MaterialPageRoute<void>(
+                      builder: (_) => const AppearanceSettingsScreen())),
                 ),
                 _appearanceCard(),
               ],

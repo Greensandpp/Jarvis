@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../core/build_profile.dart';
 import 'package:flutter_overlay_window/flutter_overlay_window.dart';
 import 'package:permission_handler/permission_handler.dart';
 
@@ -430,6 +431,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
           title: 'Floating bubble',
           subtitle: 'Control the agent while using other apps',
           onTap: () async {
+            if (!BuildProfile.fullControl) return;
             await FlutterOverlayWindow.requestPermission();
           },
         ),

@@ -29,6 +29,24 @@ android {
         versionName = flutter.versionName
     }
 
+    // One codebase, two separately installable apps (distinct application IDs,
+    // so neither overwrites the owner's existing JARVIS installs):
+    //   standard → com.greensoil.jarvis.unified.<buildtype suffix>      (Play-Protect-friendly)
+    //   full     → com.greensoil.jarvis.unified.full.<buildtype suffix> (original permissions)
+    flavorDimensions += "access"
+    productFlavors {
+        create("standard") {
+            dimension = "access"
+            applicationId = "com.greensoil.jarvis.unified"
+            versionNameSuffix = "-standard"
+        }
+        create("full") {
+            dimension = "access"
+            applicationId = "com.greensoil.jarvis.unified.full"
+            versionNameSuffix = "-full"
+        }
+    }
+
     buildTypes {
         getByName("debug") {
             applicationIdSuffix = ".visualstaging"

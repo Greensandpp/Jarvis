@@ -1,4 +1,5 @@
 import 'dart:async';
+import '../core/build_profile.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_overlay_window/flutter_overlay_window.dart';
 import 'ai_service.dart';
@@ -43,6 +44,7 @@ class FloatingCopilotService extends ChangeNotifier {
 
   /// Activates the floating co-pilot overlay window.
   Future<bool> activateOverlay() async {
+    if (!BuildProfile.fullControl) return false;
     try {
       final isPermitted = await FlutterOverlayWindow.isPermissionGranted();
       if (!isPermitted) {

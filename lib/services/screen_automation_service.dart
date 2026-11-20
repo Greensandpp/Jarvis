@@ -1,5 +1,6 @@
 import 'package:flutter/services.dart';
 
+import '../core/build_profile.dart';
 import '../models/screen_node.dart';
 
 /// Thin, safe wrapper around the `com.privateagent/accessibility`
@@ -25,6 +26,7 @@ class ScreenAutomationService {
   // ------------------------------------------------------------------
 
   Future<bool> isServiceEnabled() async {
+    if (!BuildProfile.fullControl) return false;
     try {
       final result = await _channel.invokeMethod<bool>('isServiceEnabled');
       return result ?? false;
@@ -33,8 +35,11 @@ class ScreenAutomationService {
     }
   }
 
-  Future<void> openAccessibilitySettings() =>
-      _channel.invokeMethod<void>('openAccessibilitySettings');
+  Future<void> openAccessibilitySettings() async {
+    // Standard build ships without the accessibility service.
+    if (!BuildProfile.fullControl) return;
+    await _channel.invokeMethod<void>('openAccessibilitySettings');
+  }
 
   Future<void> openAppInfoSettings() =>
       _channel.invokeMethod<void>('openAppInfoSettings');

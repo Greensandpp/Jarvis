@@ -9,6 +9,7 @@ import '../brain/ai_diagnostics_screen.dart';
 import '../brain/trading_ai_screen.dart';
 import 'jarvis_settings_screen.dart';
 import 'permissions_screen.dart';
+import '../../core/build_profile.dart';
 
 /// Next-Generation Liquid Glass Settings Screen.
 /// Clean, executive grouped hierarchy with frosted glass translucency and modern controls.
@@ -411,6 +412,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
           ),
           const SizedBox(height: 10),
+          Text(BuildProfile.label, key: const ValueKey('build-profile'),
+            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
+          if (BuildProfile.isStandard) Text(BuildProfile.standardNotice,
+            key: const ValueKey('build-profile-notice'), style: const TextStyle(fontSize: 11)),
+          const SizedBox(height: 6),
           Text(_settings.aiStatusLabel, key: const ValueKey('settings-ai-status'),
             style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
           const SizedBox(height: 6),

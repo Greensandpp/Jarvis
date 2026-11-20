@@ -1,5 +1,6 @@
 import 'dart:ui';
 // ignore: deprecated_member_use
+import '../../core/build_profile.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_overlay_window/flutter_overlay_window.dart';
 import 'package:intl/intl.dart';
@@ -178,6 +179,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   }
 
   Future<void> _toggleOverlay() async {
+    if (!BuildProfile.fullControl) {
+      ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+          SnackBar(content: Text(BuildProfile.unavailable('The floating bubble'))));
+      return;
+    }
     try {
       if (await FlutterOverlayWindow.isActive()) {
         await FlutterOverlayWindow.closeOverlay();
@@ -251,7 +257,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             icon: const Icon(Icons.tune_rounded),
             onPressed: _showModePicker,
           ),
-          IconButton(
+          if (BuildProfile.fullControl) IconButton(
             tooltip: _overlayActive
                 ? 'Hide floating bubble'
                 : 'Show floating bubble',

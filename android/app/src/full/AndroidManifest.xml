@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- FULL CONTROL build: original JARVIS permissions (accessibility, overlay,
+     contacts, usage stats, Shizuku…). Only the launcher label differs so the
+     owner can tell the two installed apps apart. -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+    <application android:label="JARVIS Full Control" tools:replace="android:label" />
+</manifest>

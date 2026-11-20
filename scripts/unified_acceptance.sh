@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Unified JARVIS acceptance on a CI emulator (never the owner's phone).
 # Usage: unified_acceptance.sh OUT_DIR STANDARD_APK FULL_APK
+# Device-level checks only (install, permissions, launch, modes, background).
 # Prints "Uxx PASS|FAIL|UNVERIFIED <detail>" lines into OUT/summary.txt.
 set -uo pipefail
 OUT="$1"; STD_APK="$2"; FULL_APK="$3"
@@ -82,88 +83,9 @@ for model in amberHologram electricWeb jellyfish violetVortex solarFlare; do
 done
 [[ $ok == 1 ]] && res U04 PASS "5 AIRA models rendered (aira-*.png)" || res U04 FAIL "AIRA model crash"
 
-# U05 THINKING guard: command with no key must not leave JARVIS stuck in THINKING
-seed $STD aira; launch $STD 16
-f=$(dump dock); xy=$($UI "$f" find "Ask JARVIS") || xy=$($UI "$f" edits | head -1)
-if [[ -n "$xy" ]]; then
-  adb shell input tap $xy; sleep 1
-  adb shell input text "what%sis%sthe%scapital%sof%sfrance"; sleep 1
-  hide_kb
-  f=$(dump dock2); sx=$($UI "$f" find "Send to native JARVIS")
-  [[ -n "$sx" ]] && adb shell input tap $sx || adb shell input keyevent KEYCODE_ENTER
-  t0=$(date +%s); sleep 3; shot "thinking-during"
-  stuck=1
-  for i in $(seq 1 45); do
-    f=$(dump "phase-$i")
-    if ! $UI "$f" has "JARVIS · THINKING" && ! $UI "$f" has "JARVIS · EXECUTING"; then stuck=0; break; fi
-    sleep 3
-  done
-  dt=$(( $(date +%s) - t0 )); shot "thinking-after"; $UI "$f" texts > "$OUT/thinking-after-texts.txt"
-  if [[ $stuck == 0 ]]; then res U05 PASS "left THINKING after ${dt}s; phase/status: $(grep -E 'JARVIS ·|AI ERROR|NOT CONNECTED|key' "$OUT/thinking-after-texts.txt" | head -3 | tr '\n' ' ')"
-  else res U05 FAIL "still THINKING after ${dt}s"; fi
-else res U05 FAIL "dock input not found"; fi
-crashed $STD && res U05b FAIL "crash during command" || res U05b PASS "no crash during command"
-
-# U06 Settings shows build type + honest AI status
-seed $STD aira; launch $STD 16
-f=$(dump home); xy=$($UI "$f" find "Settings")
-if [[ -n "$xy" ]]; then
-  adb shell input tap $xy; sleep 3; shot settings-top
-  if tap_text settings-build "STANDARD BUILD" >/dev/null 2>&1 || wait_text settings-b "STANDARD BUILD" 3; then
-    shot settings-build
-    res U06 PASS "Settings shows STANDARD BUILD + notice"
-  else res U06 FAIL "build label not found"; fi
-  f=$(dump settings-ai)
-  if $UI "$f" has "AI NOT CONNECTED" || $UI "$f" has "AI NOT VERIFIED" || $UI "$f" has "AI ERROR"; then
-    res U07 PASS "AI status is not falsely ONLINE: $($UI "$f" texts | grep -E '^AI ' | head -1)"
-  elif $UI "$f" has "AI ONLINE"; then res U07 FAIL "shows ONLINE without a verified request"
-  else res U07 UNVERIFIED "status text not visible"; fi
-  # U08 diagnostics
-  if tap_text diag-open "Test connection & discover models"; then
-    sleep 2; tap_text diag-run "Test connection & discover models" || true
-    wait_text diag-res "DNS" 60; sleep 8; f=$(dump diag-final); shot diagnostics
-    $UI "$f" texts > "$OUT/diagnostics-texts.txt"
-    if $UI "$f" has "DNS"; then res U08 PASS "diagnostics ran: $(grep -iE 'DNS|HTTPS|key|Generate' "$OUT/diagnostics-texts.txt" | head -4 | tr '\n' ' ')"
-    else res U08 FAIL "no diagnostic steps shown"; fi
-    adb shell input keyevent KEYCODE_BACK; sleep 2
-  else res U08 FAIL "diagnostics button not found"; fi
-else res U06 FAIL "Settings button not found"; fi
-
-# U09/U10 Trading AI risk gate + journal audit (journal seeded through prefs)
-J='Date,Entry Time,Exit Time,Symbol,Side,Entry,Exit,SL,Qty,PnL,Fees,Confidence&#10;2026-11-17,09:20,09:40,NIFTY,LONG,100,110,90,75,710,40,80&#10;2026-11-17,10:00,10:30,NIFTY,LONG,120,100,100,75,-1540,40,65'
-seed $STD aira neuralReactor "<string name=\"flutter.trading_journal_csv_v1\">$J</string>"
-launch $STD 16
-f=$(dump home2); xy=$($UI "$f" find "Settings"); adb shell input tap $xy; sleep 3
-if tap_text trade-open "Trading AI (paper only)"; then
-  sleep 2; f=$(dump trade); mapfile -t E < <($UI "$f" edits)
-  vals=(120 110 78 10:15); for i in 0 1 2 3; do
-    [[ -n "${E[$i]:-}" ]] && { adb shell input tap ${E[$i]}; sleep 1; adb shell input text "${vals[$i]}"; sleep 1; }
-  done
-  hide_kb
-  tap_text trade-check "Check against GreenSoil rules" || true
-  sleep 2; f=$(dump trade-res); shot trading-gate; $UI "$f" texts > "$OUT/trading-texts.txt"
-  if grep -q "TRADE (PAPER)" "$OUT/trading-texts.txt" && grep -q "TP1" "$OUT/trading-texts.txt"; then
-    res U09 PASS "valid setup → TRADE (PAPER) with sizing and TP ladder"
-  elif grep -q "NO TRADE" "$OUT/trading-texts.txt"; then res U09 FAIL "valid setup blocked: $(grep '✗' "$OUT/trading-texts.txt" | head -2 | tr '\n' ' ')"
-  else res U09 FAIL "no gate result"; fi
-  tap_text trade-audit "Find errors in my journal" || true
-  sleep 2; f=$(dump audit); shot trading-audit; $UI "$f" texts > "$OUT/audit-texts.txt"
-  if grep -qiE "before 09:30|< 70%|does not match" "$OUT/audit-texts.txt"; then res U10 PASS "journal audit flagged rule violations on device"
-  else res U10 FAIL "audit report missing"; fi
-else res U09 FAIL "Trading AI button not found"; res U10 FAIL "not reached"; fi
-crashed $STD && res U11 FAIL "standard build crashed during tests" || res U11 PASS "no crash in standard build"
-
-# U12 full build launches and identifies itself
-seed $FULL aira; launch $FULL 16
-f=$(dump full-home); shot full-home
-if crashed $FULL || [[ -z "$(adb shell pidof $FULL | tr -d '\r')" ]]; then res U12 FAIL "full build crashed"
-else
-  xy=$($UI "$f" find "Settings"); [[ -n "$xy" ]] && adb shell input tap $xy; sleep 3
-  if tap_text full-build "FULL CONTROL BUILD" > /dev/null 2>&1 || wait_text full-b "FULL CONTROL BUILD" 3; then
-    shot full-settings; res U12 PASS "full build runs; Settings shows FULL CONTROL BUILD"
-  else res U12 FAIL "full build label not found"; fi
-fi
-$UI "$(dump full-home2)" has "Show floating bubble" && log "  (full build exposes floating bubble button)"
+# U05–U12 (THINKING guard, Settings, diagnostics, Trading AI, full-build label)
+# run inside the app via integration_test/unified_acceptance_test.dart
+# (uiautomator cannot reach idle on the continuously animated HUD).
 
 # U13 background
 adb shell input keyevent KEYCODE_HOME; sleep 4

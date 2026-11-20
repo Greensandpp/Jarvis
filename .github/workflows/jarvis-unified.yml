@@ -104,6 +104,15 @@ jobs:
         with:
           name: JARVIS-UNIFIED-APKS-TEST-ONLY
           path: apks
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - run: flutter pub get
       - name: Acceptance (Android ${{ matrix.api-level }})
         uses: reactivecircus/android-emulator-runner@v2
         with:
@@ -116,16 +125,29 @@ jobs:
           emulator-boot-timeout: 600
           disable-animations: false
           emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -cores 3
-          script: bash scripts/unified_acceptance.sh ev-api${{ matrix.api-level }} apks/JARVIS-UNIFIED-standard-debug.apk apks/JARVIS-UNIFIED-full-debug.apk
+          script: |
+            bash scripts/unified_acceptance.sh ev-api${{ matrix.api-level }} apks/JARVIS-UNIFIED-standard-debug.apk apks/JARVIS-UNIFIED-full-debug.apk || echo "device checks reported failures" > ev-api${{ matrix.api-level }}/device-failed
+            adb uninstall com.greensoil.jarvis.unified.visualstaging || true
+            SHOT_DIR=ev-api${{ matrix.api-level }} flutter drive --flavor standard --dart-define=EXPECT_FLAVOR=standard --driver test_driver/integration_test.dart --target integration_test/unified_acceptance_test.dart -d emulator-5554 2>&1 | tee ev-api${{ matrix.api-level }}/drive-standard.txt || true
+            adb uninstall com.greensoil.jarvis.unified.full.visualstaging || true
+            SHOT_DIR=ev-api${{ matrix.api-level }} flutter drive --flavor full --dart-define=EXPECT_FLAVOR=full --driver test_driver/integration_test.dart --target integration_test/unified_acceptance_test.dart -d emulator-5554 2>&1 | tee ev-api${{ matrix.api-level }}/drive-full.txt || true
       - name: Summary + contact sheet (printed for review)
         if: always()
         shell: bash
         run: |
+          set +e +o pipefail
           cd ev-api${{ matrix.api-level }} || exit 0
-          cat summary.txt
-          for f in thinking-after-texts.txt diagnostics-texts.txt trading-texts.txt audit-texts.txt; do echo "== $f"; cat "$f" 2>/dev/null | head -40; done
+          echo "== device checks"; cat summary.txt
+          for f in drive-standard.txt drive-full.txt; do
+            echo "== in-app acceptance ($f)"
+            grep -oE "ACCEPT .*" "$f" | sed 's/^ACCEPT //' | tee -a in-app-summary.txt
+            grep -E "All tests passed|Some tests failed|EXCEPTION|Error:" "$f" | head -5
+          done
           python3 -c "import PIL" 2>/dev/null || python3 -m pip install --quiet --user --break-system-packages pillow
           python3 "$GITHUB_WORKSPACE/scripts/contact_sheet.py" .
+          fails=$(grep -c " FAIL " in-app-summary.txt 2>/dev/null); dev=$([ -f device-failed ] && echo 1 || echo 0)
+          echo "in-app FAIL count=$fails device-failed=$dev"
+          [ "$fails" = 0 ] && [ "$dev" = 0 ] && grep -q "I08 PASS" in-app-summary.txt
       - uses: actions/upload-artifact@v4
         if: always()
         with:

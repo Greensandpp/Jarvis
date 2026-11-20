@@ -7,7 +7,7 @@ from PIL import Image, ImageChops, ImageDraw
 
 d = sys.argv[1]
 os.chdir(d)
-shots = sorted(glob.glob("mode-*-a.png")) + ["mode-aira-b.png"] + sorted(glob.glob("aira-*.png"))
+shots = sorted(glob.glob("mode-*-a.png")) + ["mode-aira-b.png"] + sorted(glob.glob("aira-*.png")) + sorted(glob.glob("i-*.png"))
 shots = [s for s in shots if os.path.exists(s)]
 for m in ["core", "aira", "office", "apex", "mira"]:
     a, b = f"mode-{m}-a.png", f"mode-{m}-b.png"

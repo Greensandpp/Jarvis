@@ -12,7 +12,6 @@ import 'package:private_agent/main.dart' as app;
 import 'package:private_agent/screens/brain/memory_tools.dart';
 import 'package:private_agent/services/conversational_memory_service.dart';
 import 'package:private_agent/services/jarvis_service.dart';
-import 'package:private_agent/avatar/core/render_list.dart';
 import 'package:private_agent/brain/visual_bus.dart';
 import 'package:private_agent/services/settings_service.dart';
 import 'package:private_agent/services/voice_service.dart';

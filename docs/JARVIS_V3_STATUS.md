@@ -56,7 +56,7 @@ For these reasons the Full Control APK is **not** attached to the test release.
 
 ## Tests
 
-- `flutter analyze`: 0 errors and 0 warnings (infos only, as before).
+- `flutter analyze`: exit 0, 0 errors and 0 warnings (infos only, as before). CI run 44787190302 failed here first, on an unused import in the integration test that my local check had missed; fixed in the next commit.
 - `flutter test`: 238 passed, 0 failed (baseline before V3: 207). New: `v3_logic_test.dart` (activity engine, auto-hide, conversation store, header status), `v3_home_test.dart` (layout at 4 sizes, keyboard and nav insets, bubble colours and alignment, end-to-end auto-hide, errors stay until dismissed, single dispatch, every mode renders, intro stages, skip, reduced motion, voice mode switch), `v3_security_test.dart`.
 - Emulator acceptance on Android 15 and 16: see the CI run; I16 (Serpent framing) and I17 (clean main screen, dock above the system bars, honest status) are new for V3.
 

@@ -282,7 +282,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           // Keep the home screen uncluttered. Modes remain available by
           // long-pressing the title or through the compact menu below.
 
-          if (!_serviceEnabled &&
+          // The Standard build has no accessibility service, so never nag about it.
+          if (BuildProfile.fullControl && !_serviceEnabled &&
               (_mode == AppMode.agent || _mode == AppMode.jarvis))
             _serviceWarning(theme),
           if (_mode != AppMode.jarvis &&

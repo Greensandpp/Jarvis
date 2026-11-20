@@ -146,8 +146,11 @@ jobs:
           python3 -c "import PIL" 2>/dev/null || python3 -m pip install --quiet --user --break-system-packages pillow
           python3 "$GITHUB_WORKSPACE/scripts/contact_sheet.py" .
           fails=$(grep -c " FAIL " in-app-summary.txt 2>/dev/null); dev=$([ -f device-failed ] && echo 1 || echo 0)
-          echo "in-app FAIL count=$fails device-failed=$dev"
-          [ "$fails" = 0 ] && [ "$dev" = 0 ] && grep -q "I08 PASS" in-app-summary.txt
+          # Any Flutter-level failure (uncaught exception, framework assertion) fails the job too.
+          fw=$(grep -lE "Some tests failed|EXCEPTION CAUGHT" drive-standard.txt drive-full.txt 2>/dev/null | wc -l)
+          for f in drive-standard.txt drive-full.txt; do grep -A12 "EXCEPTION CAUGHT" "$f" | head -14; done
+          echo "in-app FAIL count=$fails device-failed=$dev framework-failures=$fw"
+          [ "$fails" = 0 ] && [ "$dev" = 0 ] && [ "$fw" = 0 ] && grep -q "I08 PASS" in-app-summary.txt
       - uses: actions/upload-artifact@v4
         if: always()
         with:

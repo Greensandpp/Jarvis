@@ -90,9 +90,14 @@ Future<void> section(String id, Future<(bool, String)> Function() body) async {
 void main() {
   final binding = IntegrationTestWidgetsFlutterBinding.ensureInitialized();
 
+  var surfaceConverted = false;
   Future<void> shot(WidgetTester t, String name) async {
     try {
-      await binding.convertFlutterSurfaceToImage();
+      // Android: the Flutter surface may be converted to an image only once.
+      if (!surfaceConverted) {
+        await binding.convertFlutterSurfaceToImage();
+        surfaceConverted = true;
+      }
       await t.pump();
       await binding.takeScreenshot(name);
     } catch (e) {

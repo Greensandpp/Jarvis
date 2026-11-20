@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:flutter/scheduler.dart';
 import '../brain/brain.dart';
 import '../brain/jarvis_brain_service.dart';
 import '../brain/language.dart';
@@ -133,8 +134,24 @@ class JarvisService extends ChangeNotifier {
   ProactiveSuggestion? get pendingProactiveSuggestion => _pendingProactiveSuggestion;
   bool get isAwaitingProactiveConfirmation => _pendingProactiveSuggestion != null;
 
+  bool _notifyScheduled = false;
+
   @override
   void notifyListeners() {
+    // Called from a widget's dispose()/build (e.g. the Core HUD unmounting when
+    // the visual mode changes) the widget tree is locked; notifying then throws
+    // "setState() called when widget tree was locked". Defer to after the frame.
+    final phase = SchedulerBinding.instance.schedulerPhase;
+    if (phase == SchedulerPhase.persistentCallbacks || phase == SchedulerPhase.midFrameMicrotasks) {
+      if (_notifyScheduled) return;
+      _notifyScheduled = true;
+      SchedulerBinding.instance.addPostFrameCallback((_) {
+        _notifyScheduled = false;
+        super.notifyListeners();
+        _broadcastOverlayState();
+      });
+      return;
+    }
     super.notifyListeners();
     _broadcastOverlayState();
   }

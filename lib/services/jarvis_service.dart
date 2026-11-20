@@ -187,6 +187,15 @@ class JarvisService extends ChangeNotifier {
     });
 
     _voice.onSpeechStatus = (status) {
+      if (status.startsWith('error:')) {
+        _speechSilenceTimer?.cancel();
+        if (_phase == JarvisPhase.listening) {
+          _phase = JarvisPhase.idle;
+          _statusMessage = 'MICROPHONE UNAVAILABLE';
+          notifyListeners();
+        }
+        return;
+      }
       if (status == 'endOfSpeech') {
         if (_isAwake && _lastUserSpeech.isNotEmpty) {
           _speechSilenceTimer?.cancel();

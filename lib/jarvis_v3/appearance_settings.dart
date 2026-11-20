@@ -9,31 +9,30 @@ import 'assistant_activity.dart';
 import 'chat_interface_settings.dart';
 import 'neon_theme.dart';
 import 'reference_avatar_stage.dart';
-import 'visual_mode_store.dart';
 import 'hologram_theme_store.dart';
 
 /// Compact assistant-mode selector (from the menu or a long-press on the
 /// title). All six modes stay available.
-Future<void> showAssistantModeSheet(BuildContext context, {VisualModeStore? store}) {
-  final s = store ?? VisualModeStore.instance;
+Future<void> showAssistantModeSheet(BuildContext context) {
+  final s = HologramThemeStore.instance;
   return showModalBottomSheet<void>(
     context: context,
     backgroundColor: const Color(0xFF0A0703),
     shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
     builder: (ctx) => SafeArea(
-      child: ValueListenableBuilder<JarvisVisualMode>(
+      child: ValueListenableBuilder<String>(
         valueListenable: s,
         builder: (ctx, current, _) => Column(mainAxisSize: MainAxisSize.min, children: [
           const Padding(
             padding: EdgeInsets.fromLTRB(20, 16, 20, 4),
-            child: Text('ASSISTANT MODE',
+            child: Text('HOLOGRAM THEME',
                 style: TextStyle(color: NeonColors.gold, letterSpacing: 2, fontWeight: FontWeight.w700)),
           ),
-          for (final m in JarvisVisualMode.values)
+          for (final m in HologramThemeStore.themes)
             ListTile(
-              key: ValueKey('v3-mode-${m.name}'),
-              leading: Icon(m.icon, color: m == current ? NeonColors.amber : Colors.white60),
-              title: Text(m.label, style: const TextStyle(color: Colors.white)),
+              key: ValueKey('v3-theme-$m'),
+              leading: Icon(Icons.auto_awesome, color: m == current ? NeonColors.amber : Colors.white60),
+              title: Text(m.toUpperCase(), style: const TextStyle(color: Colors.white)),
               trailing: m == current ? const Icon(Icons.check, color: NeonColors.amber) : null,
               onTap: () {
                 s.select(m);
@@ -158,9 +157,9 @@ class _AppearanceSettingsScreenState extends State<AppearanceSettingsScreen> {
           ListTile(
             leading: const Icon(Icons.blur_circular),
             title: const Text('Choose assistant mode'),
-            subtitle: ValueListenableBuilder<JarvisVisualMode>(
-                valueListenable: VisualModeStore.instance,
-                builder: (c, m, _) => Text(m.label)),
+            subtitle: ValueListenableBuilder<String>(
+                valueListenable: HologramThemeStore.instance,
+                builder: (c, m, _) => Text(m.toUpperCase())),
             onTap: () => showAssistantModeSheet(context),
           ),
           _section('AIRA animation preset'),

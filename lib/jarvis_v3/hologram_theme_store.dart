@@ -1,9 +1,18 @@
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../brain/visual_bus.dart';
 
 class HologramThemeStore extends ValueNotifier<String> {
   HologramThemeStore() : super('snake');
-  static final instance = HologramThemeStore();
+  static final instance = HologramThemeStore().._listenForVisualRequests();
+  void _listenForVisualRequests() {
+    visualBus.addListener(() {
+      const themesByMode = {'serpent': 'snake', 'core': 'solar', 'aira': 'forest',
+        'office': 'apex', 'apex': 'apex', 'mira': 'mira'};
+      final theme = themesByMode[visualBus.value?.mode];
+      if (theme != null) select(theme);
+    });
+  }
   static const themes = ['snake', 'forest', 'solar', 'inferno', 'apex', 'mira'];
   static const storageKey = 'jarvis_hologram_theme_v1';
   Future<void> load() async {

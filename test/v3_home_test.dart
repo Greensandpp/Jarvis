@@ -229,6 +229,7 @@ void main() {
     expect(find.byKey(const ValueKey('v3-real-3d')), findsOneWidget);
     final p = await SharedPreferences.getInstance();
     expect(p.getString('jarvis_visual_mode_v1'), 'apex');
+    expect(HologramThemeStore.instance.value, 'apex');
     await tester.runAsync(() => requestVisual(mode: 'core'));
     await tester.pump(const Duration(milliseconds: 600));
     expect(find.byKey(const ValueKey('v3-real-3d')), findsOneWidget);

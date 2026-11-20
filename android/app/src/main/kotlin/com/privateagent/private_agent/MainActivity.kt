@@ -657,7 +657,7 @@ class MainActivity : FlutterActivity() {
                 val intent = buildRecognitionIntent()
                 recognitionIntent = intent
                 recognizer.startListening(intent)
-                speechChannel?.invokeMethod("onSpeechStatus", "listening")
+                // onReadyForSpeech is the authoritative capture-start event.
             } catch (e: Exception) {
                 android.util.Log.e("JARVIS_VOICE", "startNativeListening failed: ${e.message}")
                 safeCancelAndDestroy()

@@ -69,7 +69,7 @@ class VoiceService {
             _listening = true;
             listeningNotifier.value = true;
             onListeningChanged?.call(true);
-          } else if (status == 'notListening') {
+          } else if (status == 'notListening' || status == 'endOfSpeech' || status.startsWith('error:')) {
             _listening = false;
             listeningNotifier.value = false;
             onListeningChanged?.call(false);
@@ -153,20 +153,23 @@ class VoiceService {
       final status = await Permission.microphone.request();
       return status.isGranted;
     } catch (_) {
-      // Gracefully allow mock/headless testing environments where permission channel is unmocked
+      // Unknown permission state fails closed; tests must mock the permission channel.
       return false;
     }
   }
 
   Future<bool> initSpeech() async {
+    if (!await _ensureMicPermission()) {
+      _speechReady = false;
+      return false;
+    }
     if (_speechReady) return true;
-    if (!await _ensureMicPermission()) return false;
     try {
       final available =
-          await _nativeSpeechChannel.invokeMethod<bool>('isAvailable') ?? true;
+          await _nativeSpeechChannel.invokeMethod<bool>('isAvailable') ?? false;
       _speechReady = available;
     } catch (_) {
-      _speechReady = true;
+      _speechReady = false;
     }
     return _speechReady;
   }
@@ -284,15 +287,13 @@ class VoiceService {
       return true;
     }
     try {
-      await _nativeSpeechChannel.invokeMethod('startListening', {
+      final accepted = await _nativeSpeechChannel.invokeMethod<bool>('startListening', {
         'continuous': continuous,
         'manual': manual,
         'locale': SettingsService.instance.speechInputLocale,
       });
-      _listening = true;
-      listeningNotifier.value = true;
-      onListeningChanged?.call(true);
-      return true;
+      // Capture becomes active only on the real recognizer ready event.
+      return accepted == true;
     } catch (e) {
       debugPrint('[VoiceService] startListening error: $e');
       _listening = false;

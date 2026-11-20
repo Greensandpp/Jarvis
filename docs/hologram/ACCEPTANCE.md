@@ -10,6 +10,7 @@ Remote V3 head `44e5e98a00031032758445132ee60018736b630d` plus the voice tap / c
 
 - Root always opens JARVIS, including fresh installations and saved legacy Agent settings. Agents remain under Settings → Agents. No automatic startup greeting. Backend agent implementations retained.
 - Multiple services previously bypassed VoiceService and called Edge playback directly. Translation also created another FlutterTts instance. Those services now use the same SpeechOutputController. Speech tickets invalidate pending synthesis and serialize driver cancellation. Edge synthesis checks its generation before starting MediaPlayer; cancelled cloud work cannot resume and fall back to a second local voice. Stale TTS completion handlers no longer mutate a newer session.
+- Native microphone state now follows recognizer-ready/end/error callbacks, not request submission. Permission is rechecked after revocation; unverified availability fails closed. Channel-double regression tests cover those transitions.
 - Explicit ARC taps interrupt the current output or finalize a capture once. Continuous recognition is controlled by the Always-On setting; opening the home no longer automatically requests the microphone or starts repeated recognizer rearming. Backgrounding without Always-On cancels capture and playback. Live audio takes exclusive output ownership.
 - Proactive monitor follows screen lifecycle and no longer leaks its periodic timer after leaving the home.
 - Production home uses a silent local Three.js r180 WebGL runtime in Android WebView. Content Security Policy forbids network requests, image/media loading and external navigation. Its bridge accepts only a mic tap and bounded renderer telemetry. No Android execution bridge is exposed to JavaScript.
@@ -28,7 +29,7 @@ Remote V3 head `44e5e98a00031032758445132ee60018736b630d` plus the voice tap / c
 
 | Check | Result | Evidence |
 |---|---|---|
-| Flutter tests | PASS — 244 tests | Flutter 3.50.1 / Dart 3.14.0, `flutter test --reporter expanded` |
+| Flutter tests | PASS — 246 tests | Flutter 3.50.1 / Dart 3.14.0, `flutter test --reporter expanded` |
 | Analyzer | PASS — zero errors/warnings | `flutter analyze --no-fatal-infos` exit 0; 75 informational messages, mostly SDK Material deprecations |
 | Rapid speech replacements | PASS | 30 requests leave one valid playback ticket; cancellation during synthesis, stale completion and driver ordering checked |
 | Voice-controller regressions | PASS | `test/speech_output_controller_test.dart`, actual VoiceService platform-channel routing / late completion regression in `voice_output_integration_test.dart` |

@@ -1,5 +1,9 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:share_plus/share_plus.dart';
 
 import '../../brain/memory_backup.dart';
 import '../../services/conversational_memory_service.dart';
@@ -37,24 +41,46 @@ Future<void> undoCorrection(BuildContext context, MemoryFact f) async {
   if (context.mounted) _toast(context, 'Correction undone.');
 }
 
+/// Encrypted backup file inside the app's private storage (not world-readable).
+Future<File> memoryBackupFile() async =>
+    File('${(await getApplicationDocumentsDirectory()).path}/jarvis_memory_backup.json');
+
 Future<void> exportMemoryDialog(BuildContext context) async {
   final pass = await _ask(context, 'Backup passphrase (min 6 characters)', secret: true);
   if (pass == null || !context.mounted) return;
+  _toast(context, 'Encrypting…');
   try {
     final data = await ConversationalMemoryService.instance.exportEncrypted(pass);
-    await Clipboard.setData(ClipboardData(text: data));
-    if (context.mounted) {
-      _toast(context, 'Encrypted backup copied to the clipboard. Save it somewhere safe; it needs the passphrase.');
-    }
+    final f = await memoryBackupFile();
+    await f.writeAsString(data, flush: true);
+    try {
+      await Clipboard.setData(ClipboardData(text: data));
+    } catch (_) {}
+    if (!context.mounted) return;
+    ScaffoldMessenger.maybeOf(context)?.showSnackBar(SnackBar(
+      content: const Text('Encrypted backup saved on this phone and copied. Share it to keep a copy elsewhere (it needs the passphrase).'),
+      action: SnackBarAction(label: 'Share', onPressed: () => SharePlus.instance.share(ShareParams(files: [XFile(f.path)]))),
+    ));
   } on BackupException catch (e) {
     if (context.mounted) _toast(context, e.message);
+  } catch (e) {
+    if (context.mounted) _toast(context, 'Backup failed: $e');
   }
 }
 
 Future<void> importMemoryDialog(BuildContext context) async {
-  final clip = (await Clipboard.getData(Clipboard.kTextPlain))?.text ?? '';
+  var initial = '';
+  try {
+    final clip = (await Clipboard.getData(Clipboard.kTextPlain))?.text ?? '';
+    if (clip.contains('jarvis-memory-backup')) initial = clip;
+  } catch (_) {}
+  if (initial.isEmpty) {
+    final f = await memoryBackupFile();
+    if (await f.exists()) initial = await f.readAsString();
+  }
   if (!context.mounted) return;
-  final data = await _ask(context, 'Paste the encrypted backup', initial: clip.contains('jarvis-memory-backup') ? clip : '', lines: 4);
+  final data = await _ask(context, 'Encrypted backup (pre-filled from the last backup on this phone, or paste one)',
+      initial: initial, lines: 4);
   if (data == null || !context.mounted) return;
   final pass = await _ask(context, 'Backup passphrase', secret: true);
   if (pass == null || !context.mounted) return;
@@ -63,5 +89,7 @@ Future<void> importMemoryDialog(BuildContext context) async {
     if (context.mounted) _toast(context, 'Imported $n new memories (duplicates skipped).');
   } on BackupException catch (e) {
     if (context.mounted) _toast(context, e.message);
+  } catch (e) {
+    if (context.mounted) _toast(context, 'Restore failed: $e');
   }
 }

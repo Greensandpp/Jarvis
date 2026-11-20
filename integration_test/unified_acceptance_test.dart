@@ -3,13 +3,13 @@
 // SharedPreferences, no mocks). No API key is present, so live Gemini answers
 // are not tested here and stay UNVERIFIED.
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:private_agent/core/build_profile.dart';
 import 'package:private_agent/main.dart' as app;
+import 'package:private_agent/screens/brain/memory_tools.dart';
 import 'package:private_agent/services/conversational_memory_service.dart';
 import 'package:private_agent/services/jarvis_service.dart';
 
@@ -369,13 +369,18 @@ void main() {
       await pumpFor(t, const Duration(seconds: 1));
       await t.enterText(find.byType(TextField).last, 'owner-pass-1');
       await t.tap(find.text('OK'));
-      // PBKDF2 runs in a background isolate; wait for the clipboard (max 90 s).
+      // PBKDF2 runs in a background isolate; wait for the backup file (max 90 s).
+      final file = await memoryBackupFile();
       var clip = '';
       final until = DateTime.now().add(const Duration(seconds: 90));
       while (DateTime.now().isBefore(until) && !clip.contains('jarvis-memory-backup')) {
         await pumpFor(t, const Duration(seconds: 1));
-        clip = (await Clipboard.getData(Clipboard.kTextPlain))?.text ?? '';
+        if (await file.exists()) clip = await file.readAsString();
       }
+      final snack = find.byType(SnackBar).evaluate().isEmpty ? '' : find.descendant(of: find.byType(SnackBar), matching: find.byType(Text))
+          .evaluate().map((e) => (e.widget as Text).data ?? '').join(' ');
+      // ignore: avoid_print
+      print('I12 export snackbar: $snack');
       final exported = clip.contains('jarvis-memory-backup') && !clip.contains('75000');
       await mem.clearAllFacts();
       await t.pageBack();
@@ -409,12 +414,19 @@ void main() {
     // I13 offline visual switching through the same command path as voice
     await section('I13', () async {
       await home(t);
+      final sp = await SharedPreferences.getInstance();
+      await sp.setString('aira_model_v1', 'neuralReactor');
       final input = find.byKey(const ValueKey('dock-input'));
       if (!await waitFor(t, input, const Duration(seconds: 8))) return (false, 'dock not visible');
       await t.enterText(input, 'switch to apex');
       await t.tap(find.byKey(const ValueKey('dock-send')));
-      await pumpFor(t, const Duration(seconds: 4));
-      final p1 = (await SharedPreferences.getInstance()).getString('jarvis_visual_mode_v1');
+      String? p1;
+      final until = DateTime.now().add(const Duration(seconds: 20));
+      while (DateTime.now().isBefore(until) && p1 != 'apex') {
+        await pumpFor(t, const Duration(seconds: 1));
+        p1 = (await SharedPreferences.getInstance()).getString('jarvis_visual_mode_v1');
+      }
+      final heard = JarvisService.instance.lastUserSpeech, st = JarvisService.instance.statusMessage;
       await shot(t, 'i-voice-switch-apex');
       final reply = JarvisService.instance.lastJarvisSpeech;
       await pumpFor(t, const Duration(seconds: 3));
@@ -422,12 +434,16 @@ void main() {
       if (input2.evaluate().isNotEmpty) {
         await t.enterText(input2, 'aira jellyfish mode');
         await t.tap(find.byKey(const ValueKey('dock-send')));
-        await pumpFor(t, const Duration(seconds: 5));
+        final until2 = DateTime.now().add(const Duration(seconds: 20));
+        while (DateTime.now().isBefore(until2) &&
+            (await SharedPreferences.getInstance()).getString('aira_model_v1') != 'jellyfish') {
+          await pumpFor(t, const Duration(seconds: 1));
+        }
       }
       final p = await SharedPreferences.getInstance();
       await shot(t, 'i-voice-switch-aira-jellyfish');
       return (p1 == 'apex' && p.getString('jarvis_visual_mode_v1') == 'aira' && p.getString('aira_model_v1') == 'jellyfish',
-          'after "switch to apex": $p1 (reply "$reply"); after "aira jellyfish mode": '
+          'after "switch to apex": $p1 (heard "$heard", status "$st", reply "$reply"); after "aira jellyfish mode": '
           '${p.getString('jarvis_visual_mode_v1')}/${p.getString('aira_model_v1')}');
     });
   }, timeout: const Timeout(Duration(minutes: 15)));

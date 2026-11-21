@@ -51,21 +51,3 @@ socket creation denied. The latter proves desktop native inference, not phone
 microphone/Tamil quality. Only an encrypted APK artifact may leave public CI.
 Model weights are never committed. Model: Gemma Terms of Use (https://ai.google.dev/gemma/terms); runtime: MIT. Review
 upstream model/license and runtime notices before any production integration.
-
-## Language recovery after the owner's device report
-
-The 0.6B build produced wrong scripts and unrelated answers on the phone.
-Current language admission rejects those scripts before TTS. Tamil, English and
-Roman Tamil are separate choices; diagnostic voice names are collapsed.
-A small explicit adapter translates complete common Tanglish utterances into
-questions (not answers). General input is passed to the model unchanged.
-All answer content still comes from actual in-process model inference.
-Roman Tamil uses the same generated Tamil reply, deterministically rendered in
-ASCII for display; the original Tamil is spoken by an installed Tamil voice.
-This approximate transliteration is not a claim of general Tanglish fluency.
-Stateless generations disable prompt-prefix reuse so earlier requests cannot
-supply cached context. Real probes print original input, normalized input,
-raw generated reply and displayed reply; no canned replies are substituted.
-The model/response quality gate includes English and native Tamil controls in
-addition to the owner's three prompts. Passing this small suite does not prove
-unrestricted conversation quality or phone playback/microphone behavior.

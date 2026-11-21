@@ -13,6 +13,6 @@ void main() {
     expect(OfflineLanguage.acceptable('En peru JARVIS.', 'ta-Latn'), isTrue);
     expect(OfflineLanguage.acceptable('வணக்கம்', 'ta-Latn'), isFalse);
     expect(OfflineLanguage.acceptable('हेलो', 'en-IN'), isFalse);
-    expect(OfflineLanguage.speechLocale('ta-Latn'), 'ta-IN');
+    expect(OfflineLanguage.speechLocale('ta-Latn'), 'en-IN');
   });
 }

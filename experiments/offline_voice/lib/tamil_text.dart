@@ -6,9 +6,14 @@ String normalizeCommonTanglish(String input) {
     'un peru enna': 'What is your name?', 'unga peru enna': 'What is your name?',
     'un peyar enna': 'What is your name?', 'unga peyar enna': 'What is your name?',
     'nee yaaru': 'Who are you?',
-    'saptiya': 'Have you eaten?', 'saaptiya': 'Have you eaten?',
-    'saptiyaa': 'Have you eaten?', 'saaptiyaa': 'Have you eaten?',
-    'saptacha': 'Have you eaten?', 'saptingala': 'Have you eaten?',
+    'saptiya': 'As an AI assistant, can you eat food?', 'saaptiya': 'As an AI assistant, can you eat food?',
+    'saptiyaa': 'As an AI assistant, can you eat food?', 'saaptiyaa': 'As an AI assistant, can you eat food?',
+    'saptacha': 'As an AI assistant, can you eat food?', 'saptingala': 'As an AI assistant, can you eat food?',
+    'have you eaten': 'As an AI assistant, can you eat food?',
+    'have you eaten food': 'As an AI assistant, can you eat food?',
+    'சாப்பிட்டாயா': 'As an AI assistant, can you eat food?',
+    'சாப்பிட்டீர்களா': 'As an AI assistant, can you eat food?',
+    'சாப்பிட்டீங்களா': 'As an AI assistant, can you eat food?',
     'nee manushana illa ai ah': 'Are you a human or an AI?',
   };
   if (meanings.containsKey(key)) return meanings[key]!;

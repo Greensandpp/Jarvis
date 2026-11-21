@@ -125,13 +125,13 @@ class _OfflineScreenState extends State<OfflineScreen> with WidgetsBindingObserv
       const Text('No API key, Railway or LiveKit required. No internet permission in this build. '
         'Download the model once using your browser, then import it. Offline chat has no monthly quota.'),
       const SizedBox(height: 12),
-      const SelectableText('gemma-3-4b-it-Q4_K_M.gguf • 2.49 GB\nTamil/Tanglish quality and speed still need your device test.'),
+      const SelectableText('gemma-3-4b-it-Q4_K_M.gguf • 2.49 GB\nLanguage probes required before release. Tamil/Tanglish quality still needs your device test.'),
       FilledButton(onPressed: _loading || _ready ? null : () => _load(import: true), child: const Text('Import downloaded GGUF model')),
       OutlinedButton(onPressed: _loading || _ready ? null : () => _load(import: false), child: const Text('Load saved model')),
       DropdownButton<String>(value: _language, isExpanded: true, items: const [
         DropdownMenuItem(value: 'ta-IN', child: Text('தமிழ் / Tamil replies')),
         DropdownMenuItem(value: 'en-IN', child: Text('English replies')),
-        DropdownMenuItem(value: 'ta-Latn', child: Text('Tanglish — Roman Tamil replies')),
+        DropdownMenuItem(value: 'ta-Latn', child: Text('Tanglish — Latin letters')),
       ], onChanged: (value) { if (value != null) { unawaited(_stop()); setState(() => _language = value); } }),
       SwitchListTile(title: const Text('Read replies with installed offline voice'), value: _voice,
         onChanged: (value) { setState(() => _voice = value); if (!value) unawaited(_stop()); }),

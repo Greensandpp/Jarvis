@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'package:llamadart/llamadart.dart';
 import 'language_contract.dart';
-import 'tamil_text.dart';
 
 abstract class LocalModel {
   Future<void> load(String path);
@@ -24,16 +23,14 @@ class PhoneModel implements LocalModel {
   @override
   Stream<String> reply(String text, String language) async* {
     // No tools, memory upload, hidden network fallback or automatic greeting.
-    final generationLanguage = language == 'ta-Latn' ? 'ta-IN' : language;
-    final understood = normalizeCommonTanglish(text);
     final messages = [
       LlamaChatMessage.fromText(role: LlamaChatRole.system,
-        text: OfflineLanguage.instruction(generationLanguage)),
-      LlamaChatMessage.fromText(role: LlamaChatRole.user, text: OfflineLanguage.userMessage(understood, generationLanguage)),
+        text: OfflineLanguage.instruction(language)),
+      LlamaChatMessage.fromText(role: LlamaChatRole.user, text: OfflineLanguage.userMessage(text, language)),
     ];
     await for (final chunk in _engine.create(messages,
       enableThinking: false,
-      params: const GenerationParams(maxTokens: 128, temp: 0.2, seed: 42, reusePromptPrefix: false),
+      params: const GenerationParams(maxTokens: 128, temp: 0.2, seed: 42),
     )) {
       if (chunk.text.isNotEmpty) yield chunk.text;
     }
@@ -78,11 +75,11 @@ class OfflineTurns {
     _inferenceDone = done.future;
     var output = '';
     try {
-      changed(normalizeCommonTanglish(text) == text ? 'Thinking locally' : 'Understanding common Tanglish locally', '');
+      changed('Thinking locally', '');
       await for (final delta in model.reply(text, language)) {
         if (!foreground || epoch != _epoch) break;
         output += delta;
-        changed('Generating locally', language == 'ta-Latn' ? '' : output);
+        changed('Generating locally', output);
       }
     } catch (_) {
       if (foreground && epoch == _epoch) changed('Local generation failed; no cloud fallback', output);
@@ -91,22 +88,18 @@ class OfflineTurns {
       done.complete();
     }
     if (!foreground || epoch != _epoch) return;
-    if (!OfflineLanguage.acceptable(output, language == 'ta-Latn' ? 'ta-IN' : language)) {
+    if (!OfflineLanguage.acceptable(output, language)) {
       changed('Model returned another writing system; reply withheld. Try English or Tamil script.', '');
       return;
     }
-    final display = language == 'ta-Latn' ? romanTamil(output) : output;
-    if (!OfflineLanguage.acceptable(display, language)) {
-      changed('Roman Tamil formatting unavailable; reply withheld', ''); return;
-    }
-    changed('Local reply complete', display);
+    changed('Local reply complete', output);
     if (voice && output.trim().isNotEmpty) {
       try {
         // Native channel serializes stop/speak; the epoch is checked again
         // after every inference wait. Background also stops native TTS.
         await speak(output, OfflineLanguage.speechLocale(language));
       } catch (_) {
-        if (foreground && epoch == _epoch) changed('Text ready; installed offline voice unavailable', display);
+        if (foreground && epoch == _epoch) changed('Text ready; installed offline voice unavailable', output);
       }
     }
   }

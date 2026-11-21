@@ -35,3 +35,32 @@ These tests only verify pure state-gate logic, NOT real playback stop acknowledg
 - Explicitly test real stop acknowledgments on an iQOO 13 before integrating.
 - `test/voice_session_coordinator_test.dart` adds six async regression scenarios.
 - All tests remain UNVERIFIED until Flutter SDK execution succeeds.
+
+## Phase 4: LiveKit Session bridge (experimental)
+
+A self-contained Flutter package now exists in this directory with its own
+`pubspec.yaml`. `lib/livekit_session_bridge.dart` constructs an actual
+`livekit_client.Session` using an injected token endpoint (not an API secret),
+disables preconnect recording, and exposes connect/sendText/disconnect/dispose.
+
+**Critical**: This is NOT a complete voice call. The transport is injected and
+must be implemented with real SDK/backend acknowledgments. No real remote
+interruption, recording, playback, microphone capture, Tamil/Tanglish, hosted
+backend, API keys, UI, or APK has been enabled. A fake transport must NEVER
+be used for device audio tests.
+
+LiveKit reference:
+https://docs.livekit.io/reference/client-sdk-flutter/livekit_client/Session-class.html
+
+To run unit tests with Flutter installed (from the repository root):
+
+```bash
+cd experiments/livekit_voice_butler/flutter
+flutter pub get
+flutter test
+```
+
+Do not build or install an APK from this directory: it is an isolated library
+package, not an app. Tests are UNVERIFIED in this environment, which lacks the
+Flutter SDK. Prior to any phone test, obtain an authenticated short-lived token
+endpoint and implement true cancellation + player-stop acknowledgments.

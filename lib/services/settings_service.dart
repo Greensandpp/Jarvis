@@ -135,13 +135,15 @@ class SettingsService extends ChangeNotifier {
   }
 
   /// "ONLINE" is only claimed after a real request succeeded.
-  bool get aiVerified => _prefs?.getBool('ai_verified') ?? false;
+  bool _verifiedThisSession = false;
+  bool get aiVerified => _verifiedThisSession && (_prefs?.getBool('ai_verified') ?? false);
   int get aiLastOkAt => _prefs?.getInt('ai_last_ok_at') ?? 0;
   String get aiLastOkModel => _prefs?.getString('ai_last_ok_model') ?? '';
   String get aiLastErrorKind => _prefs?.getString('ai_last_error_kind') ?? '';
 
   Future<void> recordAiSuccess(String model) async {
     final changed = aiLastOkModel != model || aiLastErrorKind.isNotEmpty || !aiVerified;
+    _verifiedThisSession = true;
     await _prefs?.setBool('ai_verified', true);
     await _prefs?.setInt('ai_last_ok_at', DateTime.now().millisecondsSinceEpoch);
     await _prefs?.setString('ai_last_ok_model', model);
@@ -152,7 +154,8 @@ class SettingsService extends ChangeNotifier {
   Future<void> recordAiFailure(String kind) async {
     final changed = aiLastErrorKind != kind;
     await _prefs?.setString('ai_last_error_kind', kind);
-    if (kind == 'auth' || kind == 'noKey' || kind == 'modelNotFound') await _prefs?.setBool('ai_verified', false);
+    _verifiedThisSession = false;
+    await _prefs?.setBool('ai_verified', false);
     if (changed) notifyListeners();
   }
 
@@ -180,7 +183,9 @@ class SettingsService extends ChangeNotifier {
 
   /// Honest status line: never ONLINE without a verified request.
   String get aiStatusLabel {
-    if (apiKey.isEmpty && provider != 'ollama') return 'AI NOT CONNECTED';
+    if (apiKey.isEmpty && provider != 'ollama') return 'CONFIGURATION MISSING';
+    if (aiLastErrorKind == 'auth') return 'AUTH REQUIRED';
+    if (const ['dns', 'connect', 'timeout'].contains(aiLastErrorKind)) return 'OFFLINE';
     if (aiLastErrorKind.isNotEmpty) return 'AI ERROR · ${aiLastErrorKind.toUpperCase()}';
     if (aiVerified) return 'AI ONLINE · $aiLastOkModel';
     return 'AI NOT VERIFIED · run test';

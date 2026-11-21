@@ -223,13 +223,13 @@ void main() {
     expect(headerStatus(activity: AssistantActivity.idle, aiVerified: false, aiErrorKind: '', standbyMic: false).label,
         'NOT VERIFIED');
     expect(headerStatus(activity: AssistantActivity.idle, aiVerified: true, aiErrorKind: '', standbyMic: false).label,
-        'ONLINE');
+        'CONNECTED');
     expect(headerStatus(activity: AssistantActivity.idle, aiVerified: true, aiErrorKind: '', standbyMic: true).label,
-        'ONLINE · MIC STANDBY');
+        'CONNECTED · MIC STANDBY');
     expect(headerStatus(activity: AssistantActivity.idle, aiVerified: true, aiErrorKind: 'quota', standbyMic: false).label,
-        'AI ERROR · QUOTA');
+        'ERROR · QUOTA');
     expect(headerStatus(activity: AssistantActivity.disconnected, aiVerified: false, aiErrorKind: '', standbyMic: false).label,
-        'AI NOT CONNECTED');
+        'CONFIGURATION MISSING');
   });
 }
 

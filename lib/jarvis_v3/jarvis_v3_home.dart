@@ -58,7 +58,8 @@ class JarvisV3Bindings {
       onCommand: onCommand,
       aiVerified: () => s.aiVerified,
       aiErrorKind: () => s.aiLastErrorKind,
-      standbyMic: () => v.listeningNotifier.value && j.phase == JarvisPhase.idle,
+      standbyMic: () =>
+          v.listeningNotifier.value && j.phase == JarvisPhase.idle,
     );
   }
 
@@ -85,14 +86,20 @@ class JarvisV3Bindings {
 }) {
   switch (activity) {
     case AssistantActivity.disconnected:
-      return (label: 'AI NOT CONNECTED', color: NeonColors.error);
+      return (label: 'CONFIGURATION MISSING', color: NeonColors.amber);
     case AssistantActivity.error:
       return (label: 'ERROR', color: NeonColors.error);
     case AssistantActivity.idle:
       if (aiErrorKind.isNotEmpty) {
-        return (label: 'AI ERROR · ${aiErrorKind.toUpperCase()}', color: NeonColors.error);
+        final label = switch (aiErrorKind) {
+          'auth' => 'AUTH REQUIRED',
+          'noKey' => 'CONFIGURATION MISSING',
+          'dns' || 'connect' || 'timeout' => 'OFFLINE',
+          _ => 'ERROR · ${aiErrorKind.toUpperCase()}',
+        };
+        return (label: label, color: NeonColors.error);
       }
-      final base = aiVerified ? 'ONLINE' : 'NOT VERIFIED';
+      final base = aiVerified ? 'CONNECTED' : 'NOT VERIFIED';
       return (
         label: standbyMic ? '$base · MIC STANDBY' : base,
         color: aiVerified ? const Color(0xFF5CFF9D) : NeonColors.amber,
@@ -132,7 +139,8 @@ class JarvisV3Home extends StatefulWidget {
   State<JarvisV3Home> createState() => JarvisV3HomeState();
 }
 
-class JarvisV3HomeState extends State<JarvisV3Home> with WidgetsBindingObserver {
+class JarvisV3HomeState extends State<JarvisV3Home>
+    with WidgetsBindingObserver {
   late final ChatInterfaceSettings _settings;
   late final VisualModeStore _modes;
   late final AssistantActivityEngine activity;
@@ -152,7 +160,10 @@ class JarvisV3HomeState extends State<JarvisV3Home> with WidgetsBindingObserver 
     _settings = widget.settings ?? ChatInterfaceSettings.instance;
     _modes = widget.modeStore ?? VisualModeStore.instance;
     final b = widget.bindings;
-    activity = AssistantActivityEngine(source: b.source, read: b.activitySignals);
+    activity = AssistantActivityEngine(
+      source: b.source,
+      read: b.activitySignals,
+    );
     conversation = ConversationStore(
       source: b.source,
       read: b.conversationSignals,
@@ -168,8 +179,11 @@ class JarvisV3HomeState extends State<JarvisV3Home> with WidgetsBindingObserver 
     conversation.addListener(_onConversation);
     _settings.addListener(_onSettings);
     _focus.addListener(_onFocus);
-    _introRunning = widget.playIntro ??
-        (_settings.introEnabled && !_settings.reduceMotion && !JarvisV3Home._introPlayedThisLaunch);
+    _introRunning =
+        widget.playIntro ??
+        (_settings.introEnabled &&
+            !_settings.reduceMotion &&
+            !JarvisV3Home._introPlayedThisLaunch);
     JarvisV3Home._introPlayedThisLaunch = true;
     if (!_settings.loaded) _settings.load();
     conversation.load();
@@ -195,13 +209,14 @@ class JarvisV3HomeState extends State<JarvisV3Home> with WidgetsBindingObserver 
   }
 
   void _onSettings() => autoHide.configure(
-        enabled: _settings.autoHide,
-        delay: _settings.delay,
-        showWhileSpeaking: _settings.showWhileSpeaking,
-      );
+    enabled: _settings.autoHide,
+    delay: _settings.delay,
+    showWhileSpeaking: _settings.showWhileSpeaking,
+  );
 
-  void _onFocus() =>
-      _focus.hasFocus ? autoHide.hold(ChatHold.inputFocus) : autoHide.release(ChatHold.inputFocus);
+  void _onFocus() => _focus.hasFocus
+      ? autoHide.hold(ChatHold.inputFocus)
+      : autoHide.release(ChatHold.inputFocus);
 
   @override
   void didChangeMetrics() {
@@ -209,7 +224,9 @@ class JarvisV3HomeState extends State<JarvisV3Home> with WidgetsBindingObserver 
     final views = WidgetsBinding.instance.platformDispatcher.views;
     if (views.isEmpty) return;
     final open = views.first.viewInsets.bottom > 0;
-    open ? autoHide.hold(ChatHold.keyboard) : autoHide.release(ChatHold.keyboard);
+    open
+        ? autoHide.hold(ChatHold.keyboard)
+        : autoHide.release(ChatHold.keyboard);
   }
 
   void _send() {
@@ -222,9 +239,12 @@ class JarvisV3HomeState extends State<JarvisV3Home> with WidgetsBindingObserver 
 
   Future<void> openHistory() async {
     autoHide.hold(ChatHold.historyOpen);
-    await Navigator.of(context).push(MaterialPageRoute<void>(
-      builder: (_) => ConversationHistoryScreen(store: conversation, settings: _settings),
-    ));
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) =>
+            ConversationHistoryScreen(store: conversation, settings: _settings),
+      ),
+    );
     if (mounted) autoHide.release(ChatHold.historyOpen);
   }
 
@@ -253,14 +273,21 @@ class JarvisV3HomeState extends State<JarvisV3Home> with WidgetsBindingObserver 
   }
 
   bool get _reduceMotion =>
-      _settings.reduceMotion || (MediaQuery.maybeDisableAnimationsOf(context) ?? false);
+      _settings.reduceMotion ||
+      (MediaQuery.maybeDisableAnimationsOf(context) ?? false);
 
   Widget _visual(JarvisVisualMode mode) => ValueListenableBuilder<String>(
     valueListenable: HologramThemeStore.instance,
     builder: (context, theme, _) => HolographicStage(
-      key: _stageKey, activity: activity, theme: theme,
-      soundLevel: widget.bindings.soundLevel, onTap: () { widget.bindings.toggleMic(); },
-      playIntro: _introRunning && !_reduceMotion, reduceMotion: _reduceMotion,
+      key: _stageKey,
+      activity: activity,
+      theme: theme,
+      soundLevel: widget.bindings.soundLevel,
+      onTap: () {
+        widget.bindings.toggleMic();
+      },
+      playIntro: _introRunning && !_reduceMotion,
+      reduceMotion: _reduceMotion,
       onIntroFinished: () {
         if (mounted && _introRunning) setState(() => _introRunning = false);
       },
@@ -274,99 +301,128 @@ class JarvisV3HomeState extends State<JarvisV3Home> with WidgetsBindingObserver 
       color: NeonColors.background,
       child: ValueListenableBuilder<JarvisVisualMode>(
         valueListenable: _modes,
-        builder: (context, mode, _) => Stack(fit: StackFit.expand, children: [
-          // Centre: the selected assistant model, fullscreen.
-          Positioned.fill(
-            child: AnimatedSwitcher(
-              duration: _reduceMotion ? Duration.zero : const Duration(milliseconds: 450),
-              child: KeyedSubtree(key: const ValueKey('v3-real-3d'), child: _visual(mode)),
-            ),
-          ),
-          // Soft vignette so the header and dock read cleanly over the scene.
-          const IgnorePointer(
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [Color(0xCC000000), Color(0x00000000), Color(0x00000000), Color(0xE6000000)],
-                  stops: [0, 0.16, 0.6, 1],
+        builder: (context, mode, _) => Stack(
+          fit: StackFit.expand,
+          children: [
+            // Centre: the selected assistant model, fullscreen.
+            Positioned.fill(
+              child: AnimatedSwitcher(
+                duration: _reduceMotion
+                    ? Duration.zero
+                    : const Duration(milliseconds: 450),
+                child: KeyedSubtree(
+                  key: const ValueKey('v3-real-3d'),
+                  child: _visual(mode),
                 ),
               ),
             ),
-          ),
-          Positioned.fill(child: Column(children: [
-            SafeArea(bottom: false, child: _header()),
-            Expanded(
-              child: ListenableBuilder(
-                listenable: Listenable.merge([conversation, autoHide, _settings]),
-                builder: (context, _) => Align(
-                  alignment: Alignment.bottomCenter,
-                  child: FractionallySizedBox(
-                    widthFactor: 1,
-                    heightFactor: 0.32,
-                    child: Column(children: [
-                      if (conversation.hasPendingNotice)
-                        Align(
-                          alignment: Alignment.centerRight,
-                          child: TextButton(
-                            key: const ValueKey('v3-ack-notice'),
-                            onPressed: () {
-                              conversation.acknowledgeAll();
-                              activity.acknowledgeError();
-                            },
-                            child: const Text('Dismiss', style: TextStyle(color: NeonColors.gold)),
-                          ),
-                        ),
-                      Expanded(
-                        child: NeonConversationPanel(
-                          entries: conversation.entries,
-                          liveTranscript: conversation.liveTranscript,
-                          visible: autoHide.visible,
-                          settings: _settings,
-                          scrollController: _scroll,
-                          reduceMotion: _reduceMotion,
-                          onScrollActive: (on) => on
-                              ? autoHide.hold(ChatHold.scrolling)
-                              : autoHide.release(ChatHold.scrolling),
-                          onTap: autoHide.reveal,
-                        ),
-                      ),
-                    ]),
+            // Soft vignette so the header and dock read cleanly over the scene.
+            const IgnorePointer(
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      Color(0xCC000000),
+                      Color(0x00000000),
+                      Color(0x00000000),
+                      Color(0xE6000000),
+                    ],
+                    stops: [0, 0.16, 0.6, 1],
                   ),
                 ),
               ),
             ),
-            SafeArea(
-              top: false,
-              child: ValueListenableBuilder<AssistantActivity>(
-                valueListenable: activity,
-                builder: (context, a, _) => NeonInputDock(
-                  controller: _input,
-                  focusNode: _focus,
-                  activity: a,
-                  micActive: a == AssistantActivity.listening,
-                  glow: _settings.glow,
-                  onSend: _send,
-                  onMicrophone: () {
-                    autoHide.reveal();
-                    b.toggleMic();
-                  },
+            Positioned.fill(
+              child: Column(
+                children: [
+                  SafeArea(bottom: false, child: _header()),
+                  Expanded(
+                    child: ListenableBuilder(
+                      listenable: Listenable.merge([
+                        conversation,
+                        autoHide,
+                        _settings,
+                      ]),
+                      builder: (context, _) => Align(
+                        alignment: Alignment.bottomCenter,
+                        child: FractionallySizedBox(
+                          widthFactor: 1,
+                          heightFactor: 0.32,
+                          child: Column(
+                            children: [
+                              if (conversation.hasPendingNotice)
+                                Align(
+                                  alignment: Alignment.centerRight,
+                                  child: TextButton(
+                                    key: const ValueKey('v3-ack-notice'),
+                                    onPressed: () {
+                                      conversation.acknowledgeAll();
+                                      activity.acknowledgeError();
+                                    },
+                                    child: const Text(
+                                      'Dismiss',
+                                      style: TextStyle(color: NeonColors.gold),
+                                    ),
+                                  ),
+                                ),
+                              Expanded(
+                                child: NeonConversationPanel(
+                                  entries: conversation.entries,
+                                  liveTranscript: conversation.liveTranscript,
+                                  visible: autoHide.visible,
+                                  settings: _settings,
+                                  scrollController: _scroll,
+                                  reduceMotion: _reduceMotion,
+                                  onScrollActive: (on) => on
+                                      ? autoHide.hold(ChatHold.scrolling)
+                                      : autoHide.release(ChatHold.scrolling),
+                                  onTap: autoHide.reveal,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                  SafeArea(
+                    top: false,
+                    child: ValueListenableBuilder<AssistantActivity>(
+                      valueListenable: activity,
+                      builder: (context, a, _) => NeonInputDock(
+                        controller: _input,
+                        focusNode: _focus,
+                        activity: a,
+                        micActive: a == AssistantActivity.listening,
+                        glow: _settings.glow,
+                        onSend: _send,
+                        onMicrophone: () {
+                          autoHide.reveal();
+                          b.toggleMic();
+                        },
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            if (_introRunning)
+              Positioned(
+                right: 8,
+                top: 60 + MediaQuery.paddingOf(context).top,
+                child: TextButton(
+                  key: const ValueKey('v3-skip-intro'),
+                  onPressed: skipIntro,
+                  child: const Text(
+                    'Skip intro',
+                    style: TextStyle(color: NeonColors.gold),
+                  ),
                 ),
               ),
-            ),
-          ])),
-          if (_introRunning)
-            Positioned(
-              right: 8,
-              top: 60 + MediaQuery.paddingOf(context).top,
-              child: TextButton(
-                key: const ValueKey('v3-skip-intro'),
-                onPressed: skipIntro,
-                child: const Text('Skip intro', style: TextStyle(color: NeonColors.gold)),
-              ),
-            ),
-        ]),
+          ],
+        ),
       ),
     );
   }
@@ -375,128 +431,166 @@ class JarvisV3HomeState extends State<JarvisV3Home> with WidgetsBindingObserver 
     final b = widget.bindings;
     return SizedBox(
       height: 56,
-      child: Row(children: [
-        IconButton(
-          key: const ValueKey('v3-menu'),
-          tooltip: 'Menu',
-          icon: const Icon(Icons.menu_rounded, color: NeonColors.gold),
-          onPressed: widget.onOpenMenu,
-        ),
-        Expanded(
-          child: GestureDetector(
-            onLongPress: widget.onLongPressTitle,
-            onTap: openHistory,
-            child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-              const JarvisWordmark(size: 21),
-              const SizedBox(height: 2),
-              ListenableBuilder(
-                listenable: Listenable.merge([activity, b.source]),
-                builder: (context, _) {
-                  final st = headerStatus(
-                    activity: activity.value,
-                    aiVerified: b.aiVerified(),
-                    aiErrorKind: b.aiErrorKind(),
-                    standbyMic: b.standbyMic(),
-                  );
-                  return Row(mainAxisSize: MainAxisSize.min, children: [
-                    Container(
-                      width: 6,
-                      height: 6,
-                      decoration: BoxDecoration(
-                        color: st.color,
-                        shape: BoxShape.circle,
-                        boxShadow: [BoxShadow(color: st.color, blurRadius: 6)],
-                      ),
-                    ),
-                    const SizedBox(width: 6),
-                    Flexible(
-                      child: Text(st.label,
-                          key: const ValueKey('v3-status'),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                              color: st.color.withValues(alpha: 0.9),
-                              fontSize: 10,
-                              letterSpacing: 1.4,
-                              fontWeight: FontWeight.w600)),
-                    ),
-                  ]);
-                },
-              ),
-            ]),
+      child: Row(
+        children: [
+          IconButton(
+            key: const ValueKey('v3-menu'),
+            tooltip: 'Menu',
+            icon: const Icon(Icons.menu_rounded, color: NeonColors.gold),
+            onPressed: widget.onOpenMenu,
           ),
-        ),
-        IconButton(
-          key: const ValueKey('v3-settings'),
-          tooltip: 'Settings',
-          icon: const Icon(Icons.settings_outlined, color: NeonColors.gold),
-          onPressed: widget.onOpenSettings,
-        ),
-      ]),
+          Expanded(
+            child: GestureDetector(
+              onLongPress: widget.onLongPressTitle,
+              onTap: openHistory,
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const JarvisWordmark(size: 21),
+                  const SizedBox(height: 2),
+                  ListenableBuilder(
+                    listenable: Listenable.merge([activity, b.source]),
+                    builder: (context, _) {
+                      final st = headerStatus(
+                        activity: activity.value,
+                        aiVerified: b.aiVerified(),
+                        aiErrorKind: b.aiErrorKind(),
+                        standbyMic: b.standbyMic(),
+                      );
+                      return Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Container(
+                            width: 6,
+                            height: 6,
+                            decoration: BoxDecoration(
+                              color: st.color,
+                              shape: BoxShape.circle,
+                              boxShadow: [
+                                BoxShadow(color: st.color, blurRadius: 6),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          Flexible(
+                            child: Text(
+                              st.label,
+                              key: const ValueKey('v3-status'),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                color: st.color.withValues(alpha: 0.9),
+                                fontSize: 10,
+                                letterSpacing: 1.4,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                        ],
+                      );
+                    },
+                  ),
+                ],
+              ),
+            ),
+          ),
+          IconButton(
+            key: const ValueKey('v3-settings'),
+            tooltip: 'Settings',
+            icon: const Icon(Icons.settings_outlined, color: NeonColors.gold),
+            onPressed: widget.onOpenSettings,
+          ),
+        ],
+      ),
     );
   }
 }
 
 /// Full conversation history (opened from the title or the menu).
 class ConversationHistoryScreen extends StatelessWidget {
-  const ConversationHistoryScreen({super.key, required this.store, required this.settings});
+  const ConversationHistoryScreen({
+    super.key,
+    required this.store,
+    required this.settings,
+  });
   final ConversationStore store;
   final ChatInterfaceSettings settings;
 
   @override
   Widget build(BuildContext context) => Scaffold(
-        backgroundColor: NeonColors.background,
-        appBar: AppBar(
-          backgroundColor: Colors.black,
-          foregroundColor: NeonColors.gold,
-          title: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            const Text('Conversation'),
-            // The same model line as Settings, Diagnostics and Control Center.
-            ListenableBuilder(
-              listenable: SettingsService.instance,
-              builder: (c, _) => Text('AI model: ${SettingsService.instance.modelLabel}',
-                  key: const ValueKey('chat-model'),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(fontSize: 12, color: Colors.white70)),
+    backgroundColor: NeonColors.background,
+    appBar: AppBar(
+      backgroundColor: Colors.black,
+      foregroundColor: NeonColors.gold,
+      title: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('Conversation'),
+          // The same model line as Settings, Diagnostics and Control Center.
+          ListenableBuilder(
+            listenable: SettingsService.instance,
+            builder: (c, _) => Text(
+              'AI model: ${SettingsService.instance.modelLabel}',
+              key: const ValueKey('chat-model'),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontSize: 12, color: Colors.white70),
             ),
-          ]),
-          actions: [
-            IconButton(
-              tooltip: 'Clear conversation',
-              icon: const Icon(Icons.delete_outline),
-              onPressed: () async {
-                final ok = await showDialog<bool>(
-                  context: context,
-                  builder: (c) => AlertDialog(
-                    title: const Text('Clear the conversation?'),
-                    content: const Text('This removes the saved JARVIS conversation from this device.'),
-                    actions: [
-                      TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('Cancel')),
-                      FilledButton(onPressed: () => Navigator.pop(c, true), child: const Text('Clear')),
-                    ],
+          ),
+        ],
+      ),
+      actions: [
+        IconButton(
+          tooltip: 'Clear conversation',
+          icon: const Icon(Icons.delete_outline),
+          onPressed: () async {
+            final ok = await showDialog<bool>(
+              context: context,
+              builder: (c) => AlertDialog(
+                title: const Text('Clear the conversation?'),
+                content: const Text(
+                  'This removes the saved JARVIS conversation from this device.',
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(c, false),
+                    child: const Text('Cancel'),
                   ),
+                  FilledButton(
+                    onPressed: () => Navigator.pop(c, true),
+                    child: const Text('Clear'),
+                  ),
+                ],
+              ),
+            );
+            if (ok == true) await store.clear();
+          },
+        ),
+      ],
+    ),
+    body: ListenableBuilder(
+      listenable: store,
+      builder: (context, _) => store.entries.isEmpty
+          ? const Center(
+              child: Text(
+                'No conversation yet.',
+                style: TextStyle(color: Colors.white60),
+              ),
+            )
+          : ListView.builder(
+              key: const ValueKey('v3-history-list'),
+              padding: const EdgeInsets.all(14),
+              itemCount: store.entries.length,
+              itemBuilder: (c, i) {
+                final e = store.entries[i];
+                return NeonMessageBubble(
+                  role: e.role,
+                  text: e.text,
+                  kind: e.kind,
+                  settings: settings,
                 );
-                if (ok == true) await store.clear();
               },
             ),
-          ],
-        ),
-        body: ListenableBuilder(
-          listenable: store,
-          builder: (context, _) => store.entries.isEmpty
-              ? const Center(
-                  child: Text('No conversation yet.', style: TextStyle(color: Colors.white60)))
-              : ListView.builder(
-                  key: const ValueKey('v3-history-list'),
-                  padding: const EdgeInsets.all(14),
-                  itemCount: store.entries.length,
-                  itemBuilder: (c, i) {
-                    final e = store.entries[i];
-                    return NeonMessageBubble(
-                        role: e.role, text: e.text, kind: e.kind, settings: settings);
-                  },
-                ),
-        ),
-      );
+    ),
+  );
 }

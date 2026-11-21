@@ -8,6 +8,7 @@ import 'package:flutter/services.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 
 import 'assistant_activity.dart';
+import 'chat_interface_settings.dart';
 
 /// Local, silent WebGL scene. Its bridge can report status or request a mic tap;
 /// it cannot execute scripts, navigate, read files or invoke Android actions.
@@ -110,6 +111,7 @@ class HolographicStageState extends State<HolographicStage>
     if (!_ready || !mounted) return;
     final payload = jsonEncode({
       'state': widget.activity.value.name,
+      'quality': ChatInterfaceSettings.instance.quality,
       'theme': widget.theme,
       'level': widget.soundLevel(),
       'intro': widget.playIntro,

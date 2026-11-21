@@ -21,6 +21,8 @@ class ChatInterfaceSettings extends ChangeNotifier {
   static const _kIntroSound = 'v3_intro_sound';
   static const _kReduce = 'v3_reduce_motion';
 
+  static const qualities = ['ultra', 'high', 'balanced', 'battery'];
+  String quality = 'balanced';
   bool autoHide = true;
   int delaySeconds = 8;
   double glow = 0.6; // 0..1
@@ -38,6 +40,8 @@ class ChatInterfaceSettings extends ChangeNotifier {
 
   Future<void> load() async {
     final p = await SharedPreferences.getInstance();
+    final q = p.getString('v3_render_quality');
+    quality = qualities.contains(q) ? q! : 'balanced';
     autoHide = p.getBool(_kAutoHide) ?? true;
     final d = p.getInt(_kDelay) ?? 8;
     delaySeconds = delays.contains(d) ? d : 8;
@@ -54,6 +58,7 @@ class ChatInterfaceSettings extends ChangeNotifier {
   }
 
   Future<void> update({
+    String? quality,
     bool? autoHide,
     int? delaySeconds,
     double? glow,
@@ -65,8 +70,10 @@ class ChatInterfaceSettings extends ChangeNotifier {
     bool? introSound,
     bool? reduceMotion,
   }) async {
+    if (quality != null && qualities.contains(quality)) this.quality = quality;
     if (autoHide != null) this.autoHide = autoHide;
-    if (delaySeconds != null && delays.contains(delaySeconds)) this.delaySeconds = delaySeconds;
+    if (delaySeconds != null && delays.contains(delaySeconds))
+      this.delaySeconds = delaySeconds;
     if (glow != null) this.glow = glow.clamp(0.0, 1.0);
     if (fontScale != null) this.fontScale = fontScale.clamp(0.85, 1.4);
     if (opacity != null) this.opacity = opacity.clamp(0.2, 0.9);
@@ -77,6 +84,7 @@ class ChatInterfaceSettings extends ChangeNotifier {
     if (reduceMotion != null) this.reduceMotion = reduceMotion;
     notifyListeners();
     final p = await SharedPreferences.getInstance();
+    await p.setString('v3_render_quality', this.quality);
     await p.setBool(_kAutoHide, this.autoHide);
     await p.setInt(_kDelay, this.delaySeconds);
     await p.setDouble(_kGlow, this.glow);
@@ -91,6 +99,7 @@ class ChatInterfaceSettings extends ChangeNotifier {
 
   @visibleForTesting
   void resetForTest() {
+    quality = 'balanced';
     autoHide = true;
     delaySeconds = 8;
     glow = 0.6;

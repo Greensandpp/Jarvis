@@ -104,6 +104,7 @@ void main() {
       expect(ta.reason, contains('gender not reported'));
       expect(chooseVoice(voices, 'en-IN', preferFemale: false).voice!.gender, VoiceGender.male);
       expect(chooseVoice(voices, 'ta-IN', pinned: 'ta-in-x-tad-network').reason, 'chosen by you');
+      expect(chooseVoice(voices, 'ta-IN', pinned: 'en-in-x-ahp#female_2-local').voice!.locale, 'ta-in', reason: 'a stale English pin cannot override Tamil');
       final none = chooseVoice(voices, 'hi-IN');
       expect(none.voice, isNull);
       expect(none.reason, contains('engine default'));

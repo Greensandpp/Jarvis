@@ -1,7 +1,7 @@
 name: JARVIS holographic private development
 on:
   push:
-    branches: [fix/jarvis-holographic-home-20261121, fix/jarvis-hologram-voice-safety-20261121]
+    branches: [fix/jarvis-detailed-guardian-20261121]
   workflow_dispatch:
 permissions:
   contents: read
@@ -28,6 +28,11 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
+      - name: Verify reproducible offline scene bundle
+        run: |
+          npm install --no-save --prefix /tmp/jarvis-bundle esbuild@0.27.0
+          ESBUILD=/tmp/jarvis-bundle/node_modules/.bin/esbuild bash scripts/build_hologram_bundle.sh
+          git diff --exit-code -- assets/hologram/scene.bundle.js
       - run: flutter pub get --enforce-lockfile
       - name: Analyze and regression tests
         shell: bash
@@ -58,6 +63,8 @@ jobs:
             n=$(basename "$apk" .apk)
             "$TOOLS/apksigner" verify --print-certs "$apk" > "evidence/apk/$n-signature.txt"
             "$TOOLS/aapt" dump badging "$apk" > "evidence/apk/$n-badging.txt"
+            python3 scripts/check_apk_elf_16kb.py "$apk" "evidence/apk/$n-16kb.json" > "evidence/apk/$n-16kb.txt"
+            "$TOOLS/zipalign" -c -P 16 -v 4 "$apk" > "evidence/apk/$n-zipalign.txt"
             "$TOOLS/aapt" dump permissions "$apk" > "evidence/apk/$n-permissions.txt"
           done
           ! grep -E 'QUERY_ALL_PACKAGES|REQUEST_INSTALL_PACKAGES|MANAGE_EXTERNAL_STORAGE|WRITE_CONTACTS|shizuku' evidence/apk/*permissions.txt

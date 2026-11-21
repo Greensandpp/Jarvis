@@ -372,6 +372,10 @@ class VoiceService {
       await _tts.setLanguage(languageTag);
       final used = await _applyLocalVoice(languageTag, female: female);
       if (ticket.cancelled) return;
+      if (used == null) {
+        lastVoiceUsed = '$languageTag offline voice unavailable — text only';
+        return;
+      }
       lastVoiceUsed = 'local $languageTag · $used';
       await _tts.speak(clean);
     });
@@ -422,10 +426,11 @@ class VoiceService {
 
   /// Applies the chosen local voice for [languageTag] (offline fallback:
   /// the engine default for that language when nothing better exists).
-  Future<String> _applyLocalVoice(String languageTag, {required bool female}) async {
+  Future<String?> _applyLocalVoice(String languageTag, {required bool female}) async {
     final s = SettingsService.instance;
     final all = await installedVoices();
-    final c = chooseVoice(all, languageTag, preferFemale: female, pinned: s.ttsVoicePinned(languageTag));
+    final eligible = s.allowCloudTts ? all : all.where((v) => !v.networkRequired).toList();
+    final c = chooseVoice(eligible, languageTag, preferFemale: female, pinned: s.ttsVoicePinned(languageTag));
     final v = c.voice;
     if (v != null) {
       try {
@@ -435,7 +440,8 @@ class VoiceService {
         // Fall through to the engine default for the language.
       }
     }
-    return 'default $languageTag';
+    // An engine default can silently choose a network voice. Fail to text.
+    return null;
   }
 
   /// Honest microphone / TTS status for Settings → Diagnostics.

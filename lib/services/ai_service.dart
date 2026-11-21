@@ -1473,6 +1473,7 @@ The user is viewing an article or screen on their device and requested an execut
     }
 
     http.Response res;
+    String verifiedModel = settings.model;
     try {
       if (_isLocalBackend) {
         res = await withRetry(() => send(settings.model));
@@ -1503,9 +1504,9 @@ The user is viewing an article or screen on their device and requested an execut
         if (r.model != settings.model && r.selectedUnavailable) {
           await settings.setModel(r.model);
         }
-        await settings.recordAiSuccess(r.model);
+        verifiedModel = r.model;
       }
-      if (_isLocalBackend) await settings.recordAiSuccess(settings.model);
+
     } catch (e) {
       final f = AiFailure.fromException(e);
       await settings.recordAiFailure(f.kind.name);
@@ -1531,6 +1532,7 @@ The user is viewing an article or screen on their device and requested an execut
             .join();
       }
       if (text.trim().isNotEmpty || calls != null) {
+        await settings.recordAiSuccess(verifiedModel);
         return {'role': 'assistant', 'content': text, if (calls != null) 'tool_calls': calls};
       }
       // Reasoning models can spend the entire completion budget on hidden
@@ -1543,9 +1545,11 @@ The user is viewing an article or screen on their device and requested an execut
       }
       throw const AiException('Empty assistant message in response.');
     } on AiException {
+      await settings.recordAiFailure('parse');
       rethrow;
     } catch (e) {
-      throw AiException('Failed to parse response: $e');
+      await settings.recordAiFailure('parse');
+      throw const AiException('Failed to parse AI response.');
     }
   }
 }

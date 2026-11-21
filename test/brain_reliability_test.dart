@@ -144,7 +144,7 @@ void main() {
       AiService.instance.debugClient = MockClient((r) async => throw const SocketException('Failed host lookup: generativelanguage.googleapis.com'));
       await expectLater(AiService.instance.chat(message: 'hi'),
           throwsA(isA<AiException>().having((e) => e.kind, 'kind', AiFailureKind.dns)));
-      expect(SettingsService.instance.aiStatusLabel, 'AI ERROR · DNS');
+      expect(SettingsService.instance.aiStatusLabel, 'OFFLINE');
     });
 
     test('invalid key (Google 400) surfaces as auth, not network', () async {

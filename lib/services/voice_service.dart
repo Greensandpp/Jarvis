@@ -502,8 +502,9 @@ class VoiceService {
     final v = c.voice;
     if (v != null) {
       try {
-        await _tts.setVoice(v.toFlutterTts());
-        return v.name;
+        final applied = await _tts.setVoice(v.toFlutterTts());
+        if (applied == 1 || applied == true) return v.name;
+        return null;
       } catch (_) {
         // Fall through to the engine default for the language.
       }

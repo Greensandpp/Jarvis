@@ -91,6 +91,9 @@ class HolographicStageState extends State<HolographicStage>
                   widget.onTap();
                 case 'introFinished':
                   widget.onIntroFinished();
+                case 'metrics':
+                  if (kDebugMode)
+                    debugPrint('HOLOGRAM_RENDERER_METRICS ${m.message}');
                 case 'error':
                   setState(() => _error = '${v['message']}');
               }

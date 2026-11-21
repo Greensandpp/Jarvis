@@ -11,7 +11,9 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   final pending = <Completer<dynamic>>[];
   final calls = <String>[];
+  var acceptVoice = true;
   setUp(() async {
+    acceptVoice = true;
     SharedPreferences.setMockInitialValues({});
     await SettingsService.instance.init();
     final messenger =
@@ -37,6 +39,10 @@ void main() {
             'network_required': '0',
           },
         ];
+      if (call.method == 'setVoice')
+        return acceptVoice && (call.arguments as Map)['locale'] == 'en-IN'
+            ? 1
+            : 0;
       if (call.method == 'isLanguageAvailable') return true;
       if (call.method == 'speak') {
         final c = Completer<dynamic>();
@@ -87,6 +93,12 @@ void main() {
       );
     },
   );
+  test('a rejected voice cannot silently use the engine default', () async {
+    acceptVoice = false;
+    await VoiceService.instance.speak('requested female voice');
+    expect(calls.where((v) => v == 'speak'), isEmpty);
+    expect(VoiceService.instance.lastVoiceUsed, contains('text only'));
+  });
   test('denied focus cannot start TTS playback', () async {
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(

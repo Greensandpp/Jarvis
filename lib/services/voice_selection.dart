@@ -13,21 +13,22 @@ class TtsVoice {
     this.gender = VoiceGender.unknown,
     this.networkRequired = false,
     this.quality,
+    this.engineLocale,
   });
 
   final String name;
   final String locale; // normalised, lower-case, dash separated (ta-in)
   final VoiceGender gender;
   final bool networkRequired;
+  final String?
+  engineLocale; // Exact engine identifier; matching alone is normalised.
   final int? quality; // Android Voice quality (100..500) when reported
 
   static TtsVoice? fromMap(Object? raw) {
     if (raw is! Map) return null;
     final name = '${raw['name'] ?? ''}'.trim();
-    final locale = '${raw['locale'] ?? ''}'.trim().toLowerCase().replaceAll(
-      '_',
-      '-',
-    );
+    final nativeLocale = '${raw['locale'] ?? ''}'.trim().replaceAll('_', '-');
+    final locale = nativeLocale.toLowerCase();
     if (name.isEmpty || locale.isEmpty) return null;
     final lname = name.toLowerCase();
     final g = '${raw['gender'] ?? ''}'.toLowerCase();
@@ -51,10 +52,24 @@ class TtsVoice {
       gender: gender,
       networkRequired: networkRequired,
       quality: q,
+      engineLocale: nativeLocale,
     );
   }
 
-  Map<String, String> toFlutterTts() => {'name': name, 'locale': locale};
+  Map<String, String> toFlutterTts() {
+    final parts = locale.replaceAll('_', '-').split('-');
+    final canonical = [
+      for (var i = 0; i < parts.length; i++)
+        i == 0
+            ? parts[i].toLowerCase()
+            : parts[i].length == 2
+            ? parts[i].toUpperCase()
+            : parts[i].length == 4
+            ? '${parts[i][0].toUpperCase()}${parts[i].substring(1).toLowerCase()}'
+            : parts[i],
+    ].join('-');
+    return {'name': name, 'locale': engineLocale ?? canonical};
+  }
 
   @override
   String toString() =>

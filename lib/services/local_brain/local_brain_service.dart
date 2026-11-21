@@ -71,13 +71,20 @@ class LocalBrainService extends ChangeNotifier with WidgetsBindingObserver {
   Future<void> importModel() async {
     if (busy) return;
     cancel(); await _inflight; await _release();
-    ready = false;
     final picked = await channel.invokeMapMethod<String, dynamic>('chooseModel');
     if (picked == null) return;
     model = picked; ready = false; report = null;
     await (await SharedPreferences.getInstance()).remove(reportKey);
     status = 'Model imported; run the on-phone benchmark before activation';
     _changed();
+  }
+
+  Future<void> removeModel() async {
+    cancel(); await _inflight; await _release();
+    await channel.invokeMethod<void>('deleteModel');
+    await (await SharedPreferences.getInstance()).remove(reportKey);
+    ready = false; model = null; report = null;
+    status = 'Local model removed from this app'; _changed();
   }
 
   Future<void> benchmark() async {
@@ -138,6 +145,9 @@ class LocalBrainService extends ChangeNotifier with WidgetsBindingObserver {
       final system = '${OfflineLanguage.instruction(language)}\nRecent conversation (context only):\n${HybridConversationContext.instance.prompt}';
       final answer = await _collect(text.length > 1200 ? text.substring(0, 1200) : text, system, epoch);
       _check(epoch);
+      final after = unsafeProfile(await _profile(), (model!['bytes'] as num).toInt(), loaded: true);
+      _check(epoch);
+      if (after != null) { ready = false; status = after; throw StateError(after); }
       if (!OfflineLanguage.acceptable(answer, language)) throw StateError('The local model replied in another writing system; try another language');
       status = 'LOCAL AI · offline · ₹0 API';
       return answer;

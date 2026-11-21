@@ -63,4 +63,16 @@ void main() {
     await expectLater(work, throwsA(isA<LocalBrainInterrupted>()));
     expect(engine.cancels, greaterThan(0)); s.dispose();
   });
+  test('warming during generation revokes readiness and suppresses the answer', () async {
+    final engine = FakePhoneModel(); final telemetry = profile();
+    final s = service(engine, telemetry: telemetry); await s.benchmark();
+    engine.pending = Completer<void>();
+    final work = s.reply('a pending reply', 'en-IN');
+    await Future<void>.delayed(Duration.zero);
+    telemetry['thermalStatus'] = 3;
+    engine.pending!.complete();
+    await expectLater(work, throwsStateError);
+    expect(s.ready, isFalse); expect(s.status, contains('warm'));
+    expect(engine.releases, 1); s.dispose();
+  });
 }

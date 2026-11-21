@@ -48,6 +48,9 @@ class _LocalBrainScreenState extends State<LocalBrainScreen> {
       const SizedBox(height: 8),
       OutlinedButton.icon(onPressed: _acting || brain.busy || brain.model == null ? null : () => _run(brain.benchmark),
         icon: const Icon(Icons.speed), label: const Text('Test this model on my phone')),
+      if (brain.model != null) TextButton.icon(
+        onPressed: _acting || brain.busy ? null : () => _run(brain.removeModel),
+        icon: const Icon(Icons.delete_outline), label: const Text('Remove imported model from JARVIS')),
       if (_acting || brain.busy) ...[
         const SizedBox(height: 12), const LinearProgressIndicator(),
         TextButton(onPressed: brain.cancel, child: const Text('Cancel model test')),

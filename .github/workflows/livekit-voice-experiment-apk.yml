@@ -6,6 +6,8 @@ on:
       - experiment/livekit-voice-butler-20261121
     paths:
       - 'experiments/livekit_voice_butler/flutter/**'
+      - 'experiments/livekit_voice_butler/encrypt_apk.py'
+      - 'experiments/livekit_voice_butler/delivery_public.pem'
       - '.github/workflows/livekit-voice-experiment-apk.yml'
   workflow_dispatch:
 
@@ -66,5 +68,17 @@ jobs:
         run: |
           test -s build/app/outputs/flutter-apk/app-debug.apk
           ls -lh build/app/outputs/flutter-apk/app-debug.apk
-      # The repository is public. Deliberately DO NOT upload an APK artifact.
-      # Once the build passes, a private distribution method is required.
+      - name: Encrypt APK with ChatGPT-held public-key delivery identity
+        run: |
+          python3 -m pip install --quiet 'cryptography>=43,<47'
+          python3 ../encrypt_apk.py ../delivery_public.pem build/app/outputs/flutter-apk/app-debug.apk /tmp/greensoil-voice-lab.apk.enc
+          test -s /tmp/greensoil-voice-lab.apk.enc
+      - name: Upload ONLY encrypted APK blob (never publish plaintext)
+        uses: actions/upload-artifact@v4
+        with:
+          name: greensoil-voice-lab-encrypted
+          path: /tmp/greensoil-voice-lab.apk.enc
+          retention-days: 1
+          if-no-files-found: error
+      # Public repo can expose artifact bytes. These are AES-GCM encrypted;
+      # the private decryption key NEVER enters GitHub or its action runner.

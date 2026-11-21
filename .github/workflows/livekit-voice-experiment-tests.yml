@@ -1,0 +1,48 @@
+name: LiveKit voice experiment tests
+
+on:
+  push:
+    branches:
+      - experiment/livekit-voice-butler-20261121
+    paths:
+      - 'experiments/livekit_voice_butler/**'
+      - '.github/workflows/livekit-voice-experiment-tests.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: livekit-experiment-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  python-state-gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Run isolated Python gate tests
+        run: python -m unittest discover -s experiments/livekit_voice_butler -p 'test_*.py' -v
+
+  flutter-voice-gates:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    defaults:
+      run:
+        working-directory: experiments/livekit_voice_butler/flutter
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - name: Resolve experimental package dependencies
+        run: flutter pub get
+      - name: Static analysis of experiment
+        run: flutter analyze
+      - name: Run all experimental Flutter regression tests
+        run: flutter test --reporter expanded

@@ -33,7 +33,7 @@ jobs:
           npm install --no-save --prefix /tmp/jarvis-bundle esbuild@0.27.0
           ESBUILD=/tmp/jarvis-bundle/node_modules/.bin/esbuild bash scripts/build_hologram_bundle.sh
           git diff --exit-code -- assets/hologram/scene.bundle.js
-      - run: flutter pub get
+      - run: flutter pub get --enforce-lockfile
       - run: mkdir -p evidence && cp pubspec.lock evidence/pubspec.lock
       - name: Analyze and regression tests
         shell: bash

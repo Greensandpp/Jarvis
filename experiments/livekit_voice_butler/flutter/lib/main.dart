@@ -2,8 +2,6 @@
 // Flutter 3.47 deprecates material.dart while older stable supports it.
 import 'dart:async';
 
-// ignore: deprecated_member_use -- Flutter 3.47 deprecates material.dart;
-// retain compatibility with older Flutter SDKs until material_ui stabilizes.
 import 'package:flutter/material.dart';
 import 'package:livekit_client/livekit_client.dart' as livekit;
 import 'package:permission_handler/permission_handler.dart';

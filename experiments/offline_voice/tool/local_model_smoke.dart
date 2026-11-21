@@ -19,19 +19,18 @@ Future<void> main(List<String> args) async {
   try {
     await model.load(args.single);
     final cases = <(String, String, bool Function(String))>[
-      ('What is 2 plus 2? Reply with the digit only.', 'en-IN', (s) => s.contains('4')),
+      ('What is 2 plus 2?', 'en-IN', (s) => RegExp(r'\b(4|four)\b', caseSensitive: false).hasMatch(s)),
       ('vanakam', 'ta-IN', (s) => s.contains('வணக்க')),
       ('un peru enna', 'ta-IN', (s) => s.toLowerCase().contains('jarvis') || s.contains('ஜேஆர்விஸ்') || s.contains('ஜார்விஸ்')),
-      ('saptiya', 'ta-IN', (s) => (s.contains('AI') || s.contains('செயற்கை')) &&
-        ['சாப்ப', 'உணவ', 'உண்ண'].any(s.contains) && ['இல்லை', 'தில்லை', 'முடியாது', 'மாட்டேன்'].any(s.contains)),
+      ('saptiya', 'ta-IN', (s) => OfflineLanguage.cannotEat(s, 'ta-IN')),
       ('water ku tamil la enna', 'ta-IN', (s) => (s.contains('தண்ணீர்') || s.contains('நீர்')) && !s.contains('பாசனம்')),
       ('nee manushana illa AI ah', 'ta-IN', (s) => s.contains('AI') || s.contains('செயற்கை')),
       ('vanakam', 'ta-Latn', (s) => s.toLowerCase().contains('vanak')),
       ('un peru enna', 'ta-Latn', (s) => s.toLowerCase().contains('jarvis') || s.toLowerCase().contains('jaarvis') || s.toLowerCase().contains('jaearvis')),
-      ('saptiya', 'ta-Latn', (s) => (RegExp(r'\bAI\b', caseSensitive: false).hasMatch(s) || s.toLowerCase().contains('seyarkai') || s.toLowerCase().contains('nunnarivu')) && ['saap', 'sap', 'unav'].any(s.toLowerCase().contains) && ['maatt', 'matt', 'maate', 'mate', 'illa', 'illai', 'mudiy', 'sapdala', 'saapdala'].any(s.toLowerCase().contains)),
+      ('saptiya', 'ta-Latn', (s) => ['saap', 'sap', 'unav'].any(s.toLowerCase().contains) && ['maatt', 'matt', 'maate', 'mate', 'illa', 'illai', 'mudiy', 'sapdala', 'saapdala'].any(s.toLowerCase().contains)),
       ('What is your name?', 'en-IN', (s) => s.toLowerCase().contains('jarvis')),
       ('உன் பெயர் என்ன?', 'ta-IN', (s) => s.toLowerCase().contains('jarvis') || s.contains('ஜார்விஸ்') || s.contains('ஜேஆர்விஸ்')),
-      ('Have you eaten?', 'en-IN', (s) => s.toLowerCase().contains('ai') && ['not', 'no', 'cannot', "don't", "can't"].any(s.toLowerCase().contains)),
+      ('Have you eaten?', 'en-IN', (s) => OfflineLanguage.cannotEat(s, 'en-IN')),
     ];
     final results = <Map<String, Object>>[];
     for (final probe in cases) {

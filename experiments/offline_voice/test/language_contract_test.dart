@@ -15,4 +15,14 @@ void main() {
     expect(OfflineLanguage.acceptable('हेलो', 'en-IN'), isFalse);
     expect(OfflineLanguage.speechLocale('ta-Latn'), 'ta-IN');
   });
+  test('food capability accepts honest paraphrases and rejects unrelated/invented answers', () {
+    expect(OfflineLanguage.cannotEat('No, I cannot eat food.', 'en-IN'), isTrue);
+    expect(OfflineLanguage.cannotEat("I don't eat food.", 'en-IN'), isTrue);
+    expect(OfflineLanguage.cannotEat('I ate food.', 'en-IN'), isFalse);
+    expect(OfflineLanguage.cannotEat('I do not know.', 'en-IN'), isFalse);
+    expect(OfflineLanguage.cannotEat('எனக்குச் சாப்பிட முடியாது.', 'ta-IN'), isTrue);
+    expect(OfflineLanguage.cannotEat('எனக்குச் சாப்பிட வேண்டியதில்லை.', 'ta-IN'), isTrue);
+    expect(OfflineLanguage.cannotEat('நான் சாப்பிட்டேன்.', 'ta-IN'), isFalse);
+    expect(OfflineLanguage.cannotEat('என் பெயர் JARVIS.', 'ta-IN'), isFalse);
+  });
 }

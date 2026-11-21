@@ -26,6 +26,16 @@ class OfflineLanguage {
     return '$text\n\n$format';
   }
 
+  /// Narrow known AI self-capability check, not a general truth checker.
+  static bool cannotEat(String text, String selected) {
+    if (selected == 'ta-IN') {
+      return ['சாப்ப', 'உணவ', 'உண்ண'].any(text.contains) &&
+        ['இல்லை', 'தில்லை', 'முடியாது', 'மாட்டேன்'].any(text.contains);
+    }
+    final lower = text.toLowerCase().replaceAll('’', "'");
+    return RegExp(r"\b(cannot|can't|do not|don't|unable to|not able to|never)\s+(physically\s+)?(eat|consume)\b").hasMatch(lower);
+  }
+
   /// Reject a wrong writing system before it can reach the speech engine.
   /// This does not establish semantic accuracy or translation quality.
   static bool acceptable(String text, String selected) {

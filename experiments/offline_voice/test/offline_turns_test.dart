@@ -77,7 +77,15 @@ void main() {
     final turns = OfflineTurns(model, stopAudio: () async {},
       speak: (text, language) async { spoken.add('$language:$text'); }, changed: (_, text) => shown.add(text));
     final run = turns.ask('saptiya', 'ta-Latn', voice: true); await tick();
-    model.streams.single.add('நான் AI'); await model.streams.single.close(); await run;
-    expect(shown.last, 'naan AI'); expect(spoken, ['ta-IN:நான் AI']);
+    model.streams.single.add('நான் AI, சாப்பிட முடியாது.'); await model.streams.single.close(); await run;
+    expect(shown.last, 'naan AI, saappida mudiyaathu.'); expect(spoken, ['ta-IN:நான் AI, சாப்பிட முடியாது.']);
+  });
+  test('an invented eating claim is withheld even in the correct writing system', () async {
+    final model = FakeModel(); final spoken = <String>[]; final statuses = <String>[];
+    final turns = OfflineTurns(model, stopAudio: () async {},
+      speak: (text, _) async { spoken.add(text); }, changed: (s, _) => statuses.add(s));
+    final run = turns.ask('saptiya', 'ta-IN', voice: true); await tick();
+    model.streams.single.add('நான் சாப்பிட்டேன்.'); await model.streams.single.close(); await run;
+    expect(spoken, isEmpty); expect(statuses.last, contains('reply withheld'));
   });
 }

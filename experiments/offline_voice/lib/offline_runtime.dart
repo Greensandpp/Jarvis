@@ -95,6 +95,10 @@ class OfflineTurns {
       changed('Model returned another writing system; reply withheld. Try English or Tamil script.', '');
       return;
     }
+    if (normalizeCommonTanglish(text) == 'As an AI assistant, can you eat food?' &&
+        !OfflineLanguage.cannotEat(output, language == 'ta-Latn' ? 'ta-IN' : language)) {
+      changed('Model could not answer this AI capability honestly; reply withheld', ''); return;
+    }
     final display = language == 'ta-Latn' ? romanTamil(output) : output;
     if (!OfflineLanguage.acceptable(display, language)) {
       changed('Roman Tamil formatting unavailable; reply withheld', ''); return;

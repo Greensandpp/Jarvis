@@ -24,3 +24,14 @@ flutter test experiments/livekit_voice_butler/flutter/test/voice_session_gate_te
 ```
 
 These tests only verify pure state-gate logic, NOT real playback stop acknowledgments, LiveKit compatibility, or Android device behavior. No existing Flutter dependencies, package settings, Android code or CI files were modified.
+
+## Phase 3: asynchronous coordination
+
+`lib/voice_session_coordinator.dart` introduces a serialized lifecycle coordinator with an injectable `VoiceTransport` bridge. The bridge must wire real SDK functions for (1) Gemini response cancellation, (2) LiveKit remote audio stop, and (3) Android local TTS stop. No LiveKit SDK was installed or connected here.
+
+- Repeated interrupts invalidate old generations immediately; only latest request may enter listening.
+- Any stop failure blocks new listening (fail closed).
+- Disconnect and app shutdown invalidate callbacks without waiting for transport calls.
+- Explicitly test real stop acknowledgments on an iQOO 13 before integrating.
+- `test/voice_session_coordinator_test.dart` adds six async regression scenarios.
+- All tests remain UNVERIFIED until Flutter SDK execution succeeds.

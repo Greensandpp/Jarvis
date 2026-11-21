@@ -27,18 +27,25 @@ export function buildSnake() {
  const material=new THREE.MeshStandardMaterial({color:0x15876c,emissive:0x06533e,emissiveIntensity:.7,metalness:.7,roughness:.26,side:THREE.DoubleSide});
  const mesh=new THREE.SkinnedMesh(geo,material);mesh.add(bones[0]);mesh.bind(new THREE.Skeleton(bones));mesh.frustumCulled=false;
  const head=new THREE.Group();bones[count-1].add(head);
- const eyeMaterial=new THREE.MeshStandardMaterial({color:0xffe5a0,emissive:0xffb32d,emissiveIntensity:3});
+ const eyeMaterial=new THREE.MeshStandardMaterial({color:0xffca51,emissive:0xffa31c,emissiveIntensity:1.4});
+ const pupilMaterial=new THREE.MeshBasicMaterial({color:0x03130d});
  const detail=(parent,scale,pos,mat=material)=>{const m=new THREE.Mesh(new THREE.SphereGeometry(1,18,12),mat);m.scale.set(...scale);m.position.set(...pos);parent.add(m);return m;};
- detail(head,[.135,.185,.09],[0,.075,.005]);detail(head,[.10,.14,.067],[0,.19,.033]);detail(head,[.19,.16,.035],[0,-.055,-.035]);
+ // Horizontal cranial wedge and forward snout, with a separate lower jaw.
+ // The spread hood stays behind the neck instead of forming stacked bulbs.
+ detail(head,[.118,.085,.16],[0,.10,.10]);detail(head,[.088,.052,.12],[0,.075,.24]);
+ detail(head,[.19,.205,.032],[0,-.07,-.035]);
  for(const sign of [-1,1]){
-  detail(head,[.035,.05,.038],[sign*.102,.16,.06]);detail(head,[.023,.028,.017],[sign*.119,.18,.083],eyeMaterial);detail(head,[.028,.055,.027],[sign*.095,.22,.071]);
-  for(let i=0;i<5;i++)detail(head,[.022,.038,.012],[sign*(.15-i*.014),-.12+i*.045,-.001]);
+  detail(head,[.039,.025,.065],[sign*.082,.146,.147]);
+  detail(head,[.024,.018,.014],[sign*.101,.135,.189],eyeMaterial);
+  detail(head,[.004,.016,.008],[sign*.102,.135,.201],pupilMaterial);
+  detail(head,[.008,.006,.01],[sign*.049,.09,.343],pupilMaterial);
+  for(let i=0;i<5;i++)detail(head,[.018,.034,.01],[sign*(.15-i*.014),-.18+i*.05,.005]);
  }
- const jaw=new THREE.Group();jaw.position.set(0,.09,.045);head.add(jaw);detail(jaw,[.085,.14,.025],[0,.075,.025]);
+ const jaw=new THREE.Group();jaw.position.set(0,.06,.10);head.add(jaw);detail(jaw,[.084,.025,.125],[0,-.028,.13]);
  const fangMaterial=new THREE.MeshStandardMaterial({color:0xe4f6e9,roughness:.22});
- for(const sign of [-1,1]){const fang=new THREE.Mesh(new THREE.ConeGeometry(.012,.07,8),fangMaterial);fang.rotation.x=Math.PI/2;fang.position.set(sign*.054,.19,.067);head.add(fang);}
- const tongue=new THREE.Mesh(new THREE.CapsuleGeometry(.005,.11,3,6),eyeMaterial);tongue.position.set(0,.25,.065);jaw.add(tongue);
- return {mesh,bones,head,jaw,material,step};
+ for(const sign of [-1,1]){const fang=new THREE.Mesh(new THREE.ConeGeometry(.009,.06,8),fangMaterial);fang.rotation.z=Math.PI;fang.position.set(sign*.045,.035,.23);head.add(fang);}
+ const tongue=new THREE.Mesh(new THREE.CapsuleGeometry(.004,.12,3,6),eyeMaterial);tongue.rotation.x=Math.PI/2;tongue.position.set(0,-.037,.25);jaw.add(tongue);
+ return {mesh,bones,head,jaw,tongue,material,step};
 }
 export function animateRig(r,t,state='idle',level=0,intro=1,dt=1) {
  const blend=dt===1?1:1-Math.exp(-dt*9);
@@ -80,7 +87,7 @@ export function animateSnake(s,t,intro=1) {
   b.updateWorldMatrix(false,false);
  }
  s.material.transparent=intro<1;s.material.opacity=clamp((intro-.72)/.16,0,1);
- s.head.rotation.y=Math.sin(t*1.6)*.5;s.jaw.rotation.x=.15+(Math.sin(t*2)+1)*.23;
+ s.head.rotation.y=Math.sin(t*1.6)*.5;s.jaw.rotation.x=.15+(Math.sin(t*2)+1)*.23;s.tongue.scale.y=.35+(Math.sin(t*5)+1)*.325;
  s.mesh.visible=intro>.72 && Math.sin(t*.12)>-.93;s.mesh.updateMatrixWorld(true);
 }
 export function startScene() {

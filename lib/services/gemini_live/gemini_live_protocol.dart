@@ -46,7 +46,7 @@ String buildSetupMessage(LiveConfig c) {
         'responseModalities': ['AUDIO'],
         'speechConfig': {
           'voiceConfig': {'prebuiltVoiceConfig': {'voiceName': c.voice}},
-          'languageCode': c.languageCode,
+          if (!model.contains('native-audio')) 'languageCode': c.languageCode,
         },
       },
       if (c.systemInstruction != null)
@@ -107,6 +107,11 @@ class LiveGoAway extends LiveServerEvent {
   final String timeLeft;
 }
 
+class LiveProviderError extends LiveServerEvent {
+  const LiveProviderError(this.code);
+  final int code;
+}
+
 class LiveUnknown extends LiveServerEvent {
   const LiveUnknown();
 }
@@ -135,6 +140,8 @@ List<LiveServerEvent> parseServerFrame(Object frame) {
   if (decoded is! Map<String, dynamic>) return const [LiveUnknown()];
   final out = <LiveServerEvent>[];
   if (decoded.containsKey('setupComplete')) out.add(const LiveSetupComplete());
+  final error = decoded['error'];
+  if (error is Map) out.add(LiveProviderError(error['code'] is int ? error['code'] as int : 500));
   final sc = decoded['serverContent'];
   if (sc is Map<String, dynamic>) {
     if (sc['interrupted'] == true) out.add(const LiveInterrupted());

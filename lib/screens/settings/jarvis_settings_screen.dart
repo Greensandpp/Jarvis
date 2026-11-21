@@ -344,7 +344,7 @@ class _JarvisSettingsScreenState extends State<JarvisSettingsScreen> {
   // ---------------------------------------------------------------------------
   Widget _voiceCard(ThemeData theme) {
     final neuralVoiceOptions = [
-      ('en-GB-RyanNeural', 'Ryan (British Neural - Authentic Jarvis)', 'Paul Bettany style, warm, articulate & human'),
+      ('en-GB-RyanNeural', 'Ryan (British English)', 'Legacy Edge online voice; availability and free access are not guaranteed'),
       ('en-GB-ThomasNeural', 'Thomas (British Neural - Conversational)', 'Natural UK cadence and smooth phrasing'),
       ('en-US-GuyNeural', 'Guy (US Neural - Studio Male)', 'Polished, authoritative US broadcaster tone'),
       ('en-US-ChristopherNeural', 'Christopher (US Neural - Confident)', 'Direct, crisp and focused'),

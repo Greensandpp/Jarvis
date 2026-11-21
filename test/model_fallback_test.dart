@@ -23,6 +23,8 @@ const discovered = ['models/gemini-2.5-pro', 'models/gemini-2.5-flash-lite', 'mo
 Future<void> resetAi() async {
   final s = SettingsService.instance;
   await s.setProvider('gemini');
+  // A test double uses loopback; production remote inference remains blocked.
+  await s.setBaseUrl('http://127.0.0.1:11434/v1');
   await s.setApiKey('k-test');
   await s.setAllowCloudAi(true);
   await s.setModel('gemini-2.5-flash');

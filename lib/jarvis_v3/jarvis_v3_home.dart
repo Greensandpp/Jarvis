@@ -38,27 +38,31 @@ class JarvisV3Bindings {
     final v = VoiceService.instance;
     final e = TaskExecutor.instance;
     final s = SettingsService.instance;
+    final live = JarvisVisualModeHostState.sharedLive();
+    JarvisPhase voicePhase() => live.active
+        ? (live.modelSpeaking ? JarvisPhase.speaking : JarvisPhase.listening)
+        : j.phase;
     return JarvisV3Bindings(
-      source: Listenable.merge([j, v.listeningNotifier, v.isSpeaking, v.completedSpeech, e, s]),
+      source: Listenable.merge([j, v.listeningNotifier, v.isSpeaking, v.completedSpeech, e, s, live]),
       activitySignals: () => ActivitySignals(
-        phase: j.phase,
+        phase: voicePhase(),
         completedSerial: v.completedSpeech.value,
-        micCapturing: v.listeningNotifier.value,
+        micCapturing: live.active ? !live.muted : v.listeningNotifier.value,
         executorRunning: e.isBusy,
         chatBusy: e.isChatBusy,
         aiConfigured: s.apiKey.isNotEmpty || s.provider == 'ollama',
         errorStatus: j.statusMessage.startsWith('AI ERROR'),
       ),
       conversationSignals: () => ConversationSignals(
-        phase: j.phase,
-        userText: j.lastUserSpeech,
-        jarvisText: j.lastJarvisSpeech,
-        status: j.statusMessage,
+        phase: voicePhase(),
+        userText: live.active ? live.lastHeard : j.lastUserSpeech,
+        jarvisText: live.active ? live.lastSaid : j.lastJarvisSpeech,
+        status: live.active ? 'LIVE · FREE-ONLY · ₹0' : j.statusMessage,
         awaitingConfirmation: j.isAwaitingProactiveConfirmation,
       ),
-      soundLevel: () => j.soundLevel.clamp(0.0, 1.0),
-      toggleMic: j.toggleListening,
-      onCommand: onCommand,
+      soundLevel: () => live.active ? live.level : j.soundLevel.clamp(0.0, 1.0),
+      toggleMic: () async { await live.stop(); await j.toggleListening(); },
+      onCommand: (text) async { await live.stop(); onCommand(text); },
       aiVerified: () => s.aiVerified,
       aiErrorKind: () => s.aiLastErrorKind,
       standbyMic: () =>

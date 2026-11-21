@@ -1,5 +1,8 @@
 package com.privateagent.private_agent
 
+import android.app.ActivityManager
+import android.os.BatteryManager
+import android.os.PowerManager
 import android.Manifest
 import android.annotation.SuppressLint
 import android.content.BroadcastReceiver
@@ -28,6 +31,7 @@ import io.flutter.plugin.common.MethodChannel
 import java.util.concurrent.LinkedBlockingQueue
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicLong
 
 /**
  * Explicit, foreground-only audio I/O for the owner-opted-in Gemini Live
@@ -40,7 +44,7 @@ class LiveAudioBridge(private val context: Context, messenger: BinaryMessenger) 
         const val METHOD = "greensoil/live_audio"
         const val EVENTS = "greensoil/live_audio/events"
         const val IN_RATE = 16000
-        const val CHUNK_BYTES = 3200 // 100 ms of 16 kHz mono PCM16
+        const val CHUNK_BYTES = 1600 // 50 ms of 16 kHz mono PCM16
     }
 
     private val main = Handler(Looper.getMainLooper())
@@ -53,12 +57,18 @@ class LiveAudioBridge(private val context: Context, messenger: BinaryMessenger) 
     private var agc: AutomaticGainControl? = null
     private var captureThread: Thread? = null
     private val capturing = AtomicBoolean(false)
+    private val captureEpoch = AtomicLong(0)
 
     private var track: AudioTrack? = null
     private var trackRate = 0
-    private val playQueue = LinkedBlockingQueue<ByteArray>()
+    private data class Packet(val pcm: ByteArray, val epoch: Long)
+    private val playQueue = LinkedBlockingQueue<Packet>(64)
+    private val playbackEpoch = AtomicLong(0)
+    private val playbackLock = Any()
     private var playThread: Thread? = null
     private val playing = AtomicBoolean(false)
+    private val outputAudible = AtomicBoolean(false)
+    private var writtenFrames = 0L
 
     private var focusRequest: AudioFocusRequest? = null
     private var previousMode = AudioManager.MODE_NORMAL
@@ -99,6 +109,15 @@ class LiveAudioBridge(private val context: Context, messenger: BinaryMessenger) 
                         "ns" to NoiseSuppressor.isAvailable(),
                         "agc" to AutomaticGainControl.isAvailable(),
                         "sdk" to Build.VERSION.SDK_INT,
+                        "availableMemoryBytes" to ActivityManager.MemoryInfo().also {
+                            (context.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager).getMemoryInfo(it)
+                        }.availMem,
+                        "batteryPercent" to (context.getSystemService(Context.BATTERY_SERVICE) as BatteryManager)
+                            .getIntProperty(BatteryManager.BATTERY_PROPERTY_CAPACITY),
+                        "thermalStatus" to if (Build.VERSION.SDK_INT >= 29)
+                            (context.getSystemService(Context.POWER_SERVICE) as PowerManager).currentThermalStatus else -1,
+                        "localModel" to "Not selected: on-device latency, language, memory and thermal benchmark required",
+
                     ))
                     else -> result.notImplemented()
                 }
@@ -187,6 +206,7 @@ class LiveAudioBridge(private val context: Context, messenger: BinaryMessenger) 
         if (NoiseSuppressor.isAvailable()) ns = NoiseSuppressor.create(sid)?.apply { enabled = true }
         if (AutomaticGainControl.isAvailable()) agc = AutomaticGainControl.create(sid)?.apply { enabled = true }
         record = rec
+        val epoch = captureEpoch.incrementAndGet()
         capturing.set(true)
         rec.startRecording()
         captureThread = Thread({
@@ -198,9 +218,13 @@ class LiveAudioBridge(private val context: Context, messenger: BinaryMessenger) 
                     if (n <= 0) break
                     filled += n
                 }
+                if (filled == 0 && capturing.get()) {
+                    emit(mapOf("type" to "error", "value" to "capture_failed"))
+                    break
+                }
                 if (filled > 0 && capturing.get()) {
                     val chunk = buf.copyOf(filled)
-                    main.post { sink?.success(mapOf("type" to "mic", "pcm" to chunk)) }
+                    main.post { if (capturing.get() && epoch == captureEpoch.get()) sink?.success(mapOf("type" to "mic", "pcm" to chunk)) }
                 }
             }
         }, "GreenSoilLiveMic").also { it.start() }
@@ -210,10 +234,11 @@ class LiveAudioBridge(private val context: Context, messenger: BinaryMessenger) 
     }
 
     private fun stopCapture() {
+        captureEpoch.incrementAndGet()
         if (!capturing.getAndSet(false)) return
-        try { captureThread?.join(300) } catch (_: InterruptedException) {}
-        captureThread = null
         try { record?.stop() } catch (_: Exception) {}
+        try { captureThread?.join(500) } catch (_: InterruptedException) {}
+        captureThread = null
         record?.release()
         record = null
         aec?.release(); aec = null
@@ -245,26 +270,60 @@ class LiveAudioBridge(private val context: Context, messenger: BinaryMessenger) 
         playThread = Thread({
             while (playing.get()) {
                 val chunk = try { playQueue.poll(200, TimeUnit.MILLISECONDS) } catch (_: InterruptedException) { null }
-                if (chunk != null && playing.get()) t.write(chunk, 0, chunk.size)
+                if (chunk != null && playing.get()) {
+                    var offset = 0
+                    while (offset < chunk.pcm.size && playing.get() && chunk.epoch == playbackEpoch.get()) {
+                        val n = synchronized(playbackLock) {
+                            if (chunk.epoch != playbackEpoch.get()) -1 else
+                                t.write(chunk.pcm, offset, minOf(1920, chunk.pcm.size - offset), AudioTrack.WRITE_NON_BLOCKING).also { if (it > 0) writtenFrames += it / 2 }
+                        }
+                        if (n < 0) break
+                        if (n == 0) Thread.sleep(2) else offset += n
+                    }
+                }
+                synchronized(playbackLock) {
+                    val playedFrames = t.playbackHeadPosition.toLong() and 0xffffffffL
+                    if (playQueue.isEmpty() && playedFrames >= writtenFrames && outputAudible.getAndSet(false)) {
+                        emit(mapOf("type" to "playback", "value" to "drained"))
+                    }
+                }
             }
         }, "GreenSoilLivePlayback").also { it.start() }
     }
 
     private fun enqueue(bytes: ByteArray, rate: Int) {
         ensureTrack(rate)
-        if (playQueue.size < 400) playQueue.offer(bytes)
+        require(rate == 24000 || rate == 16000 || rate == 48000)
+        require(bytes.size % 2 == 0 && bytes.size <= rate * 2)
+        if (!outputAudible.getAndSet(true)) emit(mapOf("type" to "playback", "value" to "started"))
+        val epoch = playbackEpoch.get()
+        for (offset in bytes.indices step 1920) {
+            if (!playQueue.offer(Packet(bytes.copyOfRange(offset, minOf(offset + 1920, bytes.size)), epoch))) {
+                flushPlayback()
+                emit(mapOf("type" to "error", "value" to "playback_overflow"))
+                break
+            }
+        }
     }
 
     /** Barge-in: drop everything queued and buffered immediately. */
     private fun flushPlayback() {
-        playQueue.clear()
-        track?.let {
-            try { it.pause(); it.flush(); it.play() } catch (_: Exception) {}
+        synchronized(playbackLock) {
+            playbackEpoch.incrementAndGet()
+            writtenFrames = 0
+            outputAudible.set(false)
+            playQueue.clear()
+            track?.let {
+                try { it.pause(); it.flush(); it.play() } catch (_: Exception) {}
+            }
         }
     }
 
     private fun stopPlayback() {
         playing.set(false)
+        outputAudible.set(false)
+        writtenFrames = 0
+        playbackEpoch.incrementAndGet()
         playQueue.clear()
         try { playThread?.join(300) } catch (_: InterruptedException) {}
         playThread = null

@@ -1,3 +1,8 @@
+// Keep the animated serpent head inside narrow portrait viewports, including
+// the taller Android Full-control viewport. Geometry and owner camera orbit remain unchanged.
+export function portraitCameraDistance(distance, aspect) {
+ return distance * Math.max(1, .62 / Math.max(.1, aspect));
+}
 import * as THREE from './three.module.js';
 import {buildGuardian as buildRig} from './guardian.js';
 // Original detailed mesh: no image characters or remote assets.
@@ -157,7 +162,7 @@ export function startScene() {
   animateRig(rig,t,state,level,intro,dt);animateSnake(snake,t,intro);
   if(!reduced){points.rotation.y=t*.035;ring.rotation.z=t*.1;environments[theme].children.forEach((m,i)=>{m.rotation.y=t*(theme==='inferno'?2:.2)+i*.2;m.rotation.z=Math.sin(t*.4+i)*.3;});}
   if(now-lastInput>2800&&!pointers.size){yaw*=.97;pitch+=(.06-pitch)*.03;distance+=(6.7-distance)*.03;}
-  const d=distance*Math.max(1,.45/camera.aspect)+(1-intro)*2;camera.position.set(Math.sin(yaw)*d,2+pitch*d,Math.cos(yaw)*d);camera.lookAt(0,1.7,0);
+  const d=portraitCameraDistance(distance,camera.aspect)+(1-intro)*2;camera.position.set(Math.sin(yaw)*d,2+pitch*d,Math.cos(yaw)*d);camera.lookAt(0,1.7,0);
   const p=new THREE.Vector3();snake.head.getWorldPosition(p);if(!trailPrimed){for(let i=0;i<trailPos.length;i+=3)trailPos.set([p.x,p.y,p.z],i);trailPrimed=true;}if(!reduced){trailPos.copyWithin(3,0,trailPos.length-3);trailPos.set([p.x,p.y,p.z],0);trailGeo.attributes.position.needsUpdate=true;trailGeo.computeBoundingSphere();}trail.visible=snake.mesh.visible;
   renderer.info.reset();if(QUALITY[quality].bloom){renderer.setRenderTarget(target);renderer.render(scene,camera);renderer.setRenderTarget(null);renderer.render(postScene,postCamera);}else renderer.render(scene,camera);frames++;renderedFrames++;const stage=introStage(intro);if(stage!==lastIntroStage){lastIntroStage=stage;report({type:'introStage',stage,frame:renderedFrames});}if(now-windowStart>2000){fps=frames*1000/(now-windowStart);frames=0;windowStart=now;if(fps<32)renderer.setPixelRatio(1);report({type:'metrics',...window.jarvisScene.snapshot()});}
  }

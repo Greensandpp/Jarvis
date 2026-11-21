@@ -56,6 +56,7 @@ void main() {
     () async {
       SharedPreferences.setMockInitialValues({
         'ai_provider': 'gemini',
+        'ai_base_url': 'http://127.0.0.1:11434/v1',
         'ai_api_key': 'k-test',
         'ai_model': 'gemini-2.5-flash',
         'privacy_allow_cloud_ai': true,
@@ -78,6 +79,7 @@ void main() {
     () async {
       SharedPreferences.setMockInitialValues({
         'ai_provider': 'gemini',
+        'ai_base_url': 'http://127.0.0.1:11434/v1',
         'ai_api_key': 'k-test',
         'ai_model': 'gemini-2.5-flash',
         'privacy_allow_cloud_ai': true,

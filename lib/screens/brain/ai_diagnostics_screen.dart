@@ -24,6 +24,11 @@ class _AiDiagnosticsScreenState extends State<AiDiagnosticsScreen> {
   bool _running = false;
 
   Future<void> _run() async {
+    final blocked = AiService.instance.aiBlockedReason;
+    if (blocked != null) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(blocked)));
+      return;
+    }
     setState(() { _running = true; _report = null; });
     final client = widget.client ?? http.Client();
     final rep = await runDiagnostics(client: client, base: _s.baseUrl, key: _s.apiKey, model: _s.model);

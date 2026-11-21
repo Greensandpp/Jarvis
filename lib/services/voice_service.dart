@@ -25,6 +25,14 @@ class VoiceService {
       MethodChannel('com.privateagent/speech');
   final FlutterTts _tts = FlutterTts();
 
+  bool get liveOwnsAudio => output.externalSession;
+  Future<void> acquireLiveAudio() async {
+    output.externalSession = true;
+    await stopListening();
+    await stopSpeaking();
+  }
+  void releaseLiveAudio() { output.externalSession = false; }
+
   bool _speechReady = false;
   bool _ttsReady = false;
   bool _listening = false;
@@ -271,6 +279,7 @@ class VoiceService {
     bool continuous = true,
     bool manual = false,
   }) async {
+    if (output.externalSession) return false;
     final s = SettingsService.instance;
     final engine = engineFor(
       setting: s.speechEngine,
@@ -295,6 +304,7 @@ class VoiceService {
     try {
       final accepted = await _nativeSpeechChannel.invokeMethod<bool>('startListening', {
         'continuous': continuous,
+        'offlineOnly': true,
         'manual': manual,
         'locale': SettingsService.instance.speechInputLocale,
       });

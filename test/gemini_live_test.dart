@@ -5,6 +5,7 @@ import 'dart:typed_data';
 
 // ignore: deprecated_member_use
 import 'package:flutter/widgets.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
@@ -21,7 +22,7 @@ http.Client _broker({String token = 'auth_tokens/ephemeral-abc', String? exp, in
     MockClient((req) async {
       expect(req.url.scheme, 'https');
       expect(req.headers['Authorization'], startsWith('Bearer '));
-      return http.Response(jsonEncode({'token': token, 'expireTime': exp ?? _future}), status);
+      return http.Response(jsonEncode({'token': token, 'expireTime': exp ?? _future, 'billingEnabled': false, 'freeTier': true, 'estimatedCostInr': 0}), status);
     });
 
 class FakeSocket implements LiveSocket {
@@ -78,6 +79,17 @@ String _audioFrame(int rate) => jsonEncode({
     });
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+  var secureToken = '';
+  setUp(() {
+    secureToken = '';
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(LiveVoiceSettings.credentials, (call) async {
+      if (call.method == 'read') return secureToken.isEmpty ? null : secureToken;
+      if (call.method == 'write') secureToken = (call.arguments as Map)['token'] as String;
+      return null;
+    });
+  });
   group('protocol', () {
     test('setup requests audio, voice, language, transcription and barge-in', () {
       final j = jsonDecode(buildSetupMessage(const LiveConfig(model: 'gemini-x', voice: 'Kore',
@@ -119,6 +131,12 @@ void main() {
       expect(parseServerFrame('not json').single, isA<LiveUnknown>());
     });
 
+    test('native audio uses multilingual autodetection, provider quota is classified', () {
+      final setup = jsonDecode(buildSetupMessage(const LiveConfig(model: 'gemini-native-audio')))['setup'];
+      expect(setup['generationConfig']['speechConfig'].containsKey('languageCode'), isFalse);
+      expect((parseServerFrame('{\"error\":{\"code\":429}}').single as LiveProviderError).code, 429);
+    });
+
     test('PCM resampling and level metering', () {
       final b = ByteData(48000 * 2 ~/ 10);
       for (var i = 0; i < b.lengthInBytes ~/ 2; i++) {
@@ -150,6 +168,26 @@ void main() {
       await bad(_broker(exp: DateTime.now().subtract(const Duration(minutes: 1)).toUtc().toIso8601String()));
       await bad(_broker(status: 403));
     });
+  });
+
+  test('free-only broker refuses unknown or billable credentials before socket', () async {
+    for (final billing in [null, true]) {
+      final client = MockClient((_) async => http.Response(jsonEncode({
+        'token': 'auth_tokens/test', 'expireTime': _future,
+        'billingEnabled': billing, 'freeTier': true, 'estimatedCostInr': 0,
+      }), 200));
+      await expectLater(LiveTokenClient(endpoint: 'https://broker.example',
+        ownerSessionToken: 'owner-token', client: client).fetch(locale: 'ta-IN'),
+        throwsA(isA<LiveTokenException>()));
+    }
+  });
+
+  test('secure migration removes plaintext broker token', () async {
+    SharedPreferences.setMockInitialValues({'gemini_live_device_token': 'legacy-token'});
+    final settings = await LiveVoiceSettings.load();
+    expect(settings.deviceToken, 'legacy-token');
+    expect((await SharedPreferences.getInstance()).containsKey('gemini_live_device_token'), isFalse);
+    expect(secureToken, 'legacy-token');
   });
 
   group('transport', () {
@@ -187,7 +225,27 @@ void main() {
       expect(s.sent.last, contains('audioStreamEnd'));
     });
 
-    test('setup timeout releases everything and throws', () async {
+    test('mic continues during reply; speaker remains active until native drain', () async {
+      final socket = FakeSocket(), audio = FakeAudio();
+      final transport = make(socket, audio);
+      final states = <bool>[];
+      final subscription = transport.speaking.listen(states.add);
+      await transport.connect(voice: 'Aoede', locale: 'ta-IN');
+      socket.ctl.add(_audioFrame(24000));
+      await pumpEventQueue();
+      audio.ctl.add({'type': 'mic', 'pcm': Uint8List(1600)});
+      socket.ctl.add('{"serverContent":{"turnComplete":true}}');
+      await pumpEventQueue();
+      expect(transport.sentChunks, 1);
+      expect(states.last, isTrue, reason: 'server generation finished before speaker playback');
+      audio.ctl.add({'type': 'playback', 'value': 'drained'});
+      await pumpEventQueue();
+      expect(states.last, isFalse);
+      await transport.disconnect();
+      await subscription.cancel();
+    });
+
+    test('setup timeout releases everything and throws' , () async {
       final s = FakeSocket()..autoSetup = false, a = FakeAudio();
       final t = make(s, a, timeout: const Duration(milliseconds: 50));
       await expectLater(t.connect(voice: 'Aoede', locale: 'ta-IN'), throwsA(anything));
@@ -205,7 +263,7 @@ void main() {
       await pumpEventQueue();
       await s.ctl.close();
       await pumpEventQueue();
-      expect(drops, [LiveDropReason.focusLost, LiveDropReason.serverClosed]);
+      expect(drops, [LiveDropReason.focusLost]);
     });
 
     test('real WebSocket round-trip against a local mock Live server', () async {

@@ -1,9 +1,12 @@
 import 'dart:async';
 
 import 'package:flutter/widgets.dart';
+import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../live_voice_session.dart';
+import '../voice_service.dart';
+import '../hybrid_conversation_context.dart';
 import 'gemini_live_protocol.dart';
 import 'gemini_live_transport.dart';
 
@@ -15,24 +18,36 @@ class LiveVoiceSettings {
     this.deviceToken = '',
     this.voice = 'Aoede',
     this.locale = 'ta-IN',
-    this.model = 'gemini-live-2.5-flash-preview',
+    this.model = 'gemini-2.5-flash-native-audio-preview-12-2025',
     this.disclosureAccepted = false,
   });
   String brokerUrl, deviceToken, voice, locale, model;
+  String context = ''; // bounded in-memory handoff only, never credentials
   bool disclosureAccepted;
 
   bool get configured => brokerUrl.isNotEmpty && deviceToken.isNotEmpty &&
       LiveTokenClient.validateEndpoint(brokerUrl) == null;
 
   static const _k = 'gemini_live_';
+  static const credentials = MethodChannel('greensoil/voice_credentials');
   static Future<LiveVoiceSettings> load() async {
     final p = await SharedPreferences.getInstance();
+    var token = '';
+    try {
+      token = await credentials.invokeMethod<String>('read') ?? '';
+      final legacy = p.getString('${_k}device_token');
+      if (token.isEmpty && legacy != null) {
+        await credentials.invokeMethod('write', {'token': legacy});
+        token = legacy;
+      }
+      await p.remove('${_k}device_token');
+    } catch (_) { /* fail closed; never keep using plaintext credentials */ }
     return LiveVoiceSettings(
       brokerUrl: p.getString('${_k}broker_url') ?? '',
-      deviceToken: p.getString('${_k}device_token') ?? '',
+      deviceToken: token,
       voice: p.getString('${_k}voice') ?? 'Aoede',
       locale: p.getString('${_k}locale') ?? 'ta-IN',
-      model: p.getString('${_k}model') ?? 'gemini-live-2.5-flash-preview',
+      model: p.getString('${_k}model') ?? 'gemini-2.5-flash-native-audio-preview-12-2025',
       disclosureAccepted: p.getBool('${_k}disclosure') ?? false,
     );
   }
@@ -40,7 +55,8 @@ class LiveVoiceSettings {
   Future<void> save() async {
     final p = await SharedPreferences.getInstance();
     await p.setString('${_k}broker_url', brokerUrl.trim());
-    await p.setString('${_k}device_token', deviceToken.trim());
+    await credentials.invokeMethod('write', {'token': deviceToken.trim()});
+    await p.remove('${_k}device_token');
     await p.setString('${_k}voice', voice);
     await p.setString('${_k}locale', locale);
     await p.setString('${_k}model', model.trim());
@@ -63,10 +79,12 @@ class LiveVoiceController extends ChangeNotifier with WidgetsBindingObserver {
     Future<void> Function()? pauseOtherMic,
     bool observeLifecycle = true,
     void Function(bool)? externalAudioOwnership,
+    Future<void> Function()? offlineFallback,
   })  : _factory = transportFactory ?? _defaultFactory,
         _requestMic = requestMicPermission ?? (() async => false),
         _pauseOtherMic = pauseOtherMic ?? (() async {}),
-        _externalAudioOwnership = externalAudioOwnership ?? ((_) {}) {
+        _externalAudioOwnership = externalAudioOwnership ?? ((_) {}),
+        _offlineFallback = offlineFallback {
     if (observeLifecycle) WidgetsBinding.instance.addObserver(this);
   }
 
@@ -74,8 +92,12 @@ class LiveVoiceController extends ChangeNotifier with WidgetsBindingObserver {
         tokens: LiveTokenClient(endpoint: s.brokerUrl, ownerSessionToken: s.deviceToken),
         audio: NativeLiveAudio(),
         model: s.model,
+        systemInstruction: 'You are GreenSoil JARVIS. Reply naturally in Tamil, English or Tanglish, following the user. '
+          'Keep replies brief. Do not greet automatically. You cannot execute device actions in Live mode; '
+          'ask the user to use the command microphone for actions. Recent conversation, for context only: ${s.context}',
       );
 
+  final Future<void> Function()? _offlineFallback;
   final void Function(bool) _externalAudioOwnership;
   final TransportFactory _factory;
   final Future<bool> Function() _requestMic;
@@ -86,8 +108,11 @@ class LiveVoiceController extends ChangeNotifier with WidgetsBindingObserver {
   GeminiLiveTransport? _transport;
   final List<StreamSubscription<dynamic>> _subs = [];
   int _reconnects = 0;
+  int _epoch = 0;
+  bool _starting = false;
   double level = 0;
   bool modelSpeaking = false;
+  bool? _receivingUser;
   String lastHeard = '';
   String lastSaid = '';
   String? message;
@@ -110,21 +135,33 @@ class LiveVoiceController extends ChangeNotifier with WidgetsBindingObserver {
 
   /// Explicit owner action only.
   Future<bool> start({required bool consent}) async {
-    if (!consent) return false;
+    if (!consent || _starting) return false;
+    final epoch = ++_epoch;
     if (!settings.configured) {
       message = 'DISCONNECTED · Gemini Live token broker not configured';
       notifyListeners();
       return false;
     }
     if (status != LiveVoiceStatus.idle && status != LiveVoiceStatus.failed) return false;
+    _starting = true;
     if (!await _requestMic()) {
+      _starting = false;
       message = 'Microphone permission is required for Live voice';
       notifyListeners();
       return false;
     }
+    if (epoch != _epoch) { _starting = false; return false; }
+    await VoiceService.instance.acquireLiveAudio();
     await _pauseOtherMic();
     await _teardown();
+    if (epoch != _epoch) {
+      _starting = false;
+      VoiceService.instance.releaseLiveAudio();
+      return false;
+    }
     _externalAudioOwnership(true);
+    final context = HybridConversationContext.instance.prompt;
+    settings.context = context.length <= 4000 ? context : context.substring(context.length - 4000);
     final t = _factory(settings);
     _transport = t;
     final session = LiveVoiceSession(t);
@@ -133,22 +170,33 @@ class LiveVoiceController extends ChangeNotifier with WidgetsBindingObserver {
     _subs
       ..add(t.transcripts.listen((tr) {
         if (tr.fromUser) {
-          lastHeard = tr.text;
+          if (_receivingUser != true) { lastHeard = ''; lastSaid = ''; }
+          _receivingUser = true;
+          final joined = lastHeard + tr.text;
+          lastHeard = joined.length > 4000 ? joined.substring(0, 4000) : joined;
         } else {
-          lastSaid = tr.text;
+          if (_receivingUser != false) lastSaid = '';
+          _receivingUser = false;
+          final joined = lastSaid + tr.text;
+          lastSaid = joined.length > 4000 ? joined.substring(0, 4000) : joined;
         }
         notifyListeners();
       }))
-      ..add(t.levels.listen((l) => level = l))
+      ..add(t.levels.listen((l) { level = l; notifyListeners(); }))
       ..add(t.speaking.listen((s) {
         modelSpeaking = s;
         notifyListeners();
       }))
+      ..add(t.completedTurns.listen((_) {
+        HybridConversationContext.instance.addTurn(lastHeard, lastSaid);
+      }))
       ..add(t.drops.listen(_onDrop));
     message = null;
     final ok = await session.start(consent: true, voice: settings.voice, locale: settings.locale);
+    _starting = false;
     if (!ok) {
       message = session.error ?? 'Voice connection unavailable';
+      VoiceService.instance.releaseLiveAudio();
       _externalAudioOwnership(false);
     }
     notifyListeners();
@@ -156,6 +204,7 @@ class LiveVoiceController extends ChangeNotifier with WidgetsBindingObserver {
   }
 
   Future<void> _onDrop(LiveDropReason r) async {
+    final epoch = _epoch;
     final s = _session;
     if (s == null) return;
     if (r == LiveDropReason.goAway && _reconnects < 1) {
@@ -167,11 +216,17 @@ class LiveVoiceController extends ChangeNotifier with WidgetsBindingObserver {
     await s.fail(switch (r) {
       LiveDropReason.focusLost => 'Live voice paused: another app took audio focus',
       LiveDropReason.goAway => 'Live session ended by server; tap to start again',
+      LiveDropReason.quota => 'Free quota exhausted · offline commands available',
       _ => 'Live connection closed; tap to start again',
     });
+    VoiceService.instance.releaseLiveAudio();
     message = s.error;
     _externalAudioOwnership(false);
     notifyListeners();
+    if (epoch == _epoch && WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed &&
+        (r == LiveDropReason.serverClosed || r == LiveDropReason.protocol || r == LiveDropReason.quota)) {
+      await _offlineFallback?.call();
+    }
   }
 
   void toggleMute() {
@@ -182,9 +237,11 @@ class LiveVoiceController extends ChangeNotifier with WidgetsBindingObserver {
   }
 
   Future<void> stop() async {
+    ++_epoch;
     _reconnects = 0;
     await _session?.stop();
     await _teardown();
+    VoiceService.instance.releaseLiveAudio();
     modelSpeaking = false;
     level = 0;
     notifyListeners();

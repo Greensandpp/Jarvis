@@ -42,12 +42,7 @@ class GeminiDictation {
 
   /// Why dictation cannot run right now, or null when it can.
   String? get unavailableReason {
-    if (_s.apiKey.isEmpty) return 'no AI key';
-    if (!_s.allowCloudAi) return 'cloud AI is off (Privacy)';
-    if (_s.provider != 'gemini' && !_s.baseUrl.contains('generativelanguage.googleapis.com')) {
-      return 'needs the Gemini provider';
-    }
-    return null;
+    return 'free-only mode: cloud dictation billing unverified; use on-device recognition or text';
   }
 
   bool get allowed => unavailableReason == null;

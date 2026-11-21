@@ -1,9 +1,8 @@
+import 'dart:math' as math;
 // TEST DOUBLES: the microphone is a scripted LiveAudioIo and Gemini is a
 // package:http MockClient. Real Tamil/Tanglish recognition accuracy and the
 // voices on the owner's iQOO 13 stay UNVERIFIED until tested on the phone.
 import 'dart:async';
-import 'dart:convert';
-import 'dart:math' as math;
 import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -223,87 +222,25 @@ void main() {
       },
     );
 
-    test(
-      'Gemini voice input: records until silence, sends one WAV, returns the transcript',
-      () async {
-        final s = SettingsService.instance;
-        await s.setProvider('gemini');
-        await s.setApiKey('k-test');
-        await s.setAllowCloudAi(true);
-        final mic = FakeMic();
-        final bodies = <Map<String, dynamic>>[];
-        final d = GeminiDictation(
-          audio: mic,
-          client: MockClient((r) async {
-            bodies.add(jsonDecode(r.body) as Map<String, dynamic>);
-            return http.Response(
-              jsonEncode({
-                'choices': [
-                  {
-                    'message': {'content': '"Machi inniki NIFTY levels sollu"'},
-                  },
-                ],
-              }),
-              200,
-            );
-          }),
-        );
-        final levels = <double>[];
-        final text = await d.listenOnce(
-          onLevel: levels.add,
-          silence: const Duration(milliseconds: 600),
-        );
-        expect(text, 'Machi inniki NIFTY levels sollu');
-        expect(bodies, hasLength(1), reason: 'one request per utterance');
-        final content =
-            (bodies.single['messages'] as List).single['content'] as List;
-        expect(content.first['text'], contains('Tanglish'));
-        final wav = base64Decode(content.last['input_audio']['data'] as String);
-        expect(String.fromCharCodes(wav.sublist(0, 4)), 'RIFF');
-        expect(content.last['input_audio']['format'], 'wav');
-        expect(mic.started, 1);
-        expect(mic.stopped, 1);
-        expect(
-          levels.reduce(math.max),
-          greaterThan(0.2),
-          reason: 'mic level drives the UI',
-        );
-        expect(levels.last, 0);
-      },
-    );
-
-    test(
-      'Gemini voice input: silence sends nothing; Privacy Lock blocks it',
-      () async {
-        final s = SettingsService.instance;
-        var requests = 0;
-        final client = MockClient((r) async {
-          requests++;
-          return http.Response('{}', 200);
-        });
-        final quiet = GeminiDictation(
-          audio: FakeMic(speechMs: 0, silenceMs: 8000),
-          client: client,
-        );
-        expect(
-          await quiet.listenOnce(
-            noSpeechTimeout: const Duration(milliseconds: 500),
-          ),
-          '',
-        );
-        expect(requests, 0);
-        await s.setAllowCloudAi(false);
-        expect(
-          GeminiDictation(audio: FakeMic(), client: client).unavailableReason,
-          contains('Privacy'),
-        );
-        await expectLater(
-          GeminiDictation(audio: FakeMic(), client: client).listenOnce(),
-          throwsStateError,
-        );
-        await s.setAllowCloudAi(true);
-      },
-    );
+    test('free-only dictation denies remote inference before microphone capture', () async {
+      final settings = SettingsService.instance;
+      await settings.setProvider('gemini');
+      await settings.setApiKey('test-only');
+      await settings.setAllowCloudAi(true);
+      final mic = FakeMic();
+      var requests = 0;
+      final dictation = GeminiDictation(audio: mic, client: MockClient((_) async {
+        requests++;
+        return http.Response('{}', 200);
+      }));
+      expect(dictation.unavailableReason, contains('free-only'));
+      await expectLater(dictation.listenOnce(), throwsStateError);
+      expect(mic.started, 0);
+      expect(requests, 0);
+      await settings.setAllowCloudAi(false);
+      await expectLater(dictation.listenOnce(), throwsStateError);
+      expect(mic.started, 0);
+    });
 
     test('transcript clean-up and WAV helpers', () {
       expect(cleanTranscript('Transcript: “வணக்கம் JARVIS”'), 'வணக்கம் JARVIS');

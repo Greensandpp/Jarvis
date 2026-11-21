@@ -1,7 +1,7 @@
 name: JARVIS holographic private development
 on:
   push:
-    branches: [fix/jarvis-detailed-guardian-20261121]
+    branches: [fix/jarvis-detailed-guardian-20261121, integration/hybrid-native-voice-20261121]
   workflow_dispatch:
 permissions:
   contents: read

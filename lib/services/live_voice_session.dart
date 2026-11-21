@@ -12,6 +12,11 @@ abstract interface class LiveVoiceTransport {
 
 /// Explicit opt-in live voice state machine. No microphone or network
 /// connection occurs until [start] receives consent=true.
+class SafeLiveFailure implements Exception {
+  const SafeLiveFailure(this.message);
+  final String message;
+}
+
 enum LiveVoiceStatus { idle, connecting, listening, disconnecting, failed }
 
 class LiveVoiceSession extends ChangeNotifier {
@@ -49,10 +54,12 @@ class LiveVoiceSession extends ChangeNotifier {
       }
       _set(LiveVoiceStatus.listening);
       return true;
-    } catch (_) {
+    } catch (error) {
+      await _transport.disconnect();
       // Never expose keys, URLs, credentials, or raw provider errors to UI/logs.
       if (run == _generation) {
         _set(LiveVoiceStatus.failed,
+            error is SafeLiveFailure ? error.message :
             'Voice connection unavailable. Check provider and permission settings.');
       }
       return false;

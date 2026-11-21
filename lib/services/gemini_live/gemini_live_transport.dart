@@ -18,9 +18,8 @@ class LiveTokenGrant {
   final String? model;
 }
 
-class LiveTokenException implements Exception {
-  const LiveTokenException(this.message);
-  final String message;
+class LiveTokenException extends SafeLiveFailure {
+  const LiveTokenException(super.message);
   @override
   String toString() => 'LiveTokenException: $message';
 }
@@ -55,8 +54,11 @@ class LiveTokenClient {
     final res = await _client.post(Uri.parse(endpoint), headers: {
       'Authorization': 'Bearer $ownerSessionToken',
       'Content-Type': 'application/json',
-    }, body: jsonEncode({'purpose': 'gemini_live', 'locale': locale}))
+    }, body: jsonEncode({'purpose': 'gemini_live', 'locale': locale, 'freeOnly': true}))
         .timeout(const Duration(seconds: 10));
+    if (res.statusCode == 429) {
+      throw const LiveTokenException('Free quota exhausted; use offline voice');
+    }
     if (res.statusCode == 401 || res.statusCode == 403) {
       throw const LiveTokenException('Token broker rejected this device');
     }
@@ -68,10 +70,13 @@ class LiveTokenClient {
       throw const LiveTokenException('Token broker returned invalid data');
     }
     if (j is! Map) throw const LiveTokenException('Token broker returned invalid data');
+    if (j['billingEnabled'] != false || j['freeTier'] != true || j['estimatedCostInr'] != 0) {
+      throw const LiveTokenException('Free-only: broker billing state unverified; cloud blocked');
+    }
     final token = '${j['token'] ?? ''}';
     final exp = DateTime.tryParse('${j['expireTime'] ?? ''}');
     if (token.isEmpty || exp == null) throw const LiveTokenException('Token missing expiry');
-    if (token.startsWith('AIza')) {
+    if (!token.startsWith('auth_tokens/')) {
       // A raw API key must never reach the phone.
       throw const LiveTokenException('Broker returned a long-lived key; refused');
     }
@@ -141,7 +146,7 @@ class NativeLiveAudio implements LiveAudioIo {
   Future<void> release() => _m.invokeMethod('release');
 }
 
-enum LiveDropReason { serverClosed, goAway, focusLost, audioDevice, protocol }
+enum LiveDropReason { serverClosed, goAway, focusLost, audioDevice, protocol, quota }
 
 /// Real Gemini Live transport: fetches an ephemeral token, opens the
 /// constrained WebSocket, streams 16 kHz mic PCM, plays model audio and
@@ -168,8 +173,12 @@ class GeminiLiveTransport implements LiveVoiceTransport {
   StreamSubscription<Map<Object?, Object?>>? _audioSub;
   bool muted = false;
   bool _closing = false;
+  int _epoch = 0;
+  bool _dropped = false;
 
   // Observable outputs for the UI (all text stays on device).
+  final _turns = StreamController<void>.broadcast();
+  Stream<void> get completedTurns => _turns.stream;
   final _transcripts = StreamController<LiveTranscript>.broadcast();
   final _drops = StreamController<LiveDropReason>.broadcast();
   final _levels = StreamController<double>.broadcast();
@@ -184,11 +193,16 @@ class GeminiLiveTransport implements LiveVoiceTransport {
   @override
   Future<void> connect({required String voice, required String locale}) async {
     _closing = false;
+    _dropped = false;
+    final epoch = ++_epoch;
     final grant = await tokens.fetch(locale: locale);
+    if (epoch != _epoch) throw const SocketException('cancelled');
     final socket = await _socketFactory(liveSocketUri(grant.token));
+    if (epoch != _epoch) { await socket.close(); throw const SocketException('cancelled'); }
     _socket = socket;
     final setupDone = Completer<void>();
     _frames = socket.frames.listen((frame) {
+      if (_closing || epoch != _epoch) return;
       for (final ev in parseServerFrame(frame)) {
         switch (ev) {
           case LiveSetupComplete():
@@ -197,16 +211,23 @@ class GeminiLiveTransport implements LiveVoiceTransport {
             playedChunks++;
             _speaking.add(true);
             _levels.add(pcmLevel(pcm));
-            audio.play(pcm, rate);
+            unawaited(audio.play(pcm, rate).catchError((Object _) { _drop(LiveDropReason.audioDevice); }));
           case LiveInterrupted():
-            audio.flush(); // barge-in
+            unawaited(audio.flush().catchError((Object _) { _drop(LiveDropReason.audioDevice); })); // barge-in
             _speaking.add(false);
           case LiveTurnComplete():
-            _speaking.add(false);
+            _turns.add(null);
+            // AudioTrack can still contain PCM after the server finished generating.
+            // Native drained event determines when speaking animation ends.
+            break;
           case LiveTranscript():
             _transcripts.add(ev);
           case LiveGoAway():
             _drop(LiveDropReason.goAway);
+          case LiveProviderError(:final code):
+            if (!setupDone.isCompleted) setupDone.completeError(SafeLiveFailure(
+              code == 429 ? 'Free quota exhausted; offline commands available' : 'Live provider unavailable; offline commands available'));
+            _drop(code == 429 ? LiveDropReason.quota : LiveDropReason.protocol);
           case LiveUnknown():
             break;
         }
@@ -233,9 +254,15 @@ class GeminiLiveTransport implements LiveVoiceTransport {
           final pcm = e['pcm'];
           if (pcm is Uint8List && !muted && _socket != null) {
             _levels.add(pcmLevel(pcm));
-            _socket!.send(buildAudioChunk(pcm));
-            sentChunks++;
+            try {
+              _socket!.send(buildAudioChunk(pcm));
+              sentChunks++;
+            } catch (_) { _drop(LiveDropReason.serverClosed); }
           }
+        case 'playback':
+          _speaking.add(e['value'] == 'started');
+        case 'error':
+          _drop(LiveDropReason.audioDevice);
         case 'focus':
           if (e['value'] == 'lost' || e['value'] == 'denied') _drop(LiveDropReason.focusLost);
         case 'route':
@@ -250,13 +277,15 @@ class GeminiLiveTransport implements LiveVoiceTransport {
   }
 
   void _drop(LiveDropReason r) {
-    if (_closing) return;
+    if (_closing || _dropped) return;
+    _dropped = true;
     _drops.add(r);
   }
 
   @override
   Future<void> disconnect() async {
     _closing = true;
+    ++_epoch;
     final s = _socket;
     _socket = null;
     try {

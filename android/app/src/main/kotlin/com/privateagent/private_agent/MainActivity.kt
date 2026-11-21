@@ -54,6 +54,7 @@ class MainActivity : FlutterActivity() {
     private var liveAudio: LiveAudioBridge? = null
     private var speechRecognizer: SpeechRecognizer? = null
     private var recognitionIntent: Intent? = null
+    private var offlineRecognition = true
     private var recognitionLocale = "en-IN"
     // "auto" = Tamil + English + Tanglish: Indian English model plus Tamil
     // language detection / switching where the recogniser supports it
@@ -488,11 +489,12 @@ class MainActivity : FlutterActivity() {
     }
 
     private fun obtainSpeechRecognizer(): SpeechRecognizer {
-        // ALWAYS use standard SpeechRecognizer.createSpeechRecognizer(this),
-        // which connects to Google's robust Speech Services (com.google.android.tts).
-        // DO NOT use createOnDeviceSpeechRecognizer on Android 12+ / Motorola,
-        // because Motorola delegates it to AiAiSpeechRecognitionService (com.google.android.as)
-        // which crashes with java.io.InterruptedIOException in PipedOutputStream.
+        if (offlineRecognition) {
+            check(Build.VERSION.SDK_INT >= 31 && SpeechRecognizer.isOnDeviceRecognitionAvailable(this)) {
+                "On-device speech recognition unavailable; use text input"
+            }
+            return SpeechRecognizer.createOnDeviceSpeechRecognizer(this)
+        }
         return SpeechRecognizer.createSpeechRecognizer(this)
     }
 
@@ -742,6 +744,7 @@ class MainActivity : FlutterActivity() {
         return Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
             putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
             putExtra(RecognizerIntent.EXTRA_LANGUAGE, recognitionLocale)
+            putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, offlineRecognition)
             putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
             putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 5)
             putExtra(RecognizerIntent.EXTRA_CALLING_PACKAGE, packageName)
@@ -762,6 +765,7 @@ class MainActivity : FlutterActivity() {
         super.configureFlutterEngine(flutterEngine)
 
         liveAudio = LiveAudioBridge(this, flutterEngine.dartExecutor.binaryMessenger)
+        VoiceCredentialStore(this, flutterEngine.dartExecutor.binaryMessenger)
 
         // Native Continuous Speech Channel
         val sChannel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, speechChannelName)
@@ -775,6 +779,11 @@ class MainActivity : FlutterActivity() {
                     "playing" to try { mediaPlayer?.isPlaying ?: false } catch (_: Exception) { false },
                     "starts" to mediaStarts, "generation" to mediaGeneration))
                 "startListening" -> {
+                    offlineRecognition = call.argument<Boolean>("offlineOnly") ?: true
+                    if (offlineRecognition && (Build.VERSION.SDK_INT < 31 || !SpeechRecognizer.isOnDeviceRecognitionAvailable(this))) {
+                        result.error("OFFLINE_UNAVAILABLE", "On-device recognizer unavailable; use text input", null)
+                        return@setMethodCallHandler
+                    }
                     val continuous = call.argument<Boolean>("continuous") ?: true
                     val manual = call.argument<Boolean>("manual") ?: false
                     val requestedLocale = call.argument<String>("locale") ?: "en-IN"
@@ -797,7 +806,7 @@ class MainActivity : FlutterActivity() {
                     result.success(true)
                 }
                 "isAvailable" -> {
-                    val available = SpeechRecognizer.isRecognitionAvailable(this)
+                    val available = Build.VERSION.SDK_INT >= 31 && SpeechRecognizer.isOnDeviceRecognitionAvailable(this)
                     result.success(available)
                 }
                 else -> result.notImplemented()

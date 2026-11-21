@@ -55,10 +55,13 @@ class LiveKitSessionBridge {
     try {
       _sessionWasStarted = true;
       await _session.start();
-      if (_closed || !isConnected) {
-        throw StateError('LiveKit session did not reach connected state.');
+      if (_closed || !isConnected || !microphoneConsent.mayConnect) {
+        throw StateError('LiveKit session disconnected or microphone consent revoked.');
       }
       await coordinator.connected();
+      if (_closed || !microphoneConsent.mayConnect) {
+        throw StateError('Microphone consent revoked during initialization.');
+      }
       // This observes authorization, not a guarantee that native capture
       // started; Session.start owns the underlying audio publication.
       microphoneConsent.requestMicrophoneEnable();
@@ -83,7 +86,11 @@ class LiveKitSessionBridge {
     if (enabled && !microphoneConsent.mayConnect) {
       throw StateError('Microphone consent or permission missing.');
     }
-    await _session.room.localParticipant?.setMicrophoneEnabled(enabled);
+    final participant = _session.room.localParticipant;
+    if (participant == null) {
+      throw StateError('Local participant unavailable; microphone state unknown.');
+    }
+    await participant.setMicrophoneEnabled(enabled);
     if (enabled) {
       microphoneConsent.requestMicrophoneEnable();
     } else {
@@ -96,7 +103,11 @@ class LiveKitSessionBridge {
   Future<void> revokeMicrophone() async {
     microphoneConsent.revoke();
     if (isConnected) {
-      await _session.room.localParticipant?.setMicrophoneEnabled(false);
+      final participant = _session.room.localParticipant;
+      if (participant == null) {
+        throw StateError('Cannot confirm microphone mute: no local participant.');
+      }
+      await participant.setMicrophoneEnabled(false);
     }
   }
 

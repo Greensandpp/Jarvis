@@ -2,7 +2,7 @@
 String normalizeCommonTanglish(String input) {
   final key = input.trim().toLowerCase().replaceAll(RegExp(r'[?!.]+$'), '').replaceAll(RegExp(r'\s+'), ' ');
   const meanings = {
-    'vanakam': 'Hello!', 'vanakkam': 'Hello!',
+    'vanakam': 'Hello! Greet me briefly without using any name.', 'vanakkam': 'Hello! Greet me briefly without using any name.',
     'un peru enna': 'What is your name?', 'unga peru enna': 'What is your name?',
     'un peyar enna': 'What is your name?', 'unga peyar enna': 'What is your name?',
     'nee yaaru': 'Who are you?',

@@ -20,12 +20,12 @@ Future<void> main(List<String> args) async {
     await model.load(args.single);
     final cases = <(String, String, bool Function(String))>[
       ('What is 2 plus 2?', 'en-IN', (s) => RegExp(r'\b(4|four)\b', caseSensitive: false).hasMatch(s)),
-      ('vanakam', 'ta-IN', (s) => s.contains('வணக்க')),
+      ('vanakam', 'ta-IN', (s) => s.contains('வணக்க') && !s.contains('ஜார்விஸ்') && !s.contains('ஜேஆர்விஸ்') && !s.toLowerCase().contains('jarvis')),
       ('un peru enna', 'ta-IN', (s) => s.toLowerCase().contains('jarvis') || s.contains('ஜேஆர்விஸ்') || s.contains('ஜார்விஸ்')),
       ('saptiya', 'ta-IN', (s) => OfflineLanguage.cannotEat(s, 'ta-IN')),
       ('water ku tamil la enna', 'ta-IN', (s) => (s.contains('தண்ணீர்') || s.contains('நீர்')) && !s.contains('பாசனம்')),
       ('nee manushana illa AI ah', 'ta-IN', (s) => s.contains('AI') || s.contains('செயற்கை')),
-      ('vanakam', 'ta-Latn', (s) => s.toLowerCase().contains('vanak')),
+      ('vanakam', 'ta-Latn', (s) => s.toLowerCase().contains('vanak') && !s.toLowerCase().contains('jarvis') && !s.toLowerCase().contains('jaarvis')),
       ('un peru enna', 'ta-Latn', (s) => s.toLowerCase().contains('jarvis') || s.toLowerCase().contains('jaarvis') || s.toLowerCase().contains('jaearvis')),
       ('saptiya', 'ta-Latn', (s) => ['saap', 'sap', 'unav'].any(s.toLowerCase().contains) && ['maatt', 'matt', 'maate', 'mate', 'illa', 'illai', 'mudiy', 'sapdala', 'saapdala'].any(s.toLowerCase().contains)),
       ('What is your name?', 'en-IN', (s) => s.toLowerCase().contains('jarvis')),

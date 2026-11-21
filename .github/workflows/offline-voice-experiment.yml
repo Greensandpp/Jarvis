@@ -31,13 +31,13 @@ jobs:
       - run: flutter analyze
       - run: flutter test --reporter expanded
       - name: Compile actual native local model smoke
-        run: dart compile exe tool/local_model_smoke.dart -o /tmp/local-model-smoke
+        run: dart build cli --target=bin/local_model_smoke.dart --output=/tmp/local-model
       - name: Download and verify pinned open model for actual inference
         run: python3 tool/download_model.py /tmp/qwen.gguf
       - name: Deny network sockets and run actual model inference
         run: |
           gcc -shared -fPIC -o /tmp/libdeny-net.so tool/deny_network.c -ldl
-          LD_PRELOAD=/tmp/libdeny-net.so timeout 240 /tmp/local-model-smoke /tmp/qwen.gguf
+          LD_PRELOAD=/tmp/libdeny-net.so timeout 240 /tmp/local-model/bundle/bin/local_model_smoke /tmp/qwen.gguf
   private-offline-apk:
     needs: [existing-voice-regressions, offline-gates]
     runs-on: ubuntu-latest

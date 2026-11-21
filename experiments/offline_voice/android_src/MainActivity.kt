@@ -27,6 +27,7 @@ class MainActivity : FlutterActivity() {
     private var permission: MethodChannel.Result? = null
     private var tts: TextToSpeech? = null
     private var ttsReady = false
+    private var foreground = false
     private var utterance: MethodChannel.Result? = null
     private var utteranceId: String? = null
     private var serial = 0L
@@ -93,6 +94,7 @@ class MainActivity : FlutterActivity() {
         }
     }
     private fun listen(language: String, result: MethodChannel.Result) {
+        if (!foreground) { result.error("background", "Return to the app before starting microphone", null); return }
         stopAll()
         if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) { permission = result; requestPermissions(arrayOf(Manifest.permission.RECORD_AUDIO), 8702); return }
         if (Build.VERSION.SDK_INT < 33 || !SpeechRecognizer.isOnDeviceRecognitionAvailable(this)) { result.error("offline_stt", "On-device recognition unavailable. Use typed chat.", null); return }
@@ -117,7 +119,7 @@ class MainActivity : FlutterActivity() {
         })
         r.checkRecognitionSupport(intent, mainExecutor, object : RecognitionSupportCallback {
             override fun onSupportResult(support: RecognitionSupport) {
-                if (speech !== result) return
+                if (speech !== result || !foreground) return
                 if (!support.installedOnDeviceLanguages.any { Locale.forLanguageTag(it).language == Locale.forLanguageTag(language).language }) finishSpeech(null, "Offline $language speech pack not installed. Install it in Android Speech Services or use typed chat.")
                 else { r.startListening(intent); main.postDelayed({ if (speech === result) finishSpeech(null, "Microphone timed out; tap Listen again") }, 25000) }
             }
@@ -135,6 +137,7 @@ class MainActivity : FlutterActivity() {
     }
     private fun offlineVoice(voice: android.speech.tts.Voice): Boolean = !voice.isNetworkConnectionRequired && voice.features?.none { it.contains("notinstalled", true) } != false
     private fun speak(text: String, language: String, result: MethodChannel.Result) {
+        if (!foreground) { result.error("background", "Speech blocked while app is in background", null); return }
         stopAll()
         val voice = if (ttsReady) tts?.voices?.filter { offlineVoice(it) && it.locale.language == Locale.forLanguageTag(language).language }?.sortedByDescending { (if (it.locale.toLanguageTag().equals(language, true)) 10000 else 0) + it.quality }?.firstOrNull() else null
         if (voice == null) { result.error("offline_tts", "No installed offline $language voice. Text reply remains available.", null); return }
@@ -149,6 +152,7 @@ class MainActivity : FlutterActivity() {
         if (error == null) result?.success(null) else result?.error("offline_tts", error, null)
     }
     private fun stopAll() { finishSpeech(null, "Cancelled"); val id = utteranceId; tts?.stop(); if (id != null) finishUtterance(id, "Cancelled") }
-    override fun onPause() { stopAll(); super.onPause() }
+    override fun onResume() { super.onResume(); foreground = true }
+    override fun onPause() { foreground = false; stopAll(); super.onPause() }
     override fun onDestroy() { stopAll(); tts?.shutdown(); io.shutdownNow(); super.onDestroy() }
 }

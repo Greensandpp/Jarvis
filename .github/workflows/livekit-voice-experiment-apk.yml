@@ -35,6 +35,9 @@ jobs:
           cache: true
       - name: Generate disposable isolated Android scaffold
         run: flutter create --platforms=android --project-name greensoil_livekit_voice_experiment --org com.greensoil.experiment .
+      - name: Remove generated starter test and missing default lint preset
+        run: |
+          rm -f test/widget_test.dart analysis_options.yaml
       - name: Add microphone, networking and audio permissions to generated manifest
         run: |
           python3 - <<'PY'

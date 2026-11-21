@@ -109,3 +109,40 @@ room membership, ensure agent loop isn't blocked by callback locks,
 and verify remote output queue drain plus native Android player stop.
 No real access tokens, paid API, Mic service, production APK, or
 GitHub merge are involved.
+
+## Phase 16: private LiveKit token endpoint (NOT deployed)
+
+`livekit_token_endpoint.py` provides an authenticated POST
+`/api/livekit-token` using LiveKit's documented
+`201 Created` / `server_url` + `participant_token` schema. The
+Flutter Voice Lab client now includes a **masked, never persisted**
+'Private owner access token' input and sends it in Authorization
+headers. The server ignores any client-supplied privileged room,
+identity or agent dispatch requests; mints fresh random rooms with
+five-minute join grants; and limits token issuance to eight sessions
+per hour by default (single worker). No credentials are hardcoded.
+
+Production secrets/environment (required, NOT in this repo):
+- `LIVEKIT_URL` = actual wss:// LiveKit host
+- `LIVEKIT_API_KEY` and `LIVEKIT_API_SECRET` = valid LiveKit server keypair
+- `GS_VOICE_OWNER_BEARER` = independently generated strong 256-bit
+  owner credential (send to device over private authenticated path)
+- `GS_VOICE_TOKEN_ISSUANCE_ENABLED=true` only after backend validation
+- `GS_VOICE_MAX_ISSUES_PER_HOUR` optionally smaller than 8
+
+Security requirements before staging: TLS-terminating reverse proxy
+must provide a **trusted** HTTPS WSGI scheme, not unsanitized
+X-Forwarded-Proto; private secret storage; upstream agent configured
+for trusted rooms; distributed rate limiting if scaling; app-level
+identity verification, budget and session-duration hard stops.
+A token-per-hour guard does NOT cap total billable Gemini minutes or
+guarantee a hard rupee spending ceiling.
+
+The existing Railway `GreenSoil-JARVIS-AI-Staging` includes a Gemini
+gateway, but a LiveKit URL/keypair and dedicated always-on LiveKit
+agent have NOT been verified there. This module has no deployed URL,
+and the APK shown on the phone was built *before* the owner-token
+input was added. A new Android build/install is required.
+
+Official reference:
+https://docs.livekit.io/frontends/build/authentication/endpoint/

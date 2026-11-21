@@ -26,10 +26,6 @@ class PhoneModel implements LocalModel {
     final messages = [
       LlamaChatMessage.fromText(role: LlamaChatRole.system,
         text: OfflineLanguage.instruction(language)),
-      for (final example in OfflineLanguage.examples(language)) ...[
-        LlamaChatMessage.fromText(role: LlamaChatRole.user, text: example.$1),
-        LlamaChatMessage.fromText(role: LlamaChatRole.assistant, text: example.$2),
-      ],
       LlamaChatMessage.fromText(role: LlamaChatRole.user, text: text),
     ];
     await for (final chunk in _engine.create(messages,

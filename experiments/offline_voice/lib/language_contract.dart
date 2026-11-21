@@ -16,24 +16,6 @@ class OfflineLanguage {
       'If unsure, say you do not know briefly. Do not invent an unrelated answer.';
   }
 
-  static List<(String, String)> examples(String selected) => switch (selected) {
-    'ta-IN' => [
-      ('vanakkam', 'வணக்கம்! எப்படி இருக்கீங்க?'),
-      ('un peru enna', 'என் பெயர் GreenSoil JARVIS.'),
-      ('saptiya', 'நான் AI உதவியாளர்; எனக்குச் சாப்பாடு தேவையில்லை. நீங்க சாப்பிட்டீங்களா?'),
-    ],
-    'ta-Latn' => [
-      ('vanakkam', 'Vanakkam machi! Eppadi irukka?'),
-      ('un peru enna', 'En peru GreenSoil JARVIS.'),
-      ('saptiya', 'Naan AI machi, saapida maatten. Nee saaptiya?'),
-    ],
-    _ => [
-      ('vanakkam', 'Hello! How are you?'),
-      ('un peru enna', 'My name is GreenSoil JARVIS.'),
-      ('saptiya', 'I am an AI, so I do not eat. Have you eaten?'),
-    ],
-  };
-
   /// Reject a wrong writing system before it can reach the speech engine.
   /// This does not establish semantic accuracy or translation quality.
   static bool acceptable(String text, String selected) {

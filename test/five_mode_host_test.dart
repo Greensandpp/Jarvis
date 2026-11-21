@@ -135,7 +135,7 @@ void main() {
         'hello from mira']);
     expect(h.mic, 4);
     // Unconfigured Live voice is honestly DISCONNECTED, never "online".
-    expect(find.text('LIVE: NOT SET UP'), findsOneWidget);
+    expect(find.text('OFFLINE · ₹0 · LIVE NOT SET UP'), findsOneWidget);
     await tester.pumpWidget(const SizedBox());
   });
 

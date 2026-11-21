@@ -46,7 +46,7 @@ String buildSetupMessage(LiveConfig c) {
         'responseModalities': ['AUDIO'],
         'speechConfig': {
           'voiceConfig': {'prebuiltVoiceConfig': {'voiceName': c.voice}},
-          'languageCode': c.languageCode,
+          if (!model.contains('native-audio')) 'languageCode': c.languageCode,
         },
       },
       if (c.systemInstruction != null)

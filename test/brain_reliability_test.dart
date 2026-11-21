@@ -120,7 +120,7 @@ void main() {
   group('AiService integration (test double server)', () {
     setUp(() async {
       SharedPreferences.setMockInitialValues({
-        'ai_provider': 'gemini', 'ai_base_url': 'https://generativelanguage.googleapis.com/v1beta/openai',
+        'ai_provider': 'gemini', 'ai_base_url': 'http://127.0.0.1:11434/v1',
         'ai_api_key': 'k-test', 'ai_model': 'gemini-2.0-flash',
         'privacy_allow_cloud_ai': true, // owner opt-in required by Privacy Lock
       });

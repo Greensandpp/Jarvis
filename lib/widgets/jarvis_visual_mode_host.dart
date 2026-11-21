@@ -149,6 +149,7 @@ class JarvisVisualModeHostState extends State<JarvisVisualModeHost> {
           await VoiceService.instance.stopSpeaking();
         },
         externalAudioOwnership: (active) => VoiceService.instance.output.externalSession = active,
+        offlineFallback: () async { await JarvisService.instance.startListening(manual: true); },
       );
 
   @override
@@ -297,9 +298,9 @@ class _SharedDock extends StatelessWidget {
 
   String _liveLabel() {
     // Not configured is not a connection failure: say what it is.
-    if (!live.configured) return 'LIVE: NOT SET UP';
+    if (!live.configured) return 'OFFLINE · ₹0 · LIVE NOT SET UP';
     return switch (live.status) {
-      LiveVoiceStatus.idle => 'LIVE: OFF',
+      LiveVoiceStatus.idle => 'OFFLINE · ₹0 · FREE-ONLY',
       LiveVoiceStatus.connecting => 'LIVE: CONNECTING',
       LiveVoiceStatus.listening => live.muted ? 'LIVE: MIC MUTED' : 'LIVE: ON AIR',
       LiveVoiceStatus.disconnecting => 'LIVE: STOPPING',
@@ -416,16 +417,16 @@ Future<void> showLiveVoiceSettings(BuildContext context, LiveVoiceController liv
       child: SafeArea(child: ListView(shrinkWrap: true, padding: const EdgeInsets.all(16), children: [
         const Text('Gemini Live (opt-in)', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
         const Text('Requires your own token broker that holds the Gemini key server-side '
-          'and returns short-lived tokens. No API key is stored in this app.',
+          'and returns short-lived tokens. Free-only mode requires a broker with billing disabled and available free quota. Unknown billing blocks cloud. Offline commands remain available; free quota is not unlimited.',
           style: TextStyle(fontSize: 12)),
         TextField(controller: broker, decoration: const InputDecoration(labelText: 'Broker https:// URL')),
         TextField(controller: token, obscureText: true,
           decoration: const InputDecoration(labelText: 'Device session token (for your broker)')),
         TextField(controller: model, decoration: const InputDecoration(labelText: 'Live model id')),
         DropdownButtonFormField<String>(
-          initialValue: const ['Aoede', 'Kore', 'Leda', 'Zephyr'].contains(voice) ? voice : 'Aoede',
-          decoration: const InputDecoration(labelText: 'Voice (female presets)'),
-          items: [for (final v in const ['Aoede', 'Kore', 'Leda', 'Zephyr'])
+          initialValue: const ['Aoede', 'Kore', 'Leda', 'Zephyr', 'Puck', 'Charon', 'Fenrir'].contains(voice) ? voice : 'Aoede',
+          decoration: const InputDecoration(labelText: 'Live voice preset (availability varies by model)'),
+          items: [for (final v in const ['Aoede', 'Kore', 'Leda', 'Zephyr', 'Puck', 'Charon', 'Fenrir'])
             DropdownMenuItem(value: v, child: Text(v))],
           onChanged: (v) => voice = v ?? voice),
         DropdownButtonFormField<String>(

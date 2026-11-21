@@ -1,4 +1,5 @@
 import 'package:intl/intl.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../services/settings_service.dart';
 import 'language.dart';
@@ -29,6 +30,15 @@ class LocalIntents {
     final t = text.toLowerCase().trim();
     final s = SettingsService.instance;
     final now = DateTime.now();
+
+    final handoff = RegExp(r'^(open|launch|use) (chatgpt|gemini)( app)?$').firstMatch(t);
+    if (handoff != null) {
+      final app = handoff.group(2)!;
+      final ok = await launchUrl(Uri.parse(app == 'chatgpt' ? 'https://chatgpt.com/' : 'https://gemini.google.com/'),
+          mode: LaunchMode.externalApplication);
+      return ok ? 'Opened $app through its official app or website. Continue there using your account; API credits are separate.'
+          : 'Could not open $app. Open its official app manually.';
+    }
 
     // Time / date (EN, Tamil script, Tanglish)
     if (RegExp(r"^(what('s)?( is)?( the)? )?time( now| is it| please)?\??$|^time enna|^mani enna|^இப்போ மணி|^நேரம் என்ன|^என்ன நேரம்").hasMatch(t)) {

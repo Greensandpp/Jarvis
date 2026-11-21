@@ -1,5 +1,8 @@
 package com.privateagent.private_agent
 
+import android.app.ActivityManager
+import android.os.BatteryManager
+import android.os.PowerManager
 import android.Manifest
 import android.annotation.SuppressLint
 import android.content.BroadcastReceiver
@@ -103,6 +106,15 @@ class LiveAudioBridge(private val context: Context, messenger: BinaryMessenger) 
                         "ns" to NoiseSuppressor.isAvailable(),
                         "agc" to AutomaticGainControl.isAvailable(),
                         "sdk" to Build.VERSION.SDK_INT,
+                        "availableMemoryBytes" to ActivityManager.MemoryInfo().also {
+                            (context.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager).getMemoryInfo(it)
+                        }.availMem,
+                        "batteryPercent" to (context.getSystemService(Context.BATTERY_SERVICE) as BatteryManager)
+                            .getIntProperty(BatteryManager.BATTERY_PROPERTY_CAPACITY),
+                        "thermalStatus" to if (Build.VERSION.SDK_INT >= 29)
+                            (context.getSystemService(Context.POWER_SERVICE) as PowerManager).currentThermalStatus else -1,
+                        "localModel" to "Not selected: on-device latency, language, memory and thermal benchmark required",
+
                     ))
                     else -> result.notImplemented()
                 }

@@ -21,6 +21,7 @@ class LiveVoiceSettings {
     this.disclosureAccepted = false,
   });
   String brokerUrl, deviceToken, voice, locale, model;
+  String context = ''; // bounded in-memory handoff only, never credentials
   bool disclosureAccepted;
 
   bool get configured => brokerUrl.isNotEmpty && deviceToken.isNotEmpty &&
@@ -77,10 +78,12 @@ class LiveVoiceController extends ChangeNotifier with WidgetsBindingObserver {
     Future<void> Function()? pauseOtherMic,
     bool observeLifecycle = true,
     void Function(bool)? externalAudioOwnership,
+    Future<void> Function()? offlineFallback,
   })  : _factory = transportFactory ?? _defaultFactory,
         _requestMic = requestMicPermission ?? (() async => false),
         _pauseOtherMic = pauseOtherMic ?? (() async {}),
-        _externalAudioOwnership = externalAudioOwnership ?? ((_) {}) {
+        _externalAudioOwnership = externalAudioOwnership ?? ((_) {}),
+        _offlineFallback = offlineFallback {
     if (observeLifecycle) WidgetsBinding.instance.addObserver(this);
   }
 
@@ -88,8 +91,12 @@ class LiveVoiceController extends ChangeNotifier with WidgetsBindingObserver {
         tokens: LiveTokenClient(endpoint: s.brokerUrl, ownerSessionToken: s.deviceToken),
         audio: NativeLiveAudio(),
         model: s.model,
+        systemInstruction: 'You are GreenSoil JARVIS. Reply naturally in Tamil, English or Tanglish, following the user. '
+          'Keep replies brief. Do not greet automatically. You cannot execute device actions in Live mode; '
+          'ask the user to use the command microphone for actions. Recent conversation, for context only: ${s.context}',
       );
 
+  final Future<void> Function()? _offlineFallback;
   final void Function(bool) _externalAudioOwnership;
   final TransportFactory _factory;
   final Future<bool> Function() _requestMic;
@@ -151,6 +158,8 @@ class LiveVoiceController extends ChangeNotifier with WidgetsBindingObserver {
       return false;
     }
     _externalAudioOwnership(true);
+    final context = 'User: $lastHeard\nAssistant: $lastSaid';
+    settings.context = context.length <= 4000 ? context : context.substring(context.length - 4000);
     final t = _factory(settings);
     _transport = t;
     final session = LiveVoiceSession(t);
@@ -201,6 +210,9 @@ class LiveVoiceController extends ChangeNotifier with WidgetsBindingObserver {
     message = s.error;
     _externalAudioOwnership(false);
     notifyListeners();
+    if (r == LiveDropReason.serverClosed || r == LiveDropReason.protocol) {
+      await _offlineFallback?.call();
+    }
   }
 
   void toggleMute() {

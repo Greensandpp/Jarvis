@@ -70,7 +70,7 @@ class _OfflineScreenState extends State<OfflineScreen> with WidgetsBindingObserv
   }
   Future<void> _load({required bool import}) async {
     if (_loading || _ready) return;
-    setState(() { _loading = true; _status = import ? 'Choose Qwen3.5-4B-Q4_K_M.gguf; verifying file…' : 'Verifying saved model…'; });
+    setState(() { _loading = true; _status = import ? 'Choose gemma-3-4b-it-Q4_K_M.gguf; verifying file…' : 'Verifying saved model…'; });
     try {
       final path = await bridge.invokeMethod<String>(import ? 'importModel' : 'savedModel');
       if (path == null) throw StateError('No verified model');
@@ -125,7 +125,7 @@ class _OfflineScreenState extends State<OfflineScreen> with WidgetsBindingObserv
       const Text('No API key, Railway or LiveKit required. No internet permission in this build. '
         'Download the model once using your browser, then import it. Offline chat has no monthly quota.'),
       const SizedBox(height: 12),
-      const SelectableText('Qwen3.5-4B-Q4_K_M.gguf • 3.03 GB\nLanguage probes required before release. Tamil/Tanglish quality still needs your device test.'),
+      const SelectableText('gemma-3-4b-it-Q4_K_M.gguf • 2.49 GB\nLanguage probes required before release. Tamil/Tanglish quality still needs your device test.'),
       FilledButton(onPressed: _loading || _ready ? null : () => _load(import: true), child: const Text('Import downloaded GGUF model')),
       OutlinedButton(onPressed: _loading || _ready ? null : () => _load(import: false), child: const Text('Load saved model')),
       DropdownButton<String>(value: _language, isExpanded: true, items: const [

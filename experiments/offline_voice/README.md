@@ -9,7 +9,7 @@ alongside the existing cloud Voice Lab. Neither existing package is replaced.
 ## What is implemented
 
 - In-process llama.cpp via pinned llamadart 0.20.4, CPU, 4 threads, 2048 context.
-- Exact Qwen3.5-4B Q4_K_M model imported with Android document picker; streamed
+- Exact Gemma 3 4B IT Q4_K_M model imported with Android document picker; streamed
   copy, byte ceiling, SHA-256 verification, atomic rename and private storage.
 - No inference server, HTTP fallback, credentials, model auto-download or INTERNET
   permission, including the generated debug/profile manifests. No runtime API fee
@@ -26,10 +26,10 @@ alongside the existing cloud Voice Lab. Neither existing package is replaced.
 ## Setup on iQOO 13
 
 1. Download the encrypted-delivery APK privately; install the separate offline lab.
-2. Download the model once via a browser (3,032,091,584 bytes / about 2.82 GiB):
-   https://huggingface.co/ggml-org/Qwen3.5-4B-GGUF/resolve/8d43d974efc48399cb58957ad49c8b26bf5a109c/Qwen3.5-4B-Q4_K_M.gguf
+2. Download the model once via a browser (2,489,757,856 bytes / about 2.32 GiB):
+   https://huggingface.co/ggml-org/gemma-3-4b-it-GGUF/resolve/d0976223747697cb51e056d85c532013931fe52e/gemma-3-4b-it-Q4_K_M.gguf
 3. Open **Import downloaded GGUF model**, choose that file, wait for verification
-   and CPU load. Allow at least 7 GB free for download plus private copy.
+   and CPU load. Allow at least 6 GB free for download plus private copy.
 4. First test typed chat in airplane mode, with Wi-Fi/mobile data off.
 5. Optional speech requires Android-installed offline recognition/TTS packs.
    Missing Tamil support is reported and typed chat stays available. App cannot
@@ -49,5 +49,5 @@ CI must pass Flutter analyzer/tests, Kotlin/Android APK compilation, merged APK
 permission/identity/ARM64 checks, and real model CPU inference with AF_INET/6
 socket creation denied. The latter proves desktop native inference, not phone
 microphone/Tamil quality. Only an encrypted APK artifact may leave public CI.
-Model weights are never committed. Model: Apache-2.0; runtime: MIT. Review
+Model weights are never committed. Model: Gemma Terms of Use (https://ai.google.dev/gemma/terms); runtime: MIT. Review
 upstream model/license and runtime notices before any production integration.

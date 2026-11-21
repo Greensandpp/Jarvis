@@ -20,13 +20,15 @@ MAX_SESSION_SECONDS = 120
 MAX_MONTH_SECONDS = 1800
 
 
-def require_free_only_environment():
+def require_free_only_environment(*, agent=False):
     if os.environ.get("GS_VOICE_FREE_TIER_VERIFIED") != "true":
         raise ValueError("Free-only provider and transport setup not verified")
     if os.environ.get("GS_VOICE_AGENT_ENABLED") != "true":
         raise ValueError("Voice agent disabled")
-    for name in ("LIVEKIT_URL", "LIVEKIT_API_KEY", "LIVEKIT_API_SECRET",
-                 "GEMINI_API_KEY", "GS_VOICE_GEMINI_MODEL", "GS_VOICE_LEDGER_PATH"):
+    names = ["LIVEKIT_URL", "LIVEKIT_API_KEY", "LIVEKIT_API_SECRET", "GS_VOICE_LEDGER_PATH"]
+    if agent:
+        names += ["GEMINI_API_KEY", "GS_VOICE_GEMINI_MODEL"]
+    for name in names:
         if not os.environ.get(name):
             raise ValueError("Missing voice configuration: " + name)
     if os.environ["GS_VOICE_LEDGER_PATH"] == ":memory:":

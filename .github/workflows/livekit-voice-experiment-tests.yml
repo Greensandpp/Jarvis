@@ -18,6 +18,28 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  container-staging-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build the actual staging container without credentials
+        run: docker build -t gs-voice-staging-smoke -f experiments/livekit_voice_butler/Dockerfile .
+      - name: Check default-off HTTP and mounted-volume privilege drop
+        run: |
+          docker volume create gs-voice-smoke-data
+          docker run -d --name gs-voice-smoke -p 127.0.0.1:18080:8080 --mount source=gs-voice-smoke-data,target=/data -e GS_VOICE_ROLE=token -e PORT=8080 -e FORWARDED_ALLOW_IPS=127.0.0.1 gs-voice-staging-smoke
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent http://127.0.0.1:18080/health > /tmp/voice-health.json; then break; fi
+            sleep 1
+          done
+          python -c 'import json; d=json.load(open("/tmp/voice-health.json")); assert d["live_voice_verified"] is False; assert d["issuance_enabled"] is False'
+          test "$(curl --silent --output /dev/null --write-out '%{http_code}' -H 'Content-Type: application/json' -d '{}' http://127.0.0.1:18080/api/livekit-token)" = 503
+          docker exec gs-voice-smoke awk '/^Uid:/{if ($2 != 10001) exit 1; found=1} END{if(!found) exit 1}' /proc/1/status
+      - name: Remove disposable smoke container
+        if: always()
+        run: docker rm -f gs-voice-smoke || true
+
   python-state-gate:
     runs-on: ubuntu-latest
     timeout-minutes: 10

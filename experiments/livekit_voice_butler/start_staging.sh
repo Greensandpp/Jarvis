@@ -9,8 +9,12 @@ case "${GS_VOICE_ROLE:-}" in
   agent)
     exec python voice_agent.py start
     ;;
+  smoke)
+    # One bounded provider check, no HTTP listener and no room/microphone.
+    exec python smoke_gemini.py
+    ;;
   *)
-    echo "Set GS_VOICE_ROLE to token or agent for isolated staging" >&2
+    echo "Set GS_VOICE_ROLE to token, agent or smoke for isolated staging" >&2
     exit 1
     ;;
 esac

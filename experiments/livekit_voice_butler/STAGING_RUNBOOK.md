@@ -4,7 +4,7 @@ This document supersedes the implementation-status statements in README phases
 12–16; those sections remain as historical context. Existing JARVIS UI, settings,
 Android identity, offline architecture, PB7 and Pine are unchanged.
 
-## Verified starting evidence
+## Verified starting evidence (historical recovery baseline)
 
 Authenticated GitHub connector confirmed branch HEAD
 `c27305ea913ba706d2d54c862b9031969f3c6ca4` (later than `3127e4ca`).
@@ -41,7 +41,7 @@ Gemini metadata does not establish model access, free-tier status, or voice supp
 - The APK workflow runs Python SDK integration and Flutter checks before build;
   only encrypted APK bytes can be uploaded from this public repository.
 
-## Exact blockers to live testing/deployment
+## Initial blockers to live testing/deployment (see current setup below)
 
 1. A real LiveKit WSS endpoint and server keypair, set privately on dedicated
    staging services. Do not paste credentials into issues, chat, source or logs.
@@ -62,7 +62,7 @@ Gemini metadata does not establish model access, free-tier status, or voice supp
    checks `wsgi.url_scheme`, not arbitrary client `X-Forwarded-Proto`. Configure
    Gunicorn trusted proxy IPs from the actual platform; never blindly allow `*`.
 
-No service was created/deployed or paid provider activated during recovery.
+No service was created/deployed or paid provider activated during that initial recovery.
 Keep `GS_VOICE_TOKEN_ISSUANCE_ENABLED` and `GS_VOICE_AGENT_ENABLED` off until
 these prerequisites are satisfied. Default-off `/health` can run without secrets;
 health does not mean live voice works.
@@ -94,3 +94,46 @@ old-response suppression, network loss, screen lock/background, two-minute
 server deadline, second-session refusal, replay rejection and provider usage.
 Offline voice is NOT implemented by this experiment. Never auto-enable a paid
 fallback or merge into original JARVIS without separate approval.
+
+## Current platform setup — subsequent authorized staging phase
+
+- Signed-in LiveKit project: `GreenSoil Jarvis`, ID `p_1m6mgo0konb`.
+  Project URL: `wss://greensoil-jarvis-14y4nhhx.livekit.cloud`.
+  Billing page confirmed Build plan, next invoice $0.00, no agent deployments.
+- Dedicated key description `gs-voice-staging-20261121` was created after owner
+  approval. Its credentials were privately set on the two staging services;
+  neither key nor secret is in this repository. Existing key was not revoked.
+- Google AI Studio confirmed project `greensoil-jarvis-ai` is Free tier.
+  Its existing key was privately stored only on the worker service. Authenticated
+  model inventory includes `gemini-2.5-flash-native-audio-preview-12-2025`.
+  Public Gemini pricing lists that model's free-tier input/output as free.
+- Railway services, in the existing project/environment only:
+  `jarvis-livekit-token-staging` (`cc5a70f3-590a-4fbd-8c7e-e50800917d62`)
+  and `jarvis-livekit-agent-staging` (`6e0ba272-41fb-4b21-92dc-4d218810d586`).
+  Each has a dedicated 128 MB `/data` volume, one replica, 0.5 GB RAM/0.5 CPU
+  limits. At credential setup, no source/deployment was attached and issuance
+  remained disabled. Existing Gemini gateway was not changed.
+- Token signing no longer requires a Gemini API key. Provider secrets belong
+  only on the worker. The container initializes volume ownership as root then
+  drops to user `voice` before listening or connecting to any provider.
+- Railway browser sign-in returned `pkce_cookie_missing` after GitHub device
+  approval. Private transfer through the authorized connected tools succeeded;
+  further browser login is not required for deployment.
+- `smoke_gemini.py` is an opt-in actual AgentSession/provider test with a
+  counting sink. Zero frames FAIL, not PASS; it never runs in CI and never
+  proves microphone input, phone playback, recognition, or speaker drain.
+  In a SOCKS-proxied development environment its clients also need `socksio`
+  and `python-socks[asyncio]`; this honors the existing proxy route.
+- Railway public ingress overwrites X-Forwarded-Proto and enforces TLS:
+  https://docs.railway.com/networking/public-networking/specs-and-limits
+  There are no stable supported proxy CIDRs. Trusting all forwarded peers is
+  appropriate only after verifying no TCP proxy and that every service in this
+  private environment is trusted. Ignore the Forwarded header. Keep bearer auth
+  and no-store responses regardless of scheme. Test spoofed headers over HTTP
+  and HTTPS before enabling issuance; the initial generic proxy warning above
+  is not authorization to blindly trust arbitrary deployments.
+
+Provider free-tier status is not a Railway hosting invoice guarantee. No paid
+subscription, billing upgrade or original JARVIS/PB7 change is authorized here.
+Live audio, device QA and final deployment evidence must be reported from actual
+results, separately from unit-test and SDK-construction passes.

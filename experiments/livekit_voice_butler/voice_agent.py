@@ -26,7 +26,7 @@ INSTRUCTIONS = (
 
 
 def build_session():
-    require_free_only_environment()
+    require_free_only_environment(agent=True)
     return agents.AgentSession(
         llm=google.realtime.RealtimeModel(
             api_key=os.environ["GEMINI_API_KEY"],
@@ -39,7 +39,7 @@ def build_session():
 
 
 async def serve_job(ctx):
-    require_free_only_environment()
+    require_free_only_environment(agent=True)
     # rtc.Room.name is empty until connect; use the trusted job room envelope
     # to verify admission BEFORE opening a transport or provider connection.
     room_name = ctx.job.room.name
@@ -83,5 +83,5 @@ server = agents.AgentServer(num_idle_processes=0, log_level="WARN")
 server.rtc_session(agent_name=AGENT_NAME)(serve_job)
 
 if __name__ == "__main__":
-    require_free_only_environment()
+    require_free_only_environment(agent=True)
     agents.cli.run_app(server)

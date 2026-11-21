@@ -74,6 +74,14 @@ class SDKTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             voice_agent.build_session()
 
+    def test_token_signer_does_not_need_the_provider_secret(self):
+        os.environ.pop("GEMINI_API_KEY")
+        os.environ.pop("GS_VOICE_GEMINI_MODEL")
+        token = mint_livekit_token("gs-voice-token-only", "owner-test")
+        self.assertIsInstance(token, str)
+        with self.assertRaises(ValueError):
+            voice_agent.build_session()
+
     def test_default_off_wsgi_health_without_credentials_and_no_token_issuance(self):
         with patch.dict(os.environ, {}, clear=True):
             status = []

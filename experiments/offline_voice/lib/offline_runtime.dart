@@ -13,7 +13,7 @@ class PhoneModel implements LocalModel {
   final LlamaEngine _engine = LlamaEngine(LlamaBackend());
   @override
   Future<void> load(String path) async {
-    await _engine.loadModel(path, modelParams: const ModelParams(
+    await _engine.setModel(LlamaModel(ModelSource.path(path)), params: const ModelParams(
       device: ComputeDevice.cpu, gpuLayers: 0, contextSize: 2048,
       numberOfThreads: 4, numberOfThreadsBatch: 4,
     ));
@@ -32,7 +32,7 @@ class PhoneModel implements LocalModel {
     ];
     await for (final chunk in _engine.create(messages,
       enableThinking: false,
-      params: const GenerationParams(maxTokens: 192, temperature: 0.6),
+      params: const GenerationParams(maxTokens: 192, temp: 0.6),
     )) {
       if (chunk.text.isNotEmpty) yield chunk.text;
     }

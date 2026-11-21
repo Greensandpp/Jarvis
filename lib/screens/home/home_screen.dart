@@ -60,7 +60,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       if (mounted && _mode != AppMode.jarvis) {
         setState(() => _mode = AppMode.jarvis);
         SettingsService.instance.setAppMode(AppMode.jarvis);
-        JarvisService.instance.speakGreeting(force: true);
+        // Do not speak over a wake-word command: the listener owns this turn.
       }
     };
 
@@ -815,7 +815,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     setState(() => _mode = mode);
     SettingsService.instance.setAppMode(mode);
     if (mode == AppMode.jarvis) {
-      JarvisService.instance.speakGreeting(force: true);
+      // A single session greeting; repeated mode changes must not overlap TTS.
+      JarvisService.instance.speakGreeting();
     } else if (previousMode == AppMode.jarvis) {
       JarvisService.instance.onExitJarvisMode();
     }

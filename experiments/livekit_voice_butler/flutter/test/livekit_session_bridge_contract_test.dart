@@ -31,4 +31,36 @@ void main() {
     await expectLater(bridge.sendText('hello'), throwsStateError);
     await bridge.dispose();
   });
+  test('LiveKit connect refuses missing consent before network', () async {
+    final bridge = LiveKitSessionBridge(
+      tokenEndpoint: Uri.parse('https://example.invalid/api/livekit-token'),
+      audioTransport: _NoopTransport(),
+    );
+    await expectLater(
+      bridge.connect(
+        microphonePermissionGranted: true,
+        userApprovedMicrophone: false,
+      ),
+      throwsStateError,
+    );
+    expect(bridge.isConnected, false);
+    await bridge.dispose();
+  });
+
+  test('LiveKit connect refuses missing Android microphone permission', () async {
+    final bridge = LiveKitSessionBridge(
+      tokenEndpoint: Uri.parse('https://example.invalid/api/livekit-token'),
+      audioTransport: _NoopTransport(),
+    );
+    await expectLater(
+      bridge.connect(
+        microphonePermissionGranted: false,
+        userApprovedMicrophone: true,
+      ),
+      throwsStateError,
+    );
+    expect(bridge.isConnected, false);
+    await bridge.dispose();
+  });
+
 }

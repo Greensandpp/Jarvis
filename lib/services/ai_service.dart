@@ -697,7 +697,7 @@ class AiService {
   String? get aiBlockedReason {
     final s = SettingsService.instance;
     if (!s.allowCloudAi && !_isLoopbackAiUrl(s.baseUrl)) {
-      return 'Cloud AI is switched off (Privacy Lock). Enable it in Settings → AI to use the brain.';
+      return 'Privacy Lock: cloud AI is off. Open Settings → Phone-local AI to import and test an offline model. Turning cloud AI on alone will not verify free billing.';
     }
     if (!_isLoopbackAiUrl(s.baseUrl)) {
       return 'Free-only mode: remote text AI billing is unverified. Use offline commands or a verified free Live broker.';

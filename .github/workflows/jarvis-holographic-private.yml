@@ -1,7 +1,7 @@
 name: JARVIS holographic private development
 on:
   push:
-    branches: [fix/jarvis-detailed-guardian-20261121, integration/hybrid-native-voice-20261121]
+    branches: [fix/jarvis-detailed-guardian-20261121, integration/hybrid-native-voice-20261121, fix/reference-visual-and-brain-20261122]
   workflow_dispatch:
 permissions:
   contents: read
@@ -33,7 +33,8 @@ jobs:
           npm install --no-save --prefix /tmp/jarvis-bundle esbuild@0.27.0
           ESBUILD=/tmp/jarvis-bundle/node_modules/.bin/esbuild bash scripts/build_hologram_bundle.sh
           git diff --exit-code -- assets/hologram/scene.bundle.js
-      - run: flutter pub get --enforce-lockfile
+      - run: flutter pub get
+      - run: mkdir -p evidence && cp pubspec.lock evidence/pubspec.lock
       - name: Analyze and regression tests
         shell: bash
         run: |

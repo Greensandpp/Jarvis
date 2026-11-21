@@ -7,6 +7,7 @@ import '../core/build_profile.dart';
 import '../models/task_history_entry.dart';
 import '../services/ai_service.dart';
 import '../services/hybrid_conversation_context.dart';
+import '../services/local_brain/local_brain_service.dart';
 import '../services/app_launcher_service.dart';
 import '../services/calendar_reminder_service.dart';
 import '../services/conversational_memory_service.dart';
@@ -41,7 +42,7 @@ class JarvisBrainService {
   ReplyLanguage lastLanguage = ReplyLanguage.english;
 
   bool get hasPending => brain.pending != null;
-  void cancel() => brain.cancel();
+  void cancel() { brain.cancel(); LocalBrainService.instance.cancel(); }
 
   /// Main entry for voice and text. Returns the reply to speak/show.
   Future<BrainResult> handle(String text) async {
@@ -64,6 +65,20 @@ class JarvisBrainService {
     // 2. Offline shortcuts (work without AI / internet).
     final local = await LocalIntents.handle(text, lastLanguage);
     if (local != null) return _finish(text, BrainResult(local, const [], usedAi: false));
+
+    // Chat-only local inference takes no cloud credentials and cannot execute tools.
+    final phone = LocalBrainService.instance;
+    await phone.initialize();
+    if (phone.ready) {
+      final language = switch (lastLanguage) {
+        ReplyLanguage.tamil => 'ta-IN', ReplyLanguage.tanglish => 'ta-Latn', _ => 'en-IN',
+      };
+      try {
+        final reply = await phone.reply(text, language);
+        return _finish(text, BrainResult(reply, const [], usedAi: true));
+      } on LocalBrainInterrupted { throw BrainCancelled(); }
+      catch (_) { return _finish(text, BrainResult('Phone-local AI could not complete this reply. ${phone.status}', const [], usedAi: false)); }
+    }
 
     // 3. Open-ended reasoning with tools.
     final blocked = AiService.instance.aiBlockedReason;

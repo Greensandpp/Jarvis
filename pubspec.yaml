@@ -44,6 +44,7 @@ dependencies:
   # Voice
   speech_to_text: ^7.4.0
   flutter_tts: ^4.2.5
+  llamadart: 0.20.4
 
   # App management
   installed_apps: ^2.1.1
@@ -143,3 +144,9 @@ flutter:
   #
   # For details regarding fonts from package dependencies,
   # see https://flutter.dev/to/font-from-package
+
+hooks:
+  user_defines:
+    llamadart:
+      llamadart_native_runtimes: [llama_cpp]
+      llamadart_native_backends: [cpu]

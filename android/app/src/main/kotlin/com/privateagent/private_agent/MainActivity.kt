@@ -52,6 +52,7 @@ class MainActivity : FlutterActivity() {
     private var speechChannel: MethodChannel? = null
     // Owner-opted-in Gemini Live audio I/O (foreground only).
     private var liveAudio: LiveAudioBridge? = null
+    private var localBrain: LocalBrainBridge? = null
     private var speechRecognizer: SpeechRecognizer? = null
     private var recognitionIntent: Intent? = null
     private var offlineRecognition = true
@@ -168,6 +169,7 @@ class MainActivity : FlutterActivity() {
 
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
+        if (localBrain?.onActivityResult(requestCode, resultCode, data) == true) return
         if (requestCode == cameraRequestCode) {
             val result = pendingCameraResult
             pendingCameraResult = null
@@ -202,6 +204,8 @@ class MainActivity : FlutterActivity() {
     }
 
     override fun onDestroy() {
+        localBrain?.dispose()
+        localBrain = null
         releaseSpeechFocus()
         liveAudio?.release()
         liveAudio = null
@@ -766,6 +770,7 @@ class MainActivity : FlutterActivity() {
 
         liveAudio = LiveAudioBridge(this, flutterEngine.dartExecutor.binaryMessenger)
         VoiceCredentialStore(this, flutterEngine.dartExecutor.binaryMessenger)
+        localBrain = LocalBrainBridge(this, flutterEngine.dartExecutor.binaryMessenger)
 
         // Native Continuous Speech Channel
         val sChannel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, speechChannelName)

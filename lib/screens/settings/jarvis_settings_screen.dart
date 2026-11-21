@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'local_brain_screen.dart';
 import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 import 'package:flutter_overlay_window/flutter_overlay_window.dart';
 
@@ -106,6 +107,7 @@ class _JarvisSettingsScreenState extends State<JarvisSettingsScreen> {
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 36),
         children: [
+          ListTile(leading: const Icon(Icons.offline_bolt), title: const Text('Phone-local AI'), subtitle: const Text('Import and benchmark an offline conversation model'), onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const LocalBrainScreen()))),
           _sectionTitle('JARVIS Screen (HUD Visual Style)'),
           _screenStyleCard(theme),
           const SizedBox(height: 20),

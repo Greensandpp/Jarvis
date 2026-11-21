@@ -6,6 +6,7 @@ import '../services/jarvis_service.dart';
 import '../services/settings_service.dart';
 import '../services/task_executor.dart';
 import '../services/voice_service.dart';
+import '../services/local_brain/local_brain_service.dart';
 import '../widgets/jarvis_visual_mode_host.dart';
 import 'assistant_activity.dart';
 import 'chat_auto_hide.dart';
@@ -31,6 +32,7 @@ class JarvisV3Bindings {
     required this.aiVerified,
     required this.aiErrorKind,
     required this.standbyMic,
+    this.localAiReady,
   });
 
   factory JarvisV3Bindings.live({required ValueChanged<String> onCommand}) {
@@ -39,18 +41,20 @@ class JarvisV3Bindings {
     final e = TaskExecutor.instance;
     final s = SettingsService.instance;
     final live = JarvisVisualModeHostState.sharedLive();
+    final local = LocalBrainService.instance;
+    unawaited(local.initialize());
     JarvisPhase voicePhase() => live.active
         ? (live.modelSpeaking ? JarvisPhase.speaking : JarvisPhase.listening)
         : j.phase;
     return JarvisV3Bindings(
-      source: Listenable.merge([j, v.listeningNotifier, v.isSpeaking, v.completedSpeech, e, s, live]),
+      source: Listenable.merge([j, v.listeningNotifier, v.isSpeaking, v.completedSpeech, e, s, live, local]),
       activitySignals: () => ActivitySignals(
         phase: voicePhase(),
         completedSerial: v.completedSpeech.value,
         micCapturing: live.active ? !live.muted : v.listeningNotifier.value,
         executorRunning: e.isBusy,
         chatBusy: e.isChatBusy,
-        aiConfigured: s.apiKey.isNotEmpty || s.provider == 'ollama',
+        aiConfigured: local.ready || s.apiKey.isNotEmpty || s.provider == 'ollama',
         errorStatus: j.statusMessage.startsWith('AI ERROR'),
       ),
       conversationSignals: () => ConversationSignals(
@@ -63,8 +67,9 @@ class JarvisV3Bindings {
       soundLevel: () => live.active ? live.level : j.soundLevel.clamp(0.0, 1.0),
       toggleMic: () async { await live.stop(); await j.toggleListening(); },
       onCommand: (text) async { await live.stop(); onCommand(text); },
-      aiVerified: () => s.aiVerified,
-      aiErrorKind: () => s.aiLastErrorKind,
+      aiVerified: () => local.ready || s.aiVerified,
+      localAiReady: () => local.ready,
+      aiErrorKind: () => local.ready ? '' : s.aiLastErrorKind,
       standbyMic: () =>
           v.listeningNotifier.value && j.phase == JarvisPhase.idle,
     );
@@ -77,6 +82,7 @@ class JarvisV3Bindings {
   final Future<void> Function() toggleMic;
   final ValueChanged<String> onCommand;
   final bool Function() aiVerified;
+  final bool Function()? localAiReady;
   final String Function() aiErrorKind;
 
   /// The recogniser is on in wake-word standby although nothing is shown as
@@ -90,6 +96,7 @@ class JarvisV3Bindings {
   required bool aiVerified,
   required String aiErrorKind,
   required bool standbyMic,
+  bool localAi = false,
 }) {
   switch (activity) {
     case AssistantActivity.disconnected:
@@ -106,7 +113,7 @@ class JarvisV3Bindings {
         };
         return (label: label, color: NeonColors.error);
       }
-      final base = aiVerified ? 'CONNECTED' : 'NOT VERIFIED';
+      final base = localAi ? 'LOCAL AI · OFFLINE' : aiVerified ? 'CONNECTED' : 'NOT VERIFIED';
       return (
         label: standbyMic ? '$base · MIC STANDBY' : base,
         color: aiVerified ? const Color(0xFF5CFF9D) : NeonColors.amber,
@@ -474,6 +481,7 @@ class JarvisV3HomeState extends State<JarvisV3Home>
                         aiVerified: b.aiVerified(),
                         aiErrorKind: b.aiErrorKind(),
                         standbyMic: b.standbyMic(),
+                        localAi: b.localAiReady?.call() ?? false,
                       );
                       return Row(
                         mainAxisSize: MainAxisSize.min,

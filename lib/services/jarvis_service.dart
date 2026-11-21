@@ -487,26 +487,31 @@ class JarvisService extends ChangeNotifier {
 
   /// Session guard to ensure rich executive greeting is spoken once per session upon launch
   bool _hasGreetedThisSession = false;
+  bool _greetingInProgress = false;
 
   /// Initial vocal greeting when user enters JARVIS mode.
-  /// Dynamically synthesizes date, time, calendar meetings (e.g. Jack), and pending to-dos.
+  /// Serialize even forced requests so rapid taps cannot overlap greetings.
   Future<void> speakGreeting({bool force = false}) async {
-    if (!force && _hasGreetedThisSession) return;
+    if (_greetingInProgress || (!force && _hasGreetedThisSession)) return;
+    _greetingInProgress = true;
     _hasGreetedThisSession = true;
+    try {
+      onEnterJarvisMode();
+      _wakeUp();
+      _phase = JarvisPhase.thinking;
+      _statusMessage = 'SYNTHESIZING EXECUTIVE BRIEFING';
+      notifyListeners();
 
-    onEnterJarvisMode();
-    _wakeUp();
-    _phase = JarvisPhase.thinking;
-    _statusMessage = 'SYNTHESIZING EXECUTIVE BRIEFING';
-    notifyListeners();
-
-    final greeting = await PersonalityService.instance.generateExecutiveGreeting();
-    _lastJarvisSpeech = greeting;
-    _phase = JarvisPhase.speaking;
-    _statusMessage = 'EXECUTIVE BRIEFING // READY';
-    notifyListeners();
-    await _voice.speak(greeting);
-    _standDown();
+      final greeting = await PersonalityService.instance.generateExecutiveGreeting();
+      _lastJarvisSpeech = greeting;
+      _phase = JarvisPhase.speaking;
+      _statusMessage = 'EXECUTIVE BRIEFING // READY';
+      notifyListeners();
+      await _voice.speak(greeting);
+      _standDown();
+    } finally {
+      _greetingInProgress = false;
+    }
   }
 
   /// Autonomously speaks a proactive question and opens a hands-free confirmation listening window.

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 import 'package:private_agent/main.dart' as app;
@@ -32,6 +33,18 @@ void main() {
       expect(VoiceService.instance.isSpeaking.value, isFalse);
       expect(VoiceService.instance.isListening, isFalse);
       expect(SettingsService.instance.jarvisAlwaysOn, isFalse);
+      const audio = MethodChannel('com.privateagent/speech');
+      expect(
+        await audio.invokeMethod<bool>('acquireOutputFocus', {
+          'requestId': 9001,
+        }),
+        isTrue,
+      );
+      expect(await audio.invokeMethod<bool>('releaseOutputFocus'), isTrue);
+      expect(
+        await audio.invokeMethod<bool>('acquireOutputFocus', {'requestId': -1}),
+        isFalse,
+      );
       await Future<void>.delayed(const Duration(seconds: 8));
       await tester.pump();
       final a = await stage.snapshot();
@@ -39,6 +52,8 @@ void main() {
       expect(a['bones'], greaterThanOrEqualTo(36));
       expect(a['snakeBones'], 32);
       expect(a['intro'], 'done');
+      expect(a['armourPlates'], greaterThan(150));
+      expect(a['materials'], 4);
       await Future<void>.delayed(const Duration(seconds: 1));
       await tester.pump();
       final b = await stage.snapshot();

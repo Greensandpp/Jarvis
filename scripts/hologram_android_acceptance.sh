@@ -9,6 +9,21 @@ for flavor in standard full; do
   SHOT_DIR="evidence/android/$flavor" flutter drive --flavor "$flavor" --driver test_driver/integration_test.dart --target integration_test/holographic_acceptance_test.dart -d emulator-5554 2>&1 | tee "evidence/android/$flavor-drive.txt"
   package=com.greensoil.jarvis.unified.visualstaging
   if [ "$flavor" = full ]; then package=com.greensoil.jarvis.unified.full.visualstaging; fi
+  # Install and launch the exact production-entrypoint APK being delivered,
+  # after the integration test has exercised the underlying app services.
+  adb install -r "private-apks/JARVIS-$flavor-debug.apk" | tee "evidence/android/$flavor-install.txt"
+  grep -q Success "evidence/android/$flavor-install.txt"
+  adb shell am force-stop "$package"
+  adb shell am start -W -n "$package/com.privateagent.private_agent.MainActivity" | tee "evidence/android/$flavor-launch.txt"
+  grep -q 'Status: ok' "evidence/android/$flavor-launch.txt"
+  sleep 12
+  app_pid=$(adb shell pidof "$package" | tr -d '\r')
+  test -n "$app_pid"
+  adb exec-out screencap -p > "evidence/android/$flavor-production-apk.png"
+  adb shell uiautomator dump /sdcard/jarvis-window.xml >/dev/null
+  adb shell cat /sdcard/jarvis-window.xml > "evidence/android/$flavor-window.xml"
+  adb logcat -d --pid="$app_pid" > "evidence/android/$flavor-production-logcat.txt"
+  ! grep -E 'FATAL EXCEPTION|Fatal signal|Abort message:' "evidence/android/$flavor-production-logcat.txt"
   adb shell dumpsys meminfo "$package" > "evidence/android/$flavor-meminfo.txt"
   adb shell dumpsys gfxinfo "$package" > "evidence/android/$flavor-gfxinfo.txt"
   adb shell dumpsys batterystats "$package" > "evidence/android/$flavor-batterystats.txt"

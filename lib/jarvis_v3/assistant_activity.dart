@@ -8,12 +8,13 @@ import '../services/jarvis_service.dart';
 /// driven only by this value, which is derived from real service events.
 /// Manual previews live in Developer Diagnostics and never feed this engine.
 enum AssistantActivity {
-  idle('READY'),
+  idle('IDLE'),
   listening('LISTENING'),
   thinking('THINKING'),
   processing('PROCESSING'),
   executing('EXECUTING'),
   speaking('SPEAKING'),
+  completed('COMPLETED'),
   error('ERROR'),
   disconnected('AI NOT CONNECTED');
 
@@ -36,6 +37,7 @@ class ActivitySignals {
     this.chatBusy = false,
     this.aiConfigured = true,
     this.errorStatus = false,
+    this.completedSerial = 0,
   });
 
   final JarvisPhase phase;
@@ -54,6 +56,7 @@ class ActivitySignals {
 
   /// The service reported a failure for the most recent command.
   final bool errorStatus;
+  final int completedSerial;
 }
 
 /// Pure mapping from real signals to the visual state, kept separate so it can
@@ -88,6 +91,7 @@ class AssistantActivityEngine extends ValueNotifier<AssistantActivity> {
   })  : _source = source,
         _read = read,
         super(AssistantActivity.idle) {
+    _completedSerial = _read().completedSerial;
     _source.addListener(_sync);
     _sync();
   }
@@ -98,7 +102,9 @@ class AssistantActivityEngine extends ValueNotifier<AssistantActivity> {
 
   int _generation = 0;
   int get generation => _generation;
-  Timer? _errorTimer;
+  Timer? _errorTimer, _completionTimer;
+  int _completedSerial = 0;
+  bool _completionPending = false;
   bool _errorAcknowledged = false;
   bool _disposed = false;
 
@@ -112,7 +118,20 @@ class AssistantActivityEngine extends ValueNotifier<AssistantActivity> {
   void _sync() {
     if (_disposed) return;
     final signals = _read();
+    if (signals.completedSerial != _completedSerial) {
+      _completedSerial = signals.completedSerial;
+      _completionPending = true;
+    }
     var next = deriveActivity(signals);
+    final resting = next == AssistantActivity.idle || next == AssistantActivity.disconnected;
+    if (resting && _completionPending) {
+      _completionPending = false;
+      next = AssistantActivity.completed;
+    } else if (resting && value == AssistantActivity.completed && _completionTimer?.isActive == true) {
+      return;
+    } else if (next.isActiveConversation && next != AssistantActivity.speaking) {
+      _completionPending = false;
+    }
     if (!signals.errorStatus) _errorAcknowledged = false;
     if (next == AssistantActivity.error && _errorAcknowledged) {
       next = signals.aiConfigured ? AssistantActivity.idle : AssistantActivity.disconnected;
@@ -120,7 +139,16 @@ class AssistantActivityEngine extends ValueNotifier<AssistantActivity> {
     if (next == value) return;
     final gen = ++_generation;
     _errorTimer?.cancel();
+    _completionTimer?.cancel();
     value = next;
+    if (next == AssistantActivity.completed) {
+      // A brief completion acknowledgement requires an actual successful
+      // speech-completion event. Cancellation never emits that event.
+      _completionTimer = Timer(const Duration(milliseconds: 700), () {
+        _completionTimer = null;
+        if (!_disposed && gen == _generation) _sync();
+      });
+    }
     if (next == AssistantActivity.error) {
       // ERROR is shown long enough to read, then the real state takes over
       // unless something newer has already replaced it.
@@ -136,6 +164,7 @@ class AssistantActivityEngine extends ValueNotifier<AssistantActivity> {
   void dispose() {
     _disposed = true;
     _errorTimer?.cancel();
+    _completionTimer?.cancel();
     _source.removeListener(_sync);
     super.dispose();
   }

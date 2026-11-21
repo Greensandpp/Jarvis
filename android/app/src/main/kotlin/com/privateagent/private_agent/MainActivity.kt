@@ -13,6 +13,8 @@ import android.hardware.SensorManager
 import android.hardware.camera2.CameraCharacteristics
 import android.hardware.camera2.CameraDevice
 import android.hardware.camera2.CameraManager
+import android.media.AudioAttributes
+import android.media.AudioFocusRequest
 import android.media.AudioManager
 import android.net.Uri
 import android.os.BatteryManager
@@ -77,6 +79,42 @@ class MainActivity : FlutterActivity() {
 
     private var mediaPlayer: android.media.MediaPlayer? = null
     private var playResult: MethodChannel.Result? = null
+    private var speechFocus: AudioFocusRequest? = null
+    private var speechFocusId: Long? = null
+
+    private fun releaseSpeechFocus() {
+        speechFocusId = null
+        val manager = getSystemService(Context.AUDIO_SERVICE) as AudioManager
+        speechFocus?.let { manager.abandonAudioFocusRequest(it) }
+        speechFocus = null
+    }
+
+    private fun acquireSpeechFocus(id: Long): Boolean {
+        if (id <= 0L) return false
+        releaseSpeechFocus()
+        val manager = getSystemService(Context.AUDIO_SERVICE) as AudioManager
+        val request = AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN_TRANSIENT)
+            .setAudioAttributes(AudioAttributes.Builder()
+                .setUsage(AudioAttributes.USAGE_ASSISTANT)
+                .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH).build())
+            .setWillPauseWhenDucked(true)
+            .setOnAudioFocusChangeListener({ change ->
+                if (speechFocusId == id && change != AudioManager.AUDIOFOCUS_GAIN) {
+                    // Notify Dart before resolving interrupted cloud playback: it
+                    // invalidates the speech ticket, preventing a local fallback.
+                    speechChannel?.invokeMethod("onOutputFocusLost", id)
+                    releaseSpeechFocus()
+                    try { mediaPlayer?.release() } catch (_: Exception) {}
+                    mediaPlayer = null
+                    playResult?.success(false)
+                    playResult = null
+                }
+            }, mainHandler).build()
+        speechFocus = request
+        val granted = manager.requestAudioFocus(request) == AudioManager.AUDIOFOCUS_REQUEST_GRANTED
+        if (granted) speechFocusId = id else releaseSpeechFocus()
+        return granted
+    }
 
     private val cameraRequestCode = 9102
     private var pendingCameraResult: MethodChannel.Result? = null
@@ -134,6 +172,7 @@ class MainActivity : FlutterActivity() {
     }
 
     override fun onDestroy() {
+        releaseSpeechFocus()
         liveAudio?.release()
         liveAudio = null
         stopNativeListening()
@@ -707,6 +746,8 @@ class MainActivity : FlutterActivity() {
         speechChannel = sChannel
         sChannel.setMethodCallHandler { call, result ->
             when (call.method) {
+                "acquireOutputFocus" -> result.success(acquireSpeechFocus(call.argument<Number>("requestId")?.toLong() ?: -1L))
+                "releaseOutputFocus" -> { releaseSpeechFocus(); result.success(true) }
                 "startListening" -> {
                     val continuous = call.argument<Boolean>("continuous") ?: true
                     val manual = call.argument<Boolean>("manual") ?: false
@@ -965,6 +1006,10 @@ class MainActivity : FlutterActivity() {
                     }
 
                     "playAudioFile" -> {
+                        if (speechFocusId == null) {
+                            result.success(false)
+                            return@setMethodCallHandler
+                        }
                         val path = call.argument<String>("path")
                         if (path.isNullOrEmpty()) {
                             result.error("INVALID_PATH", "Audio file path is empty", null)
@@ -979,6 +1024,8 @@ class MainActivity : FlutterActivity() {
                                 it.release()
                             }
                             mediaPlayer = android.media.MediaPlayer().apply {
+                                setAudioAttributes(AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_ASSISTANT)
+                                    .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH).build())
                                 setDataSource(path)
                                 setOnPreparedListener { start() }
                                 setOnCompletionListener {

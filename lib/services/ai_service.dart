@@ -1457,6 +1457,8 @@ The user is viewing an article or screen on their device and requested an execut
     // ever repeated; tool / Android actions run later, exactly once, by the
     // caller after a reply arrives.
     Future<http.Response> send(String model) async {
+      settings.beginAiRequest();
+      try {
       final r = await _client
           .post(uri, headers: headers, body: jsonEncode({
             'model': model,
@@ -1470,6 +1472,7 @@ The user is viewing an article or screen on their device and requested an execut
           .timeout(const Duration(seconds: 45));
       if (r.statusCode != 200) throw AiFailure.fromHttp(r.statusCode, r.body);
       return r;
+      } finally { settings.endAiRequest(); }
     }
 
     http.Response res;

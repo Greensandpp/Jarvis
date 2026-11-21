@@ -21,6 +21,7 @@ class SpeechOutputController {
   SpeechTicket? _current;
   Future<void> _barrier = Future.value();
   bool externalSession = false;
+  int? get activeRequestId => _current?.id;
 
   Future<void> _stop() {
     final next = _barrier.then((_) => stopDrivers());
@@ -39,7 +40,10 @@ class SpeechOutputController {
     try {
       await Future.any([play(ticket), ticket.cancellation]);
     } finally {
-      if (identical(_current, ticket)) onSpeaking(false);
+      if (identical(_current, ticket)) {
+        _current = null;
+        onSpeaking(false);
+      }
     }
   }
 

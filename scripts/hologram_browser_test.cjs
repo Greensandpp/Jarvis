@@ -3,7 +3,7 @@ const fs = require('node:fs');
 const assert = require('node:assert/strict');
 (async()=>{
  const browser=await chromium.launch({headless:true,executablePath:process.env.CHROMIUM_PATH || '/usr/bin/chromium',args:['--no-sandbox','--use-gl=angle','--use-angle=swiftshader','--enable-unsafe-swiftshader']});
- const page=await browser.newPage({viewport:{width:412,height:820},deviceScaleFactor:1});
+ const page=await browser.newPage({viewport:{width:412,height:820},deviceScaleFactor:1,recordVideo:{dir:'evidence/hologram/video',size:{width:412,height:820}}});
  const errors=[],events=[];page.on('pageerror',e=>errors.push(String(e)));page.on('console',m=>{if(m.type()==='error')errors.push(m.text());});
  await page.exposeFunction('reportScene',v=>events.push(JSON.parse(v)));
  await page.setContent('<style>body{margin:0}canvas{touch-action:none}</style><script>window.HologramBridge={postMessage:v=>window.reportScene(v)}</script>');
@@ -30,7 +30,7 @@ const assert = require('node:assert/strict');
   assert.equal((await page.evaluate(()=>window.jarvisScene.snapshot())).quality,quality);
  }
  await page.evaluate(()=>window.jarvisScene.update({quality:'balanced'}));
- for(const state of ['idle','listening','thinking','processing','speaking','error','disconnected']){
+ for(const state of ['idle','listening','thinking','processing','speaking','completed','error','disconnected']){
   await page.evaluate(state=>window.jarvisScene.update({state}),state);assert.equal((await page.evaluate(()=>window.jarvisScene.snapshot())).state,state);
  }
  await page.evaluate(()=>window.jarvisScene.pause(true));const frozen=await page.evaluate(()=>window.jarvisScene.snapshot());await page.waitForTimeout(200);assert.deepEqual((await page.evaluate(()=>window.jarvisScene.snapshot())).humanoidHead,frozen.humanoidHead);await page.evaluate(()=>window.jarvisScene.pause(false));

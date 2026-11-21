@@ -37,9 +37,10 @@ class JarvisV3Bindings {
     final e = TaskExecutor.instance;
     final s = SettingsService.instance;
     return JarvisV3Bindings(
-      source: Listenable.merge([j, v.listeningNotifier, v.isSpeaking, e, s]),
+      source: Listenable.merge([j, v.listeningNotifier, v.isSpeaking, v.completedSpeech, e, s]),
       activitySignals: () => ActivitySignals(
         phase: j.phase,
+        completedSerial: v.completedSpeech.value,
         micCapturing: v.listeningNotifier.value,
         executorRunning: e.isBusy,
         chatBusy: e.isChatBusy,

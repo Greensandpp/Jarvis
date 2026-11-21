@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:async';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
@@ -70,6 +71,40 @@ void main() {
       );
       expect(settings.aiVerified, isFalse);
       expect(settings.aiLastErrorKind, 'parse');
+    },
+  );
+  test(
+    'CONNECTING exists only while real HTTP is in flight; new config invalidates success',
+    () async {
+      SharedPreferences.setMockInitialValues({
+        'ai_provider': 'gemini',
+        'ai_api_key': 'k-test',
+        'ai_model': 'gemini-2.5-flash',
+        'privacy_allow_cloud_ai': true,
+      });
+      final settings = SettingsService.instance;
+      await settings.init();
+      final gate = Completer<http.Response>();
+      AiService.instance.debugClient = MockClient(
+        (r) async => r.method == 'GET'
+            ? http.Response('{"data":[{"id":"gemini-2.5-flash"}]}', 200)
+            : await gate.future,
+      );
+      final work = AiService.instance.chat(message: 'hello');
+      for (var i = 0; i < 40 && settings.aiStatusLabel != 'CONNECTING'; i++) {
+        await Future<void>.delayed(Duration.zero);
+      }
+      expect(settings.aiStatusLabel, 'CONNECTING');
+      gate.complete(
+        http.Response('{"choices":[{"message":{"content":"hello"}}]}', 200),
+      );
+      await work;
+      expect(settings.aiVerified, isTrue);
+      await settings.setApiKey('different-test-key');
+      expect(settings.aiVerified, isFalse);
+      await settings.recordAiSuccess(settings.model);
+      await settings.setBaseUrl('https://another.example/v1');
+      expect(settings.aiVerified, isFalse);
     },
   );
 }

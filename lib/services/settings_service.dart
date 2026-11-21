@@ -106,6 +106,7 @@ class SettingsService extends ChangeNotifier {
   /// stored choice is never overwritten.
   String get provider => _prefs?.getString('ai_provider') ?? 'gemini';
   Future<void> setProvider(String value) async {
+    if (value != provider) _verifiedThisSession = false;
     await _prefs?.setString('ai_provider', value);
     final preset = providers[value];
     if (preset != null && preset.baseUrl.isNotEmpty) {
@@ -123,6 +124,7 @@ class SettingsService extends ChangeNotifier {
       providers[provider]?.baseUrl ??
       providers['gemini']!.baseUrl;
   Future<void> setBaseUrl(String value) async {
+    if (value.trim() != baseUrl) _verifiedThisSession = false;
     await _prefs?.setString('ai_base_url', value.trim());
     notifyListeners();
   }
@@ -135,6 +137,9 @@ class SettingsService extends ChangeNotifier {
   }
 
   /// "ONLINE" is only claimed after a real request succeeded.
+  int _aiRequestsInFlight = 0;
+  void beginAiRequest() { _aiRequestsInFlight++; notifyListeners(); }
+  void endAiRequest() { if (_aiRequestsInFlight > 0) _aiRequestsInFlight--; notifyListeners(); }
   bool _verifiedThisSession = false;
   bool get aiVerified => _verifiedThisSession && (_prefs?.getBool('ai_verified') ?? false);
   int get aiLastOkAt => _prefs?.getInt('ai_last_ok_at') ?? 0;
@@ -183,6 +188,7 @@ class SettingsService extends ChangeNotifier {
 
   /// Honest status line: never ONLINE without a verified request.
   String get aiStatusLabel {
+    if (_aiRequestsInFlight > 0) return 'CONNECTING';
     if (apiKey.isEmpty && provider != 'ollama') return 'CONFIGURATION MISSING';
     if (aiLastErrorKind == 'auth') return 'AUTH REQUIRED';
     if (const ['dns', 'connect', 'timeout'].contains(aiLastErrorKind)) return 'OFFLINE';
@@ -197,6 +203,7 @@ class SettingsService extends ChangeNotifier {
     final changed = key != apiKey;
     await _prefs?.setString('ai_api_key', key);
     if (changed) {
+      _verifiedThisSession = false;
       // A new key has its own model list; rediscover on next use.
       await _prefs?.setInt('ai_models_discovered_at', 0);
     }

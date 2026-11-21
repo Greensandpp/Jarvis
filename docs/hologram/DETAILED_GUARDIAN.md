@@ -23,3 +23,13 @@ Local Node rig tests passed: articulation, bone deformation/weights, independent
 Full is a test-only development variant, encrypted before GitHub artifact upload using the existing recipient public key. No production signing key is available. CI debug certificates are not a verified in-place upgrade path for an existing installation. Do not uninstall the working app, disable Play Protect or enable broad permissions to work around a failure.
 
 Visual reference fidelity remains subject to actual renderer inspection and owner acceptance. A parametric detailed model is not a claim of film-quality character modelling.
+
+## Follow-up hardening
+
+Native assistant audio focus is coordinated with speech request IDs for local TTS and cloud MP3 playback. Denial is text-only; loss cancels the current ticket and native audio, with no automatic replay. Stale focus events cannot stop a replacement utterance. A successful engine completion emits COMPLETED briefly, then derives the current real state; cancelled/missing-resource speech does not emit completion. Provider/key/endpoint changes invalidate prior verification; CONNECTING reflects actual HTTP work.
+
+The final CI additionally records a real WebGL motion video, checks native Android audio-focus grant/release/invalid IDs, installs the exact delivery APK after integration testing, launches its production entrypoint, captures its screen, scans its process log for fatal crashes and records memory/gfx/battery diagnostics. This is emulator evidence only. Actual audible phone focus behavior and acoustic barge-in remain unverified.
+
+First candidate bc293b042cd8fec224ddfda401df1967fa20075c passed CI 44855578917: 251 Flutter tests, WebGL, Android 16 integration on both variants, signatures/permission/ELF/ZIP alignment. Screenshot review exposed a cropped serpent head and foreground MIRA crystals. The follow-up moves the head lane inward (still clear of the face) and keeps environmental objects behind the character. Emulator snapshots were 3.53 / 6.00 FPS; this is not a phone performance result and does not meet the 30/60 target on SwiftShader. That run's post-drive meminfo had no app process; the follow-up installs/launches the actual delivery APK before resource capture.
+
+Signing compatibility: the first new CI certificate digest 17f664a8f523c9dca7f8f39b644b04b01ffad93e75d0e4698b359d2588535010 differs from the earlier 7ae6a83 build certificate c940bdc910cd490b6cc9c9613f256de5f4429441c7e87c49be3f5762d327ce97. Same-package installation over that old build is blocked by Android signature enforcement. This is a verified migration blocker; retaining the old signing key or an owner-approved migration is required. No uninstall, package rename or protection bypass is authorized here.

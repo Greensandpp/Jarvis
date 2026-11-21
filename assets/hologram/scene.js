@@ -47,14 +47,14 @@ export function animateRig(r,t,state='idle',level=0,intro=1,dt=1) {
  n.chest.rotation.z=Math.sin(t*.7)*.015;n.chest.scale.y=1+Math.sin(t*2)*.008;
  n.head.rotation.y=Math.sin(t*.73)*.24;n.head.rotation.x=listening?-.14:Math.sin(t*.6)*.05;
  for(const side of ['L','R']){const sign=side==='L'?1:-1;
-  n['shoulder'+side].rotation.z=THREE.MathUtils.lerp(n['shoulder'+side].rotation.z,sign*(.1+Math.sin(t*.9)*.06+(listening?.55:thinking?.8:0)),blend);
-  n['elbow'+side].rotation.x=THREE.MathUtils.lerp(n['elbow'+side].rotation.x,-.12-(thinking?1.1:Math.sin(t*.7)*.12),blend);
+  n['shoulder'+side].rotation.z=THREE.MathUtils.lerp(n['shoulder'+side].rotation.z,sign*(.1+Math.sin(t*.9)*.06+(listening?.55:thinking?.8:speaking?.16+Math.sin(t*2.2)*.14:0)),blend);
+  n['elbow'+side].rotation.x=THREE.MathUtils.lerp(n['elbow'+side].rotation.x,-.12-(thinking?1.1:speaking?.32+Math.sin(t*1.8)*.2:Math.sin(t*.7)*.12),blend);
   n['wrist'+side].rotation.y=Math.sin(t*1.3)*.2;
   for(let f=0;f<5;f++){const curl=.18+(Math.sin(t*1.4+f*.3)+1)*.23;n['finger'+side+f].rotation.x=curl;n['tip'+side+f].rotation.x=curl*.7;}
  }
  n.jaw.rotation.x=THREE.MathUtils.lerp(n.jaw.rotation.x,speaking?.08+Math.abs(Math.sin(t*14))*(.12+level*.3):0,blend);
  n.eyeL.rotation.y=n.eyeR.rotation.y=Math.sin(t*.73)*.15;
- r.armour.forEach((m,i)=>{const k=clamp((intro-.2-i/r.armour.length*.22)/.45,0,1);m.visible=intro>.15 && intro<.995;m.position.copy(m.userData.rest).addScaledVector(new THREE.Vector3(Math.sin(i*7),.5,Math.cos(i*7)),(1-k)*1.5);});
+ r.armour.forEach((m,i)=>{const k=clamp((intro-.2-i/r.armour.length*.22)/.45,0,1);m.visible=intro>.15 && intro<.995 && (!m.userData.bone.name.startsWith('eye') || intro>.7);m.position.copy(m.userData.rest).addScaledVector(new THREE.Vector3(Math.sin(i*7),.5,Math.cos(i*7)),(1-k)*1.5);});
  r.glow.emissiveIntensity=intro<.65?0:1.6+Math.sin(t*3)*.3+(speaking?level:0);
  r.mesh.geometry.setDrawRange(0,intro>=.995?Infinity:0);r.mesh.visible=intro>.12;
  r.mesh.updateMatrixWorld(true);
@@ -66,7 +66,7 @@ export function animateSnake(s,t,intro=1) {
  const path=(i)=>{const u=i/(count-1),a=t*.55+u*Math.PI*2;
   const radius=.82+Math.sin(t*1.1-u*7)*.055;
   const p=new THREE.Vector3(Math.cos(a)*radius,.4+u*2.35+Math.sin(t*1.4-u*6)*.08,Math.sin(a)*radius);
-  return p.lerp(new THREE.Vector3(.98+Math.sin(t*.6)*.08,2.8+Math.sin(t)*.07,.02),THREE.MathUtils.smoothstep(u,.84,1));
+  return p.lerp(new THREE.Vector3(.72+Math.sin(t*.6)*.04,2.8+Math.sin(t)*.07,.02),THREE.MathUtils.smoothstep(u,.84,1));
  };
  s.mesh.scale.setScalar(1);s.mesh.updateMatrixWorld(true);
  for(let i=0;i<count;i++) {
@@ -79,6 +79,7 @@ export function animateSnake(s,t,intro=1) {
   }
   b.updateWorldMatrix(false,false);
  }
+ s.material.transparent=intro<1;s.material.opacity=clamp((intro-.72)/.16,0,1);
  s.head.rotation.y=Math.sin(t*1.6)*.5;s.jaw.rotation.x=.15+(Math.sin(t*2)+1)*.23;
  s.mesh.visible=intro>.72 && Math.sin(t*.12)>-.93;s.mesh.updateMatrixWorld(true);
 }
@@ -121,6 +122,7 @@ export function startScene() {
    const m=new THREE.Mesh(geo,material);
    if(name==='solar')m.position.set(0,1.8,0);
    else m.position.set(Math.sin(i*2.4)*2,.2+(i%5)*.58,Math.cos(i*2.4)*1.8-1);
+   m.position.z=-1.5-Math.abs(m.position.z);m.scale.setScalar(.65);
    m.rotation.set(i*.2,i*.3,i*.4);group.add(m);
   }
  }

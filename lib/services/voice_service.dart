@@ -31,10 +31,12 @@ class VoiceService {
     stopDrivers: () async {
       await EdgeTtsService.instance.stop();
       try { await _tts.stop(); } catch (_) {}
+      try { await _nativeSpeechChannel.invokeMethod('releaseOutputFocus'); } catch (_) {}
     },
     onSpeaking: (speaking) => isSpeaking.value = speaking,
   );
 
+  final ValueNotifier<int> completedSpeech = ValueNotifier<int>(0);
   final ValueNotifier<bool> isSpeaking = ValueNotifier<bool>(false);
   final ValueNotifier<double> soundLevel = ValueNotifier<double>(0.0);
   final ValueNotifier<bool> listeningNotifier = ValueNotifier<bool>(false);
@@ -74,6 +76,9 @@ class VoiceService {
             listeningNotifier.value = false;
             onListeningChanged?.call(false);
           }
+          break;
+        case 'onOutputFocusLost':
+          if ((call.arguments as num?)?.toInt() == output.activeRequestId) await stopSpeaking();
           break;
         case 'onSoundLevel':
           final level = (call.arguments as num?)?.toDouble() ?? 0.0;
@@ -344,40 +349,74 @@ class VoiceService {
       neuralVoice: SettingsService.instance.jarvisNeuralVoice,
       female: SettingsService.instance.preferFemaleVoice);
 
-  Future<void> speakIn(String text, {required String languageTag,
-      required String neuralVoice, required bool female}) async {
+  Future<void> speakIn(
+    String text, {
+    required String languageTag,
+    required String neuralVoice,
+    required bool female,
+  }) async {
     final clean = sanitizeForSpeech(text);
     if (clean.isEmpty) return;
     await output.speak((ticket) async {
       if (_listening) await stopListening();
       if (ticket.cancelled) return;
-      publishAvatarSpeech(clean, languageTag: languageTag);
-      final settings = SettingsService.instance;
-      if (neuralVoice.isNotEmpty && settings.useNeuralVoice && settings.allowCloudTts) {
-        final played = await EdgeTtsService.instance.speak(clean, voice: neuralVoice);
+      bool focused = false;
+      try {
+        focused =
+            await _nativeSpeechChannel.invokeMethod<bool>(
+              'acquireOutputFocus',
+              {'requestId': ticket.id},
+            ) ??
+            false;
+      } catch (_) {}
+      if (ticket.cancelled) return;
+      if (!focused) {
+        lastVoiceUsed = 'Audio focus unavailable — text only';
+        return;
+      }
+      try {
+        publishAvatarSpeech(clean, languageTag: languageTag);
+        final settings = SettingsService.instance;
+        if (neuralVoice.isNotEmpty &&
+            settings.useNeuralVoice &&
+            settings.allowCloudTts) {
+          final played = await EdgeTtsService.instance.speak(
+            clean,
+            voice: neuralVoice,
+          );
+          if (ticket.cancelled) return;
+          if (played) {
+            completedSpeech.value++;
+            lastVoiceUsed = 'neural $neuralVoice';
+            return;
+          }
+        }
+        await initTts();
+        if (ticket.cancelled || !_ttsReady) return;
+        final supported = await _tts.isLanguageAvailable(languageTag);
         if (ticket.cancelled) return;
-        if (played) {
-          lastVoiceUsed = 'neural $neuralVoice';
+        if (supported != true) {
+          lastVoiceUsed = '$languageTag unavailable — text only';
           return;
         }
+        await _tts.setLanguage(languageTag);
+        final used = await _applyLocalVoice(languageTag, female: female);
+        if (ticket.cancelled) return;
+        if (used == null) {
+          lastVoiceUsed = '$languageTag offline voice unavailable — text only';
+          return;
+        }
+        lastVoiceUsed = 'local $languageTag · $used';
+        final result = await _tts.speak(clean);
+        if (!ticket.cancelled && (result == 1 || result == true)) completedSpeech.value++;
+      } finally {
+        // A cancelled request must never release the newer owner's focus.
+        if (!ticket.cancelled) {
+          try {
+            await _nativeSpeechChannel.invokeMethod('releaseOutputFocus');
+          } catch (_) {}
+        }
       }
-      await initTts();
-      if (ticket.cancelled || !_ttsReady) return;
-      final supported = await _tts.isLanguageAvailable(languageTag);
-      if (ticket.cancelled) return;
-      if (supported != true) {
-        lastVoiceUsed = '$languageTag unavailable — text only';
-        return;
-      }
-      await _tts.setLanguage(languageTag);
-      final used = await _applyLocalVoice(languageTag, female: female);
-      if (ticket.cancelled) return;
-      if (used == null) {
-        lastVoiceUsed = '$languageTag offline voice unavailable — text only';
-        return;
-      }
-      lastVoiceUsed = 'local $languageTag · $used';
-      await _tts.speak(clean);
     });
   }
 

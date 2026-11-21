@@ -64,3 +64,28 @@ Do not build or install an APK from this directory: it is an isolated library
 package, not an app. Tests are UNVERIFIED in this environment, which lacks the
 Flutter SDK. Prior to any phone test, obtain an authenticated short-lived token
 endpoint and implement true cancellation + player-stop acknowledgments.
+
+## Phase 5: explicit permission and microphone policy
+
+- `MicrophoneConsentGate` rejects mic activation unless Android permission
+  and explicit user consent for the current session were recorded.
+- LiveKit `Session.start()` may publish microphone *after* connection,
+  even when `preConnectAudio: false`. Thus `LiveKitSessionBridge.connect`
+  now requires `microphonePermissionGranted` and `userApprovedMicrophone`
+  **before** starting the connection.
+- `setMicrophoneEnabled(bool)` uses the LiveKit SDK's documented
+  `room.localParticipant?.setMicrophoneEnabled(bool)` function.
+- `revokeMicrophone` clears consent then requests track muting.
+- Disconnect/dispose attempt to terminate the LiveKit session even if
+  coordinator audio-stop fails. These are not evidence of device reliability.
+- 4 microphone-policy tests and 2 connection-consent tests were added.
+- **Remaining limitation:** neither Flutter SDK nor physical Android 16 device
+  is available for test execution in this environment. SDK compile, actual
+  Android microphone permissions, app background transitions, Bluetooth route,
+  native playback cancellation and Tamil recognition remain UNVERIFIED.
+- No production code, key, backend deployment, APK, or always-listening service
+  has been changed or started.
+
+Relevant SDK docs:
+https://docs.livekit.io/reference/client-sdk-flutter/livekit_client/Session/start.html
+https://docs.livekit.io/reference/client-sdk-flutter/livekit_client/LocalParticipant/setMicrophoneEnabled.html

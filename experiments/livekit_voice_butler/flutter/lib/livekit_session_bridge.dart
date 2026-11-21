@@ -25,6 +25,7 @@ class LiveKitSessionBridge {
   final VoiceSessionCoordinator coordinator;
   final MicrophoneConsentGate microphoneConsent = MicrophoneConsentGate();
   bool _closed = false;
+  bool _sessionWasStarted = false;
   Future<void>? _connecting;
 
   lk.ConnectionState get connectionState => _session.connectionState;
@@ -52,6 +53,7 @@ class LiveKitSessionBridge {
 
   Future<void> _connectOnce() async {
     try {
+      _sessionWasStarted = true;
       await _session.start();
       if (_closed || !isConnected) {
         throw StateError('LiveKit session did not reach connected state.');
@@ -65,7 +67,10 @@ class LiveKitSessionBridge {
       try {
         await coordinator.disconnected();
       } finally {
-        await _session.end();
+        if (_sessionWasStarted) {
+          await _session.end();
+          _sessionWasStarted = false;
+        }
       }
       rethrow;
     }
@@ -115,7 +120,10 @@ class LiveKitSessionBridge {
     try {
       await coordinator.disconnected();
     } finally {
-      await _session.end();
+      if (_sessionWasStarted) {
+        await _session.end();
+        _sessionWasStarted = false;
+      }
     }
   }
 
@@ -127,7 +135,10 @@ class LiveKitSessionBridge {
       await coordinator.close();
     } finally {
       try {
-        await _session.end();
+        if (_sessionWasStarted) {
+          await _session.end();
+          _sessionWasStarted = false;
+        }
       } finally {
         await _session.dispose();
       }

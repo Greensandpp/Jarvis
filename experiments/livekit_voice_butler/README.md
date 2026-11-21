@@ -54,3 +54,22 @@ would require validated TLS proxy configuration, token validation with
 expiry/audience, authorization, response-generation ownership binding,
 replay protection, rate limiting, observability and a real agent-side
 cancel-and-confirm implementation. No secrets or live cloud bills.
+
+## Phase 13: agent-side response ownership registry (not connected)
+
+`cancellation_registry.py` adds a strict one-active-response-per-room
+registry. The cancellation operation validates principal, room, response
+ID and exact generation before calling an injected backend stop function.
+A new response cannot replace an active response until stop was positively
+acknowledged; stale/double cancellations and wrong owner IDs are rejected.
+`test_cancellation_registry.py` contains 8 offline tests, including an
+end-to-end WSGI request against the registry.
+
+**This is not a LiveKit integration:** upstream jarvis-voice-butler uses
+`AgentSession` and Google realtime Gemini, but this experiment has not
+wired the stop callback to that SDK, nor implemented authoritative room
+membership storage. The sample stop callback in the tests is a FAKE,
+not proof that real audio is cancelled. No API or APK has been deployed.
+Before production, implement a bounded, non-reentrant agent cancellation
+and output-queue drain acknowledgement, agent-side session lifecycle,
+authentication, replay protection, and live tests.

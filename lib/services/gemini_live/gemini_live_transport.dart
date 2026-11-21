@@ -177,6 +177,8 @@ class GeminiLiveTransport implements LiveVoiceTransport {
   bool _dropped = false;
 
   // Observable outputs for the UI (all text stays on device).
+  final _turns = StreamController<void>.broadcast();
+  Stream<void> get completedTurns => _turns.stream;
   final _transcripts = StreamController<LiveTranscript>.broadcast();
   final _drops = StreamController<LiveDropReason>.broadcast();
   final _levels = StreamController<double>.broadcast();
@@ -214,6 +216,7 @@ class GeminiLiveTransport implements LiveVoiceTransport {
             unawaited(audio.flush().catchError((Object _) { _drop(LiveDropReason.audioDevice); })); // barge-in
             _speaking.add(false);
           case LiveTurnComplete():
+            _turns.add(null);
             // AudioTrack can still contain PCM after the server finished generating.
             // Native drained event determines when speaking animation ends.
             break;

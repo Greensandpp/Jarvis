@@ -138,6 +138,10 @@ class ConversationStore extends ChangeNotifier {
       changed |= _add(ConversationEntry(
           role: ConversationRole.user, text: now.userText.trim(), at: DateTime.now()));
     }
+    if (now.status.startsWith('LIVE') && now.phase == JarvisPhase.speaking &&
+        prev.phase != JarvisPhase.speaking && now.userText.trim().isNotEmpty) {
+      changed |= _add(ConversationEntry(role: ConversationRole.user, text: now.userText.trim(), at: DateTime.now()));
+    }
     if (now.phase == JarvisPhase.speaking &&
         (prev.phase != JarvisPhase.speaking || prev.jarvisText != now.jarvisText) &&
         now.jarvisText.trim().isNotEmpty) {
@@ -147,6 +151,12 @@ class ConversationStore extends ChangeNotifier {
           : now.awaitingConfirmation
               ? ConversationKind.confirmation
               : ConversationKind.normal;
+      if (now.status.startsWith('LIVE') && prev.phase == JarvisPhase.speaking &&
+          _entries.isNotEmpty && _entries.last.role == ConversationRole.jarvis) {
+        _entries[_entries.length - 1] = ConversationEntry(role: ConversationRole.jarvis, text: now.jarvisText.trim(), at: _entries.last.at);
+        _save();
+        changed = true;
+      } else {
       changed |= _add(ConversationEntry(
         role: ConversationRole.jarvis,
         text: now.jarvisText.trim(),
@@ -154,6 +164,7 @@ class ConversationStore extends ChangeNotifier {
         kind: kind,
         acknowledged: kind == ConversationKind.normal,
       ));
+      }
     }
     if (now.phase == JarvisPhase.listening && prev.userText != now.userText) {
       changed = true; // live transcript updated

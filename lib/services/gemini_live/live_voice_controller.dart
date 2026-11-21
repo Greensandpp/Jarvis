@@ -6,6 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../live_voice_session.dart';
 import '../voice_service.dart';
+import '../hybrid_conversation_context.dart';
 import 'gemini_live_protocol.dart';
 import 'gemini_live_transport.dart';
 
@@ -111,6 +112,7 @@ class LiveVoiceController extends ChangeNotifier with WidgetsBindingObserver {
   bool _starting = false;
   double level = 0;
   bool modelSpeaking = false;
+  bool? _receivingUser;
   String lastHeard = '';
   String lastSaid = '';
   String? message;
@@ -158,7 +160,7 @@ class LiveVoiceController extends ChangeNotifier with WidgetsBindingObserver {
       return false;
     }
     _externalAudioOwnership(true);
-    final context = 'User: $lastHeard\nAssistant: $lastSaid';
+    final context = HybridConversationContext.instance.prompt;
     settings.context = context.length <= 4000 ? context : context.substring(context.length - 4000);
     final t = _factory(settings);
     _transport = t;
@@ -168,9 +170,15 @@ class LiveVoiceController extends ChangeNotifier with WidgetsBindingObserver {
     _subs
       ..add(t.transcripts.listen((tr) {
         if (tr.fromUser) {
-          lastHeard = tr.text;
+          if (_receivingUser != true) { lastHeard = ''; lastSaid = ''; }
+          _receivingUser = true;
+          final joined = lastHeard + tr.text;
+          lastHeard = joined.length > 4000 ? joined.substring(0, 4000) : joined;
         } else {
-          lastSaid = tr.text;
+          if (_receivingUser != false) lastSaid = '';
+          _receivingUser = false;
+          final joined = lastSaid + tr.text;
+          lastSaid = joined.length > 4000 ? joined.substring(0, 4000) : joined;
         }
         notifyListeners();
       }))
@@ -178,6 +186,9 @@ class LiveVoiceController extends ChangeNotifier with WidgetsBindingObserver {
       ..add(t.speaking.listen((s) {
         modelSpeaking = s;
         notifyListeners();
+      }))
+      ..add(t.completedTurns.listen((_) {
+        HybridConversationContext.instance.addTurn(lastHeard, lastSaid);
       }))
       ..add(t.drops.listen(_onDrop));
     message = null;

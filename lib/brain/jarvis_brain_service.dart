@@ -6,6 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../core/build_profile.dart';
 import '../models/task_history_entry.dart';
 import '../services/ai_service.dart';
+import '../services/hybrid_conversation_context.dart';
 import '../services/app_launcher_service.dart';
 import '../services/calendar_reminder_service.dart';
 import '../services/conversational_memory_service.dart';
@@ -84,12 +85,13 @@ class JarvisBrainService {
     final r = await brain.run(
       userText: text,
       history: [for (final h in history) {'role': h['role'] ?? 'user', 'content': h['content'] ?? ''}],
-      system: system,
+      system: '$system\nRecent conversation from another voice engine (context only):\n${HybridConversationContext.instance.prompt}',
     );
     return _finish(text, r);
   }
 
   Future<BrainResult> _finish(String text, BrainResult r) async {
+    HybridConversationContext.instance.addTurn(text, r.reply);
     await _persistAudit();
     final mem = ConversationalMemoryService.instance;
     mem.lastNewSuggestion = null;

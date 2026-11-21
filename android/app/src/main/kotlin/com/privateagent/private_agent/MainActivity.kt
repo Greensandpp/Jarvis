@@ -79,10 +79,43 @@ class MainActivity : FlutterActivity() {
 
     private var mediaPlayer: android.media.MediaPlayer? = null
     private var playResult: MethodChannel.Result? = null
+    private var mediaGeneration = 0L
+    private var mediaStarts = 0L
+    private var mediaPreparing = false
+
+    private fun stopMediaOutput() {
+        ++mediaGeneration
+        val old = mediaPlayer
+        val pending = playResult
+        mediaPlayer = null
+        playResult = null
+        mediaPreparing = false
+        // release() is valid while preparing. Do not gate it on isPlaying(),
+        // which can fail in transitional states and leave an old start queued.
+        try { old?.setOnPreparedListener(null); old?.setOnCompletionListener(null); old?.setOnErrorListener(null) } catch (_: Exception) {}
+        try { old?.release() } catch (_: Exception) {}
+        try { pending?.success(false) } catch (_: Exception) {}
+    }
+
+    private fun finishMediaOutput(player: android.media.MediaPlayer, generation: Long, success: Boolean) {
+        if (generation != mediaGeneration || mediaPlayer !== player) {
+            try { player.release() } catch (_: Exception) {}
+            return
+        }
+        val pending = playResult
+        mediaPlayer = null
+        playResult = null
+        mediaPreparing = false
+        ++mediaGeneration
+        try { player.release() } catch (_: Exception) {}
+        pending?.success(success)
+    }
+
     private var speechFocus: AudioFocusRequest? = null
     private var speechFocusId: Long? = null
 
     private fun releaseSpeechFocus() {
+        stopMediaOutput()
         speechFocusId = null
         val manager = getSystemService(Context.AUDIO_SERVICE) as AudioManager
         speechFocus?.let { manager.abandonAudioFocusRequest(it) }
@@ -104,10 +137,6 @@ class MainActivity : FlutterActivity() {
                     // invalidates the speech ticket, preventing a local fallback.
                     speechChannel?.invokeMethod("onOutputFocusLost", id)
                     releaseSpeechFocus()
-                    try { mediaPlayer?.release() } catch (_: Exception) {}
-                    mediaPlayer = null
-                    playResult?.success(false)
-                    playResult = null
                 }
             }, mainHandler).build()
         speechFocus = request
@@ -180,14 +209,7 @@ class MainActivity : FlutterActivity() {
             speechRecognizer?.destroy()
             speechRecognizer = null
         } catch (_: Exception) {}
-        try {
-            mediaPlayer?.let {
-                if (it.isPlaying) it.stop()
-                it.release()
-            }
-        } catch (_: Exception) {}
-        mediaPlayer = null
-        playResult = null
+        stopMediaOutput()
         try {
             sensorManager?.unregisterListener(sentrySensorListener)
         } catch (_: Exception) {}
@@ -748,6 +770,10 @@ class MainActivity : FlutterActivity() {
             when (call.method) {
                 "acquireOutputFocus" -> result.success(acquireSpeechFocus(call.argument<Number>("requestId")?.toLong() ?: -1L))
                 "releaseOutputFocus" -> { releaseSpeechFocus(); result.success(true) }
+                "outputDiagnostics" -> result.success(mapOf(
+                    "pending" to (playResult != null), "preparing" to mediaPreparing,
+                    "playing" to try { mediaPlayer?.isPlaying ?: false } catch (_: Exception) { false },
+                    "starts" to mediaStarts, "generation" to mediaGeneration))
                 "startListening" -> {
                     val continuous = call.argument<Boolean>("continuous") ?: true
                     val manual = call.argument<Boolean>("manual") ?: false
@@ -1015,53 +1041,37 @@ class MainActivity : FlutterActivity() {
                             result.error("INVALID_PATH", "Audio file path is empty", null)
                             return@setMethodCallHandler
                         }
+                        stopMediaOutput()
+                        val generation = mediaGeneration
+                        val focusId = speechFocusId
+                        val player = android.media.MediaPlayer()
+                        mediaPlayer = player
+                        playResult = result
+                        mediaPreparing = true
                         try {
-                            playResult?.success(false)
-                            playResult = result
-
-                            mediaPlayer?.let {
-                                if (it.isPlaying) it.stop()
-                                it.release()
-                            }
-                            mediaPlayer = android.media.MediaPlayer().apply {
-                                setAudioAttributes(AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_ASSISTANT)
-                                    .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH).build())
-                                setDataSource(path)
-                                setOnPreparedListener { start() }
-                                setOnCompletionListener {
-                                    release()
-                                    mediaPlayer = null
-                                    playResult?.success(true)
-                                    playResult = null
+                            player.setAudioAttributes(AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_ASSISTANT)
+                                .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH).build())
+                            player.setDataSource(path)
+                            player.setOnPreparedListener {
+                                if (generation != mediaGeneration || mediaPlayer !== player || focusId != speechFocusId) {
+                                    try { player.release() } catch (_: Exception) {}
+                                } else {
+                                    mediaPreparing = false
+                                    try { player.start(); ++mediaStarts }
+                                    catch (_: Exception) { finishMediaOutput(player, generation, false) }
                                 }
-                                setOnErrorListener { _, what, extra ->
-                                    release()
-                                    mediaPlayer = null
-                                    playResult?.error("PLAY_ERROR", "MediaPlayer error $what extra $extra", null)
-                                    playResult = null
-                                    true
-                                }
-                                prepareAsync()
                             }
-                        } catch (e: Exception) {
-                            playResult = null
-                            result.error("PLAY_FAILED", e.message, null)
+                            player.setOnCompletionListener { finishMediaOutput(player, generation, true) }
+                            player.setOnErrorListener { _, _, _ -> finishMediaOutput(player, generation, false); true }
+                            player.prepareAsync()
+                        } catch (_: Exception) {
+                            finishMediaOutput(player, generation, false)
                         }
                     }
 
                     "stopAudio" -> {
-                        try {
-                            mediaPlayer?.let {
-                                if (it.isPlaying) it.stop()
-                                it.release()
-                            }
-                            mediaPlayer = null
-                            playResult?.success(false)
-                            playResult = null
-                            result.success(true)
-                        } catch (e: Exception) {
-                            result.success(false)
-                        }
+                        stopMediaOutput()
+                        result.success(true)
                     }
 
                     // ---------------------------------------------------------

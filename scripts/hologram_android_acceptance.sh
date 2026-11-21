@@ -28,5 +28,6 @@ for flavor in standard full; do
   adb shell dumpsys gfxinfo "$package" > "evidence/android/$flavor-gfxinfo.txt"
   adb shell dumpsys batterystats "$package" > "evidence/android/$flavor-batterystats.txt"
   adb logcat -d > "evidence/android/$flavor-logcat.txt"
+  grep -q 'NATIVE_AUDIO_CANCEL PASS' "evidence/android/$flavor-drive.txt"
   grep -q 'HOLOGRAM_ACCEPT PASS' "evidence/android/$flavor-drive.txt"
 done

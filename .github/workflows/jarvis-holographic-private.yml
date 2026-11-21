@@ -1,7 +1,7 @@
 name: JARVIS holographic private development
 on:
   push:
-    branches: [fix/jarvis-holographic-home-20261121]
+    branches: [fix/jarvis-holographic-home-20261121, fix/jarvis-hologram-voice-safety-20261121]
   workflow_dispatch:
 permissions:
   contents: read

@@ -72,4 +72,12 @@ void main() {
     model.streams.single.add('सप्ती।'); await model.streams.single.close(); await run;
     expect(spoken, isEmpty); expect(statuses.last, contains('reply withheld'));
   });
+  test('Roman Tamil displays Latin text but speaks the original Tamil once', () async {
+    final model = FakeModel(); final spoken = <String>[]; final shown = <String>[];
+    final turns = OfflineTurns(model, stopAudio: () async {},
+      speak: (text, language) async { spoken.add('$language:$text'); }, changed: (_, text) => shown.add(text));
+    final run = turns.ask('saptiya', 'ta-Latn', voice: true); await tick();
+    model.streams.single.add('நான் AI'); await model.streams.single.close(); await run;
+    expect(shown.last, 'naan AI'); expect(spoken, ['ta-IN:நான் AI']);
+  });
 }

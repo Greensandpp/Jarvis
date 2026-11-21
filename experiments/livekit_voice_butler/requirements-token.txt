@@ -1,0 +1,3 @@
+# Dedicated isolated token endpoint only; do not install into JARVIS production.
+livekit-api>=1.0,<2.0
+gunicorn>=23.0,<24.0

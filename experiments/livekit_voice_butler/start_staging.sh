@@ -7,6 +7,10 @@ case "${GS_VOICE_ROLE:-}" in
     exec gunicorn --bind "0.0.0.0:${PORT:-8080}" --workers 1 --threads 2 token_service_wsgi:application
     ;;
   agent)
+    # Explicit one-shot staging QA; no microphone publishing or audio storage.
+    if [ "${GS_VOICE_RUN_ROOM_SMOKE:-false}" = "true" ]; then
+      python smoke_room.py &
+    fi
     # Development QA only: bound idle hosting time as well as session duration.
     # Railway restart policy MUST remain NEVER for this staging service.
     exec timeout --signal=TERM --kill-after=10s 900 python voice_agent.py start

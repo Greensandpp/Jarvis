@@ -153,3 +153,19 @@ in Python 3.13's forkserver process startup. SDK worker processes now explicitly
 use `spawn` with a 30-second initialization timeout. A real native-SDK child
 initialization test runs both in Python CI and as UID 10001 inside the actual
 staging container. A registered worker alone does not prove it can accept jobs.
+
+### Opt-in room transport QA
+
+`GS_VOICE_RUN_ROOM_SMOKE=true` on the isolated agent service starts one bounded
+`smoke_room.py` client alongside the registered worker. Requires
+`GS_VOICE_SMOKE_ENDPOINT` equal to the hard-coded isolated staging token URL and
+`GS_VOICE_SMOKE_OWNER` supplied privately. Never set these in GitHub or the APK.
+The client waits for worker registration, uses the real authenticated endpoint,
+joins its owner-scoped room, waits for the named agent to listen, sends one short
+`lk.chat` request and counts remote agent audio. No microphone/audio/video is
+published, audio recording is disabled, redirects are refused, and output only
+contains counters and error types. It consumes one normal 120-second reservation.
+Clear the QA owner variable and set the opt-in to false after the one-shot test;
+otherwise a service redeploy would repeat it. The worker's 15-minute timeout and
+NEVER restart policy still apply. A passing room test does not validate physical
+phone microphone, Tamil/Tanglish pronunciation, playback, or barge-in.

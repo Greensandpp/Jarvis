@@ -1,3 +1,5 @@
+// ignore_for_file: deprecated_member_use
+// Flutter 3.47 deprecates material.dart while older stable supports it.
 import 'dart:async';
 
 // ignore: deprecated_member_use -- Flutter 3.47 deprecates material.dart;

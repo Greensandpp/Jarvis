@@ -131,6 +131,12 @@ void main() {
       expect(parseServerFrame('not json').single, isA<LiveUnknown>());
     });
 
+    test('native audio uses multilingual autodetection, provider quota is classified', () {
+      final setup = jsonDecode(buildSetupMessage(const LiveConfig(model: 'gemini-native-audio')))['setup'];
+      expect(setup['generationConfig']['speechConfig'].containsKey('languageCode'), isFalse);
+      expect((parseServerFrame('{\"error\":{\"code\":429}}').single as LiveProviderError).code, 429);
+    });
+
     test('PCM resampling and level metering', () {
       final b = ByteData(48000 * 2 ~/ 10);
       for (var i = 0; i < b.lengthInBytes ~/ 2; i++) {

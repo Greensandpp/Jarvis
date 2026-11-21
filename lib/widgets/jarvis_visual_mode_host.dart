@@ -1,6 +1,7 @@
 // ignore: deprecated_member_use
 import '../brain/visual_bus.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -419,6 +420,24 @@ Future<void> showLiveVoiceSettings(BuildContext context, LiveVoiceController liv
         const Text('Requires your own token broker that holds the Gemini key server-side '
           'and returns short-lived tokens. Free-only mode requires a broker with billing disabled and available free quota. Unknown billing blocks cloud. Offline commands remain available; free quota is not unlimited.',
           style: TextStyle(fontSize: 12)),
+        TextButton.icon(
+          icon: const Icon(Icons.memory),
+          label: const Text('Check phone memory, battery and thermal state'),
+          onPressed: () async {
+            String text;
+            try {
+              final profile = await const MethodChannel('greensoil/live_audio').invokeMapMethod<String, dynamic>('capabilities');
+              final memory = (profile?['availableMemoryBytes'] as num? ?? 0) / (1024 * 1024);
+              text = 'Available RAM: ${memory.round()} MB\nBattery: ${profile?['batteryPercent']}%\n'
+                'Android thermal status: ${profile?['thermalStatus']}\n'
+                'Local AI is not selected yet. A real language, latency, battery and thermal benchmark is required.';
+            } catch (_) { text = 'Phone diagnostics unavailable here. Local model remains unselected.'; }
+            if (!ctx.mounted) return;
+            await showDialog<void>(context: ctx, builder: (d) => AlertDialog(
+              title: const Text('Phone-local AI readiness'), content: Text(text),
+              actions: [TextButton(onPressed: () => Navigator.pop(d), child: const Text('Close'))]));
+          },
+        ),
         TextField(controller: broker, decoration: const InputDecoration(labelText: 'Broker https:// URL')),
         TextField(controller: token, obscureText: true,
           decoration: const InputDecoration(labelText: 'Device session token (for your broker)')),

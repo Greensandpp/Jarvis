@@ -66,6 +66,8 @@ class LiveAudioBridge(private val context: Context, messenger: BinaryMessenger) 
     private val playbackLock = Any()
     private var playThread: Thread? = null
     private val playing = AtomicBoolean(false)
+    private val outputAudible = AtomicBoolean(false)
+    private var writtenFrames = 0L
 
     private var focusRequest: AudioFocusRequest? = null
     private var previousMode = AudioManager.MODE_NORMAL
@@ -270,10 +272,16 @@ class LiveAudioBridge(private val context: Context, messenger: BinaryMessenger) 
                     while (offset < chunk.pcm.size && playing.get() && chunk.epoch == playbackEpoch.get()) {
                         val n = synchronized(playbackLock) {
                             if (chunk.epoch != playbackEpoch.get()) -1 else
-                                t.write(chunk.pcm, offset, minOf(1920, chunk.pcm.size - offset), AudioTrack.WRITE_NON_BLOCKING)
+                                t.write(chunk.pcm, offset, minOf(1920, chunk.pcm.size - offset), AudioTrack.WRITE_NON_BLOCKING).also { if (it > 0) writtenFrames += it / 2 }
                         }
                         if (n < 0) break
                         if (n == 0) Thread.sleep(2) else offset += n
+                    }
+                }
+                synchronized(playbackLock) {
+                    val playedFrames = t.playbackHeadPosition.toLong() and 0xffffffffL
+                    if (playQueue.isEmpty() && playedFrames >= writtenFrames && outputAudible.getAndSet(false)) {
+                        emit(mapOf("type" to "playback", "value" to "drained"))
                     }
                 }
             }
@@ -284,6 +292,7 @@ class LiveAudioBridge(private val context: Context, messenger: BinaryMessenger) 
         ensureTrack(rate)
         require(rate == 24000 || rate == 16000 || rate == 48000)
         require(bytes.size % 2 == 0 && bytes.size <= rate * 2)
+        if (!outputAudible.getAndSet(true)) emit(mapOf("type" to "playback", "value" to "started"))
         val epoch = playbackEpoch.get()
         for (offset in bytes.indices step 1920) {
             if (!playQueue.offer(Packet(bytes.copyOfRange(offset, minOf(offset + 1920, bytes.size)), epoch))) {
@@ -298,6 +307,8 @@ class LiveAudioBridge(private val context: Context, messenger: BinaryMessenger) 
     private fun flushPlayback() {
         synchronized(playbackLock) {
             playbackEpoch.incrementAndGet()
+            writtenFrames = 0
+            outputAudible.set(false)
             playQueue.clear()
             track?.let {
                 try { it.pause(); it.flush(); it.play() } catch (_: Exception) {}
@@ -307,6 +318,8 @@ class LiveAudioBridge(private val context: Context, messenger: BinaryMessenger) 
 
     private fun stopPlayback() {
         playing.set(false)
+        outputAudible.set(false)
+        writtenFrames = 0
         playbackEpoch.incrementAndGet()
         playQueue.clear()
         try { playThread?.join(300) } catch (_: InterruptedException) {}

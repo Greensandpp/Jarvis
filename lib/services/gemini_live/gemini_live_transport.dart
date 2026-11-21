@@ -146,7 +146,7 @@ class NativeLiveAudio implements LiveAudioIo {
   Future<void> release() => _m.invokeMethod('release');
 }
 
-enum LiveDropReason { serverClosed, goAway, focusLost, audioDevice, protocol }
+enum LiveDropReason { serverClosed, goAway, focusLost, audioDevice, protocol, quota }
 
 /// Real Gemini Live transport: fetches an ephemeral token, opens the
 /// constrained WebSocket, streams 16 kHz mic PCM, plays model audio and
@@ -214,11 +214,17 @@ class GeminiLiveTransport implements LiveVoiceTransport {
             unawaited(audio.flush().catchError((Object _) { _drop(LiveDropReason.audioDevice); })); // barge-in
             _speaking.add(false);
           case LiveTurnComplete():
-            _speaking.add(false);
+            // AudioTrack can still contain PCM after the server finished generating.
+            // Native drained event determines when speaking animation ends.
+            break;
           case LiveTranscript():
             _transcripts.add(ev);
           case LiveGoAway():
             _drop(LiveDropReason.goAway);
+          case LiveProviderError(:final code):
+            if (!setupDone.isCompleted) setupDone.completeError(SafeLiveFailure(
+              code == 429 ? 'Free quota exhausted; offline commands available' : 'Live provider unavailable; offline commands available'));
+            _drop(code == 429 ? LiveDropReason.quota : LiveDropReason.protocol);
           case LiveUnknown():
             break;
         }
@@ -245,9 +251,13 @@ class GeminiLiveTransport implements LiveVoiceTransport {
           final pcm = e['pcm'];
           if (pcm is Uint8List && !muted && _socket != null) {
             _levels.add(pcmLevel(pcm));
-            _socket!.send(buildAudioChunk(pcm));
-            sentChunks++;
+            try {
+              _socket!.send(buildAudioChunk(pcm));
+              sentChunks++;
+            } catch (_) { _drop(LiveDropReason.serverClosed); }
           }
+        case 'playback':
+          _speaking.add(e['value'] == 'started');
         case 'error':
           _drop(LiveDropReason.audioDevice);
         case 'focus':

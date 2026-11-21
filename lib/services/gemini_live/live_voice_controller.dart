@@ -204,13 +204,14 @@ class LiveVoiceController extends ChangeNotifier with WidgetsBindingObserver {
     await s.fail(switch (r) {
       LiveDropReason.focusLost => 'Live voice paused: another app took audio focus',
       LiveDropReason.goAway => 'Live session ended by server; tap to start again',
+      LiveDropReason.quota => 'Free quota exhausted · offline commands available',
       _ => 'Live connection closed; tap to start again',
     });
     VoiceService.instance.releaseLiveAudio();
     message = s.error;
     _externalAudioOwnership(false);
     notifyListeners();
-    if (r == LiveDropReason.serverClosed || r == LiveDropReason.protocol) {
+    if (r == LiveDropReason.serverClosed || r == LiveDropReason.protocol || r == LiveDropReason.quota) {
       await _offlineFallback?.call();
     }
   }

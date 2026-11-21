@@ -655,7 +655,7 @@ class AiService {
   Future<String?> discoverAndSelectModels({bool force = false, Duration maxAge = const Duration(hours: 12)}) async {
     final settings = SettingsService.instance;
     if (_discovering || settings.apiKey.isEmpty || _isLocalBackend) return null;
-    if (!settings.allowCloudAi && !_isLoopbackAiUrl(settings.baseUrl)) return null;
+    if (!settings.allowCloudAi) return null;
     final age = DateTime.now().millisecondsSinceEpoch - settings.modelsDiscoveredAt;
     if (!force && settings.discoveredModels.isNotEmpty && age < maxAge.inMilliseconds) return null;
     _discovering = true;
@@ -686,7 +686,10 @@ class AiService {
     final settings = SettingsService.instance;
     if (settings.provider == 'ollama' || settings.localFirstPrivacyMode) return true;
     final host = Uri.tryParse(settings.baseUrl)?.host ?? '';
-    return host == 'localhost' || host == '127.0.0.1' || host == '[::1]';
+    // A Gemini-compatible loopback gateway still uses Gemini model routing.
+    // Only the network endpoint policy decides whether a request may leave the phone.
+    return settings.provider != 'gemini' &&
+        (host == 'localhost' || host == '127.0.0.1' || host == '[::1]');
   }
 
   /// Why the AI brain cannot be used right now (null = usable). Lets JARVIS

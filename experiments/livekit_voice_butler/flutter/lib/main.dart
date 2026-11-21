@@ -39,6 +39,7 @@ class VoiceExperimentScreen extends StatefulWidget {
 class _VoiceExperimentScreenState extends State<VoiceExperimentScreen>
     with WidgetsBindingObserver {
   final _endpointController = TextEditingController();
+  final _ownerTokenController = TextEditingController();
   final _textController = TextEditingController();
   final _foregroundGate = ForegroundConnectionGate();
   livekit.Session? _session;
@@ -81,6 +82,11 @@ class _VoiceExperimentScreenState extends State<VoiceExperimentScreen>
       _updateStatus('Enter an HTTPS endpoint for short-lived LiveKit tokens.');
       return;
     }
+    final ownerToken = _ownerTokenController.text.trim();
+    if (ownerToken.length < 32) {
+      _updateStatus('Enter your private owner access token (32+ characters).');
+      return;
+    }
     setState(() => _busy = true);
     livekit.Session? candidate;
     try {
@@ -90,7 +96,10 @@ class _VoiceExperimentScreenState extends State<VoiceExperimentScreen>
         return;
       }
       candidate = livekit.Session.fromConfigurableTokenSource(
-        livekit.EndpointTokenSource(url: endpoint),
+        livekit.EndpointTokenSource(
+          url: endpoint,
+          headers: {'Authorization': 'Bearer $ownerToken'},
+        ),
         options: livekit.SessionOptions(preConnectAudio: false),
       );
       // Session.start may publish mic after connection. The user explicitly
@@ -194,6 +203,7 @@ class _VoiceExperimentScreenState extends State<VoiceExperimentScreen>
     WidgetsBinding.instance.removeObserver(this);
     _foregroundGate.wentToBackground();
     _endpointController.dispose();
+    _ownerTokenController.dispose();
     _textController.dispose();
     // Called only when detached from UI. Widgets must call _disconnect before
     // navigation where possible. No background work is intentionally started.
@@ -230,6 +240,19 @@ class _VoiceExperimentScreenState extends State<VoiceExperimentScreen>
                   border: OutlineInputBorder(),
                   labelText: 'HTTPS token endpoint',
                   hintText: 'https://your-server.example/api/livekit-token',
+                ),
+              ),
+              const SizedBox(height: 14),
+              TextField(
+                controller: _ownerTokenController,
+                enabled: !_connected && !_busy,
+                obscureText: true,
+                enableSuggestions: false,
+                autocorrect: false,
+                decoration: const InputDecoration(
+                  border: OutlineInputBorder(),
+                  labelText: 'Private owner access token',
+                  helperText: 'Server-issued token; NOT Gemini or LiveKit API secret',
                 ),
               ),
               const SizedBox(height: 14),

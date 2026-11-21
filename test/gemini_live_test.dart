@@ -225,7 +225,27 @@ void main() {
       expect(s.sent.last, contains('audioStreamEnd'));
     });
 
-    test('setup timeout releases everything and throws', () async {
+    test('mic continues during reply; speaker remains active until native drain', () async {
+      final socket = FakeSocket(), audio = FakeAudio();
+      final transport = make(socket, audio);
+      final states = <bool>[];
+      final subscription = transport.speaking.listen(states.add);
+      await transport.connect(voice: 'Aoede', locale: 'ta-IN');
+      socket.ctl.add(_audioFrame(24000));
+      await pumpEventQueue();
+      audio.ctl.add({'type': 'mic', 'pcm': Uint8List(1600)});
+      socket.ctl.add('{"serverContent":{"turnComplete":true}}');
+      await pumpEventQueue();
+      expect(transport.sentChunks, 1);
+      expect(states.last, isTrue, reason: 'server generation finished before speaker playback');
+      audio.ctl.add({'type': 'playback', 'value': 'drained'});
+      await pumpEventQueue();
+      expect(states.last, isFalse);
+      await transport.disconnect();
+      await subscription.cancel();
+    });
+
+    test('setup timeout releases everything and throws' , () async {
       final s = FakeSocket()..autoSetup = false, a = FakeAudio();
       final t = make(s, a, timeout: const Duration(milliseconds: 50));
       await expectLater(t.connect(voice: 'Aoede', locale: 'ta-IN'), throwsA(anything));

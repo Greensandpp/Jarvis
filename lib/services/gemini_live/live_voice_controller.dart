@@ -193,6 +193,7 @@ class LiveVoiceController extends ChangeNotifier with WidgetsBindingObserver {
   }
 
   Future<void> _onDrop(LiveDropReason r) async {
+    final epoch = _epoch;
     final s = _session;
     if (s == null) return;
     if (r == LiveDropReason.goAway && _reconnects < 1) {
@@ -211,7 +212,8 @@ class LiveVoiceController extends ChangeNotifier with WidgetsBindingObserver {
     message = s.error;
     _externalAudioOwnership(false);
     notifyListeners();
-    if (r == LiveDropReason.serverClosed || r == LiveDropReason.protocol || r == LiveDropReason.quota) {
+    if (epoch == _epoch && WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed &&
+        (r == LiveDropReason.serverClosed || r == LiveDropReason.protocol || r == LiveDropReason.quota)) {
       await _offlineFallback?.call();
     }
   }

@@ -40,7 +40,7 @@ class VoiceCredentialStore(context: Context, messenger: BinaryMessenger) {
                     "write" -> {
                         val token = call.argument<String>("token") ?: ""
                         require(token.length <= 4096 && !token.startsWith("AIza"))
-                        if (token.isEmpty()) prefs.edit().remove("broker").commit() else {
+                        if (token.isEmpty()) check(prefs.edit().remove("broker").commit()) else {
                             val cipher = Cipher.getInstance("AES/GCM/NoPadding")
                             cipher.init(Cipher.ENCRYPT_MODE, key())
                             check(prefs.edit().putString("broker", Base64.encodeToString(cipher.iv + cipher.doFinal(token.toByteArray(Charsets.UTF_8)), Base64.NO_WRAP)).commit())

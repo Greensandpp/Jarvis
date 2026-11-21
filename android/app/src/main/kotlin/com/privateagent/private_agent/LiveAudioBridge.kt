@@ -57,6 +57,7 @@ class LiveAudioBridge(private val context: Context, messenger: BinaryMessenger) 
     private var agc: AutomaticGainControl? = null
     private var captureThread: Thread? = null
     private val capturing = AtomicBoolean(false)
+    private val captureEpoch = AtomicLong(0)
 
     private var track: AudioTrack? = null
     private var trackRate = 0
@@ -205,6 +206,7 @@ class LiveAudioBridge(private val context: Context, messenger: BinaryMessenger) 
         if (NoiseSuppressor.isAvailable()) ns = NoiseSuppressor.create(sid)?.apply { enabled = true }
         if (AutomaticGainControl.isAvailable()) agc = AutomaticGainControl.create(sid)?.apply { enabled = true }
         record = rec
+        val epoch = captureEpoch.incrementAndGet()
         capturing.set(true)
         rec.startRecording()
         captureThread = Thread({
@@ -222,7 +224,7 @@ class LiveAudioBridge(private val context: Context, messenger: BinaryMessenger) 
                 }
                 if (filled > 0 && capturing.get()) {
                     val chunk = buf.copyOf(filled)
-                    main.post { sink?.success(mapOf("type" to "mic", "pcm" to chunk)) }
+                    main.post { if (capturing.get() && epoch == captureEpoch.get()) sink?.success(mapOf("type" to "mic", "pcm" to chunk)) }
                 }
             }
         }, "GreenSoilLiveMic").also { it.start() }
@@ -232,6 +234,7 @@ class LiveAudioBridge(private val context: Context, messenger: BinaryMessenger) 
     }
 
     private fun stopCapture() {
+        captureEpoch.incrementAndGet()
         if (!capturing.getAndSet(false)) return
         try { record?.stop() } catch (_: Exception) {}
         try { captureThread?.join(500) } catch (_: InterruptedException) {}

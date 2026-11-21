@@ -33,3 +33,20 @@ const {QUALITY,introStage}=await import('../assets/hologram/scene.js');
 assert.deepEqual(Object.keys(QUALITY),['ultra','high','balanced','battery']);assert.equal(QUALITY.battery.fps,30);
 assert.deepEqual([0,.1,.2,.4,.65,.73,.8,.95,1].map(introStage),['platform','convergence','skeleton','armour','reactor','eyes','serpent','approach','idle']);
 console.log(`PASS: detailed original guardian (${rig.armour.length} pieces, ${rig.mesh.geometry.attributes.position.count/3} triangles), four consolidated groups, organic snake/face clearance, quality and intro stages`);
+
+// Actual animated geometry must fit both tall Android viewports and wider screens.
+const {portraitCameraDistance}=await import('../assets/hologram/scene.js');
+for(const aspect of [.30,.34,.40,.45,.50,.60,.75,1,2]) {
+ const camera=new THREE.PerspectiveCamera(36,aspect,.1,60);
+ const d=portraitCameraDistance(6.7,aspect);
+ camera.position.set(0,2+.06*d,d);camera.lookAt(0,1.7,0);camera.updateMatrixWorld(true);
+ for(let t=0;t<30;t+=.125) {
+  animateSnake(snake,t,1);snake.mesh.updateMatrixWorld(true);snake.head.updateMatrixWorld(true);
+  const box=new THREE.Box3().setFromObject(snake.head,true);
+  for(const x of [box.min.x,box.max.x])for(const y of [box.min.y,box.max.y])for(const z of [box.min.z,box.max.z]) {
+   const p=new THREE.Vector3(x,y,z).project(camera);
+   assert.ok(Math.abs(p.x)<1&&Math.abs(p.y)<1,`animated head clipped: aspect=${aspect} t=${t} x=${p.x} y=${p.y}`);
+  }
+ }
+}
+console.log('PASS: full animated serpent head stays inside 9 viewport aspects over 30 seconds');

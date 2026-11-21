@@ -1,8 +1,8 @@
 {
-  "repository": "Qwen/Qwen3-1.7B-GGUF",
-  "revision": "90862c4b9d2787eaed51d12237eafdfe7c5f6077",
-  "filename": "Qwen3-1.7B-Q8_0.gguf",
-  "bytes": 1834426016,
-  "sha256": "061b54daade076b5d3362dac252678d17da8c68f07560be70818cace6590cb1a",
+  "repository": "ggml-org/Qwen3.5-4B-GGUF",
+  "revision": "8d43d974efc48399cb58957ad49c8b26bf5a109c",
+  "filename": "Qwen3.5-4B-Q4_K_M.gguf",
+  "bytes": 3032091584,
+  "sha256": "217002fa8008ef4fc6d548353a3aebef055a96e6ff8e0e2c0953ef8254a89c14",
   "license": "Apache-2.0"
 }

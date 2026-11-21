@@ -9,7 +9,7 @@ alongside the existing cloud Voice Lab. Neither existing package is replaced.
 ## What is implemented
 
 - In-process llama.cpp via pinned llamadart 0.20.4, CPU, 4 threads, 2048 context.
-- Exact Qwen3-1.7B Q8_0 model imported with Android document picker; streamed
+- Exact Qwen3.5-4B Q4_K_M model imported with Android document picker; streamed
   copy, byte ceiling, SHA-256 verification, atomic rename and private storage.
 - No inference server, HTTP fallback, credentials, model auto-download or INTERNET
   permission, including the generated debug/profile manifests. No runtime API fee
@@ -26,10 +26,10 @@ alongside the existing cloud Voice Lab. Neither existing package is replaced.
 ## Setup on iQOO 13
 
 1. Download the encrypted-delivery APK privately; install the separate offline lab.
-2. Download the model once via a browser (1,834,426,016 bytes / about 1.71 GiB):
-   https://huggingface.co/Qwen/Qwen3-1.7B-GGUF/resolve/90862c4b9d2787eaed51d12237eafdfe7c5f6077/Qwen3-1.7B-Q8_0.gguf
+2. Download the model once via a browser (3,032,091,584 bytes / about 2.82 GiB):
+   https://huggingface.co/ggml-org/Qwen3.5-4B-GGUF/resolve/8d43d974efc48399cb58957ad49c8b26bf5a109c/Qwen3.5-4B-Q4_K_M.gguf
 3. Open **Import downloaded GGUF model**, choose that file, wait for verification
-   and CPU load. Allow at least 4 GB free for download plus private copy.
+   and CPU load. Allow at least 7 GB free for download plus private copy.
 4. First test typed chat in airplane mode, with Wi-Fi/mobile data off.
 5. Optional speech requires Android-installed offline recognition/TTS packs.
    Missing Tamil support is reported and typed chat stays available. App cannot
@@ -37,7 +37,7 @@ alongside the existing cloud Voice Lab. Neither existing package is replaced.
 6. Test Listen, mute/Stop, speaking interruption via the button, background and
    phone lock. After reopening press Load saved model if needed.
 
-The 1.7B model is intentionally small. Tamil/Tanglish quality, phone
+The 4B model is intentionally small. Tamil/Tanglish quality, phone
 latency, memory, battery, female voice availability and actual on-device audio
 remain unverified until the owner tests. It is not equivalent to Gemini quality.
 Cloud voice remains available in the previous separate lab APK/source, optional.

@@ -31,9 +31,9 @@ class MainActivity : FlutterActivity() {
     private var utterance: MethodChannel.Result? = null
     private var utteranceId: String? = null
     private var serial = 0L
-    private val expectedSize = 1834426016L
-    private val expectedHash = "061b54daade076b5d3362dac252678d17da8c68f07560be70818cace6590cb1a"
-    private val model get() = File(filesDir, "offline-model/Qwen3-1.7B-Q8_0.gguf")
+    private val expectedSize = 3032091584L
+    private val expectedHash = "217002fa8008ef4fc6d548353a3aebef055a96e6ff8e0e2c0953ef8254a89c14"
+    private val model get() = File(filesDir, "offline-model/Qwen3.5-4B-Q4_K_M.gguf")
 
     override fun configureFlutterEngine(engine: FlutterEngine) {
         super.configureFlutterEngine(engine)
@@ -90,7 +90,7 @@ class MainActivity : FlutterActivity() {
                     while (true) { if (Thread.currentThread().isInterrupted) throw InterruptedException(); val n = input.read(buffer); if (n < 0) break; total += n; require(total <= expectedSize); output.write(buffer, 0, n) }
                 } }
                 verify(temp); check(temp.renameTo(model)); main.post { result.success(model.absolutePath) }
-            } catch (_: Exception) { temp.delete(); main.post { result.error("invalid_model", "Choose the exact 1.83 GB Qwen3-1.7B-Q8_0.gguf. Check free storage and SHA-256.", null) } }
+            } catch (_: Exception) { temp.delete(); main.post { result.error("invalid_model", "Choose the exact 3.03 GB Qwen3.5-4B-Q4_K_M.gguf. Check free storage and SHA-256.", null) } }
         }
     }
     private fun listen(language: String, result: MethodChannel.Result) {

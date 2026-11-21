@@ -6,6 +6,8 @@ import 'package:flutter/material.dart';
 import 'package:livekit_client/livekit_client.dart' as livekit;
 import 'package:permission_handler/permission_handler.dart';
 
+import 'foreground_connection_gate.dart';
+
 void main() => runApp(const GreenSoilVoiceExperimentApp());
 
 /// Disposable, standalone LiveKit test client. NOT a replacement for JARVIS.
@@ -38,6 +40,7 @@ class _VoiceExperimentScreenState extends State<VoiceExperimentScreen>
     with WidgetsBindingObserver {
   final _endpointController = TextEditingController();
   final _textController = TextEditingController();
+  final _foregroundGate = ForegroundConnectionGate();
   livekit.Session? _session;
   bool _busy = false;
   bool _connected = false;
@@ -52,17 +55,25 @@ class _VoiceExperimentScreenState extends State<VoiceExperimentScreen>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _foregroundGate.resumed();
+      return;
+    }
     if (state == AppLifecycleState.paused ||
         state == AppLifecycleState.inactive ||
         state == AppLifecycleState.hidden ||
         state == AppLifecycleState.detached) {
-      // Fail closed: do not keep a user-unattended realtime mic session.
+      // A permission or network await may still be running. Invalidate its
+      // ticket immediately so it cannot reconnect the microphone on return.
+      _foregroundGate.wentToBackground();
       unawaited(_disconnect());
     }
   }
 
   Future<void> _connect() async {
     if (_busy || _session != null) return;
+    final ticket = _foregroundGate.begin();
+    if (ticket == null) return;
     final endpoint = Uri.tryParse(_endpointController.text.trim());
     if (endpoint == null ||
         endpoint.scheme != 'https' ||
@@ -74,7 +85,7 @@ class _VoiceExperimentScreenState extends State<VoiceExperimentScreen>
     livekit.Session? candidate;
     try {
       final permission = await Permission.microphone.request();
-      if (!permission.isGranted) {
+      if (!permission.isGranted || !_foregroundGate.isCurrent(ticket)) {
         _updateStatus('Microphone permission denied. Nothing connected.');
         return;
       }
@@ -86,6 +97,7 @@ class _VoiceExperimentScreenState extends State<VoiceExperimentScreen>
       // pressed Connect and granted Android permission first.
       await candidate.start();
       if (!mounted ||
+          !_foregroundGate.isCurrent(ticket) ||
           candidate.connectionState != livekit.ConnectionState.connected) {
         throw StateError('No connected LiveKit session.');
       }
@@ -116,13 +128,16 @@ class _VoiceExperimentScreenState extends State<VoiceExperimentScreen>
       return;
     }
     final enable = !_microphoneOn;
+    final ticket = _foregroundGate.begin();
+    if (ticket == null) return;
     if (enable) {
       final permission = await Permission.microphone.request();
-      if (!permission.isGranted) {
-        _updateStatus('Microphone permission denied.');
+      if (!permission.isGranted || !_foregroundGate.isCurrent(ticket)) {
+        _updateStatus('Microphone permission denied or session left foreground.');
         return;
       }
     }
+    if (!_foregroundGate.isCurrent(ticket) || session != _session) return;
     try {
       await participant.setMicrophoneEnabled(enable);
       if (mounted) {
@@ -148,6 +163,7 @@ class _VoiceExperimentScreenState extends State<VoiceExperimentScreen>
   }
 
   Future<void> _disconnect() async {
+    _foregroundGate.invalidate();
     final session = _session;
     if (session == null) return;
     _session = null;
@@ -176,6 +192,7 @@ class _VoiceExperimentScreenState extends State<VoiceExperimentScreen>
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _foregroundGate.wentToBackground();
     _endpointController.dispose();
     _textController.dispose();
     // Called only when detached from UI. Widgets must call _disconnect before

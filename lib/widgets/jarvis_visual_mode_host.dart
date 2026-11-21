@@ -11,6 +11,7 @@ import '../services/gemini_live/live_voice_controller.dart';
 import '../services/jarvis_service.dart';
 import '../services/live_voice_session.dart';
 import '../services/task_executor.dart';
+import '../services/voice_service.dart';
 import 'agent_office_view.dart';
 import 'aira/aira_models.dart';
 import 'aira/aira_view.dart';
@@ -141,16 +142,23 @@ class JarvisVisualModeHostState extends State<JarvisVisualModeHost> {
   @override
   void initState() {
     super.initState();
-    _phaseSource = widget.phaseSource ?? JarvisService.instance;
-    _phase = widget.phaseReader ?? () => JarvisService.instance.phase;
+
     _ownsLive = false;
     _live =
         widget.liveVoice ??
         (_sharedLive ??= LiveVoiceController(
           requestMicPermission: () async =>
               (await Permission.microphone.request()).isGranted,
-          pauseOtherMic: () => JarvisService.instance.stopListening(),
+          pauseOtherMic: () async {
+            await JarvisService.instance.stopListening();
+            await VoiceService.instance.stopSpeaking();
+          },
         ));
+    _phaseSource = Listenable.merge([widget.phaseSource ?? JarvisService.instance, _live]);
+    _phase = () => _live.active
+        ? (_live.modelSpeaking ? JarvisPhase.speaking : JarvisPhase.listening)
+        : _live.status == LiveVoiceStatus.connecting ? JarvisPhase.thinking
+        : (widget.phaseReader?.call() ?? JarvisService.instance.phase);
     _sound =
         widget.soundReader ??
         () => _live.active
@@ -193,11 +201,12 @@ class JarvisVisualModeHostState extends State<JarvisVisualModeHost> {
     }
   }
 
-  void _send() {
+  Future<void> _send() async {
     final text = command.text.trim();
     if (text.isEmpty) return;
     command.clear();
     // Commands stay inside the native JARVIS router, never a visual site.
+    await _live.stop();
     widget.onCommand(text);
   }
 
@@ -311,7 +320,7 @@ class JarvisVisualModeHostState extends State<JarvisVisualModeHost> {
               phase: _phase,
               live: _live,
               onSend: _send,
-              onMicrophone: widget.onMicrophone,
+              onMicrophone: () async { await _live.stop(); await widget.onMicrophone(); },
             ),
           ),
         ],
@@ -339,9 +348,9 @@ class _SharedDock extends StatelessWidget {
   final Future<void> Function() onMicrophone;
 
   String _liveLabel() {
-    if (!live.configured) return 'LIVE: DISCONNECTED';
+    if (!live.configured) return 'OFFLINE · ₹0 · LIVE NOT CONFIGURED';
     return switch (live.status) {
-      LiveVoiceStatus.idle => 'LIVE: OFF',
+      LiveVoiceStatus.idle => 'OFFLINE · ₹0 · FREE-ONLY',
       LiveVoiceStatus.connecting => 'LIVE: CONNECTING',
       LiveVoiceStatus.listening =>
         live.muted ? 'LIVE: MIC MUTED' : 'LIVE: ON AIR',
@@ -490,7 +499,7 @@ Future<void> showLiveVoiceSettings(
               ),
               const Text(
                 'Requires your own token broker that holds the Gemini key server-side '
-                'and returns short-lived tokens. No API key is stored in this app.',
+                'and returns short-lived tokens. Free-only: broker must attest billing is disabled, free tier available and estimated cost ₹0. Unverified billing blocks cloud. No unlimited quota promise.',
                 style: TextStyle(fontSize: 12),
               ),
               TextField(
@@ -508,7 +517,7 @@ Future<void> showLiveVoiceSettings(
               ),
               TextField(
                 controller: model,
-                decoration: const InputDecoration(labelText: 'Live model id'),
+                decoration: const InputDecoration(labelText: 'Live model id (broker must allow it)'),
               ),
               DropdownButtonFormField<String>(
                 initialValue:

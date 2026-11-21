@@ -28,6 +28,7 @@ import io.flutter.plugin.common.MethodChannel
 import java.util.concurrent.LinkedBlockingQueue
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicLong
 
 /**
  * Explicit, foreground-only audio I/O for the owner-opted-in Gemini Live
@@ -40,7 +41,7 @@ class LiveAudioBridge(private val context: Context, messenger: BinaryMessenger) 
         const val METHOD = "greensoil/live_audio"
         const val EVENTS = "greensoil/live_audio/events"
         const val IN_RATE = 16000
-        const val CHUNK_BYTES = 3200 // 100 ms of 16 kHz mono PCM16
+        const val CHUNK_BYTES = 1600 // 50 ms of 16 kHz mono PCM16
     }
 
     private val main = Handler(Looper.getMainLooper())
@@ -56,7 +57,10 @@ class LiveAudioBridge(private val context: Context, messenger: BinaryMessenger) 
 
     private var track: AudioTrack? = null
     private var trackRate = 0
-    private val playQueue = LinkedBlockingQueue<ByteArray>()
+    private data class Packet(val pcm: ByteArray, val epoch: Long)
+    private val playQueue = LinkedBlockingQueue<Packet>(64)
+    private val playbackEpoch = AtomicLong(0)
+    private val playbackLock = Any()
     private var playThread: Thread? = null
     private val playing = AtomicBoolean(false)
 
@@ -198,6 +202,10 @@ class LiveAudioBridge(private val context: Context, messenger: BinaryMessenger) 
                     if (n <= 0) break
                     filled += n
                 }
+                if (filled == 0 && capturing.get()) {
+                    emit(mapOf("type" to "error", "value" to "capture_failed"))
+                    break
+                }
                 if (filled > 0 && capturing.get()) {
                     val chunk = buf.copyOf(filled)
                     main.post { sink?.success(mapOf("type" to "mic", "pcm" to chunk)) }
@@ -211,9 +219,9 @@ class LiveAudioBridge(private val context: Context, messenger: BinaryMessenger) 
 
     private fun stopCapture() {
         if (!capturing.getAndSet(false)) return
-        try { captureThread?.join(300) } catch (_: InterruptedException) {}
-        captureThread = null
         try { record?.stop() } catch (_: Exception) {}
+        try { captureThread?.join(500) } catch (_: InterruptedException) {}
+        captureThread = null
         record?.release()
         record = null
         aec?.release(); aec = null
@@ -245,26 +253,45 @@ class LiveAudioBridge(private val context: Context, messenger: BinaryMessenger) 
         playThread = Thread({
             while (playing.get()) {
                 val chunk = try { playQueue.poll(200, TimeUnit.MILLISECONDS) } catch (_: InterruptedException) { null }
-                if (chunk != null && playing.get()) t.write(chunk, 0, chunk.size)
+                if (chunk != null && playing.get()) {
+                    var offset = 0
+                    while (offset < chunk.pcm.size && playing.get() && chunk.epoch == playbackEpoch.get()) {
+                        val n = synchronized(playbackLock) {
+                            if (chunk.epoch != playbackEpoch.get()) -1 else
+                                t.write(chunk.pcm, offset, minOf(1920, chunk.pcm.size - offset), AudioTrack.WRITE_NON_BLOCKING)
+                        }
+                        if (n < 0) break
+                        if (n == 0) Thread.sleep(2) else offset += n
+                    }
+                }
             }
         }, "GreenSoilLivePlayback").also { it.start() }
     }
 
     private fun enqueue(bytes: ByteArray, rate: Int) {
         ensureTrack(rate)
-        if (playQueue.size < 400) playQueue.offer(bytes)
+        require(rate == 24000 || rate == 16000 || rate == 48000)
+        require(bytes.size % 2 == 0 && bytes.size <= rate * 2)
+        if (!playQueue.offer(Packet(bytes, playbackEpoch.get()))) {
+            flushPlayback()
+            emit(mapOf("type" to "error", "value" to "playback_overflow"))
+        }
     }
 
     /** Barge-in: drop everything queued and buffered immediately. */
     private fun flushPlayback() {
-        playQueue.clear()
-        track?.let {
-            try { it.pause(); it.flush(); it.play() } catch (_: Exception) {}
+        synchronized(playbackLock) {
+            playbackEpoch.incrementAndGet()
+            playQueue.clear()
+            track?.let {
+                try { it.pause(); it.flush(); it.play() } catch (_: Exception) {}
+            }
         }
     }
 
     private fun stopPlayback() {
         playing.set(false)
+        playbackEpoch.incrementAndGet()
         playQueue.clear()
         try { playThread?.join(300) } catch (_: InterruptedException) {}
         playThread = null

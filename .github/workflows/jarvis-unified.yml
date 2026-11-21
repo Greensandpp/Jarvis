@@ -3,6 +3,7 @@ name: JARVIS unified (standard + full control)
 on:
   push:
     branches:
+      - integration/hybrid-native-voice-20261121
       - feature/jarvis-unified-20261120
       - fix/jarvis-final-ui-voice-security-20261120
   workflow_dispatch:

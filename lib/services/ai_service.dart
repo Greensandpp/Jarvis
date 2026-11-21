@@ -679,6 +679,9 @@ class AiService {
     if (!s.allowCloudAi && !_isLoopbackAiUrl(s.baseUrl)) {
       return 'Cloud AI is switched off (Privacy Lock). Enable it in Settings → AI to use the brain.';
     }
+    if (!_isLoopbackAiUrl(s.baseUrl)) {
+      return 'Free-only mode: remote text AI billing is unverified. Use offline commands or a verified free Live broker.';
+    }
     if (s.apiKey.isEmpty && !_isLocalBackend) {
       return 'No AI key is set. Add your Gemini key in Settings → AI, then run the connection test.';
     }
@@ -694,6 +697,9 @@ class AiService {
   }
 
   void _enforceAiPrivacy(SettingsService settings) {
+    if (!_isLoopbackAiUrl(settings.baseUrl)) {
+      throw const AiException('Free-only mode: remote text AI billing unverified; request blocked.');
+    }
     if (!settings.allowCloudAi && !_isLoopbackAiUrl(settings.baseUrl)) {
       throw const AiException(
         'Privacy Lock: cloud AI is blocked. Your chat, screen text and device data '

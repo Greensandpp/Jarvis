@@ -22,6 +22,17 @@ class VoiceService {
   );
   final FlutterTts _tts = FlutterTts();
 
+  bool liveOwnsAudio = false;
+  int _outputEpoch = 0;
+
+  Future<void> acquireLiveAudio() async {
+    liveOwnsAudio = true;
+    await stopListening();
+    await stopSpeaking();
+  }
+
+  void releaseLiveAudio() { liveOwnsAudio = false; }
+
   bool _speechReady = false;
   bool _ttsReady = false;
   bool _listening = false;
@@ -175,7 +186,8 @@ class VoiceService {
     bool continuous = true,
     bool manual = false,
   }) async {
-    if (!await initSpeech()) return false;
+    if (liveOwnsAudio) return false;
+    if (!await initSpeech() || liveOwnsAudio) return false;
     onSpeechResult = onResult;
     if (_listening && continuous && !manual) {
       // Already running continuous listening loop
@@ -184,6 +196,7 @@ class VoiceService {
     try {
       await _nativeSpeechChannel.invokeMethod('startListening', {
         'continuous': continuous,
+        'offlineOnly': true,
         'manual': manual,
         'locale': SettingsService.instance.speechInputLocale,
       });
@@ -250,6 +263,8 @@ class VoiceService {
   }
 
   Future<void> speak(String text) async {
+    if (liveOwnsAudio) return;
+    final epoch = ++_outputEpoch;
     final clean = sanitizeForSpeech(text);
     if (clean.isEmpty) return;
 
@@ -259,7 +274,8 @@ class VoiceService {
       await stopListening();
     }
 
-    await stopSpeaking();
+    await _stopOutput();
+    if (liveOwnsAudio || epoch != _outputEpoch) return;
     isSpeaking.value = true;
 
     try {
@@ -278,6 +294,7 @@ class VoiceService {
         }
       }
 
+      if (liveOwnsAudio || epoch != _outputEpoch) return;
       // 2. Fall back to local FlutterTts (offline safe)
       await initTts();
       if (!_ttsReady) {
@@ -285,6 +302,7 @@ class VoiceService {
       }
       try {
         _speakCompleter = Completer<void>();
+        if (liveOwnsAudio || epoch != _outputEpoch) return;
         await _tts.speak(clean);
         // Wait for audio synthesis and speaker playback to finish completely
         await _speakCompleter?.future.timeout(const Duration(seconds: 90));
@@ -306,11 +324,14 @@ class VoiceService {
     required String neuralVoice,
     required bool female,
   }) async {
+    if (liveOwnsAudio) return;
+    final epoch = ++_outputEpoch;
     final clean = sanitizeForSpeech(text);
     if (clean.isEmpty) return;
     final wasListening = _listening;
     if (wasListening) await stopListening();
-    await stopSpeaking();
+    await _stopOutput();
+    if (liveOwnsAudio || epoch != _outputEpoch) return;
     isSpeaking.value = true;
     try {
       if (SettingsService.instance.useNeuralVoice &&
@@ -326,6 +347,7 @@ class VoiceService {
       try {
         if (!await _configureOfflineVoice(languageTag, female: female)) return;
         _speakCompleter = Completer<void>();
+        if (liveOwnsAudio || epoch != _outputEpoch) return;
         await _tts.speak(clean);
         await _speakCompleter?.future.timeout(const Duration(seconds: 90));
       } catch (_) {
@@ -395,6 +417,11 @@ class VoiceService {
   }
 
   Future<void> stopSpeaking() async {
+    ++_outputEpoch;
+    await _stopOutput();
+  }
+
+  Future<void> _stopOutput() async {
     try {
       await EdgeTtsService.instance.stop();
       await _tts.stop();

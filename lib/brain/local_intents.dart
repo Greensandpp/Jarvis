@@ -69,6 +69,14 @@ class LocalIntents {
       return _t(l2, 'Okay, I will reply in $want.', 'சரி, இனி தமிழில் பதில் சொல்கிறேன்.', 'Seri, ippo irundhu Tanglish-la pesuren.');
     }
 
+    if (RegExp(r'^(use|switch to|select|change to) (ryan|tamil male|tamil female)( voice)?$').hasMatch(t)) {
+      final voice = t.contains('ryan') ? 'en-GB-RyanNeural' :
+          t.contains('female') ? 'ta-IN-PallaviNeural' : 'ta-IN-ValluvarNeural';
+      await s.setJarvisNeuralVoice(voice);
+      await s.setPreferFemaleVoice(voice.contains('Pallavi'));
+      return 'Selected $voice. Neural speech requires online TTS consent; availability is not guaranteed.';
+    }
+
     // Voice gender
     if (RegExp(r'\b(female|girl|woman|lady|pen) (voice|kural)|பெண் குரல்').hasMatch(t)) {
       await s.setPreferFemaleVoice(true);

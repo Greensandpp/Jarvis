@@ -1,9 +1,11 @@
 import 'dart:async';
 
 import 'package:flutter/widgets.dart';
+import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../live_voice_session.dart';
+import '../voice_service.dart';
 import 'gemini_live_protocol.dart';
 import 'gemini_live_transport.dart';
 
@@ -15,7 +17,7 @@ class LiveVoiceSettings {
     this.deviceToken = '',
     this.voice = 'Aoede',
     this.locale = 'ta-IN',
-    this.model = 'gemini-live-2.5-flash-preview',
+    this.model = 'gemini-2.5-flash-native-audio-preview-12-2025',
     this.disclosureAccepted = false,
   });
   String brokerUrl, deviceToken, voice, locale, model;
@@ -25,14 +27,25 @@ class LiveVoiceSettings {
       LiveTokenClient.validateEndpoint(brokerUrl) == null;
 
   static const _k = 'gemini_live_';
+  static const credentials = MethodChannel('greensoil/voice_credentials');
   static Future<LiveVoiceSettings> load() async {
     final p = await SharedPreferences.getInstance();
+    var token = '';
+    try {
+      token = await credentials.invokeMethod<String>('read') ?? '';
+      final legacy = p.getString('${_k}device_token');
+      if (token.isEmpty && legacy != null) {
+        await credentials.invokeMethod('write', {'token': legacy});
+        token = legacy;
+      }
+      await p.remove('${_k}device_token');
+    } catch (_) { /* fail closed; never keep using plaintext credentials */ }
     return LiveVoiceSettings(
       brokerUrl: p.getString('${_k}broker_url') ?? '',
-      deviceToken: p.getString('${_k}device_token') ?? '',
+      deviceToken: token,
       voice: p.getString('${_k}voice') ?? 'Aoede',
       locale: p.getString('${_k}locale') ?? 'ta-IN',
-      model: p.getString('${_k}model') ?? 'gemini-live-2.5-flash-preview',
+      model: p.getString('${_k}model') ?? 'gemini-2.5-flash-native-audio-preview-12-2025',
       disclosureAccepted: p.getBool('${_k}disclosure') ?? false,
     );
   }
@@ -40,7 +53,8 @@ class LiveVoiceSettings {
   Future<void> save() async {
     final p = await SharedPreferences.getInstance();
     await p.setString('${_k}broker_url', brokerUrl.trim());
-    await p.setString('${_k}device_token', deviceToken.trim());
+    await credentials.invokeMethod('write', {'token': deviceToken.trim()});
+    await p.remove('${_k}device_token');
     await p.setString('${_k}voice', voice);
     await p.setString('${_k}locale', locale);
     await p.setString('${_k}model', model.trim());
@@ -83,6 +97,8 @@ class LiveVoiceController extends ChangeNotifier with WidgetsBindingObserver {
   GeminiLiveTransport? _transport;
   final List<StreamSubscription<dynamic>> _subs = [];
   int _reconnects = 0;
+  int _epoch = 0;
+  bool _starting = false;
   double level = 0;
   bool modelSpeaking = false;
   String lastHeard = '';
@@ -107,20 +123,30 @@ class LiveVoiceController extends ChangeNotifier with WidgetsBindingObserver {
 
   /// Explicit owner action only.
   Future<bool> start({required bool consent}) async {
-    if (!consent) return false;
+    if (!consent || _starting) return false;
+    final epoch = ++_epoch;
     if (!settings.configured) {
       message = 'DISCONNECTED · Gemini Live token broker not configured';
       notifyListeners();
       return false;
     }
     if (status != LiveVoiceStatus.idle && status != LiveVoiceStatus.failed) return false;
+    _starting = true;
     if (!await _requestMic()) {
+      _starting = false;
       message = 'Microphone permission is required for Live voice';
       notifyListeners();
       return false;
     }
+    if (epoch != _epoch) { _starting = false; return false; }
+    await VoiceService.instance.acquireLiveAudio();
     await _pauseOtherMic();
     await _teardown();
+    if (epoch != _epoch) {
+      _starting = false;
+      VoiceService.instance.releaseLiveAudio();
+      return false;
+    }
     final t = _factory(settings);
     _transport = t;
     final session = LiveVoiceSession(t);
@@ -135,7 +161,7 @@ class LiveVoiceController extends ChangeNotifier with WidgetsBindingObserver {
         }
         notifyListeners();
       }))
-      ..add(t.levels.listen((l) => level = l))
+      ..add(t.levels.listen((l) { level = l; notifyListeners(); }))
       ..add(t.speaking.listen((s) {
         modelSpeaking = s;
         notifyListeners();
@@ -143,7 +169,11 @@ class LiveVoiceController extends ChangeNotifier with WidgetsBindingObserver {
       ..add(t.drops.listen(_onDrop));
     message = null;
     final ok = await session.start(consent: true, voice: settings.voice, locale: settings.locale);
-    if (!ok) message = session.error ?? 'Voice connection unavailable';
+    _starting = false;
+    if (!ok) {
+      VoiceService.instance.releaseLiveAudio();
+      message = session.error ?? 'Voice connection unavailable';
+    }
     notifyListeners();
     return ok;
   }
@@ -162,6 +192,7 @@ class LiveVoiceController extends ChangeNotifier with WidgetsBindingObserver {
       LiveDropReason.goAway => 'Live session ended by server; tap to start again',
       _ => 'Live connection closed; tap to start again',
     });
+    VoiceService.instance.releaseLiveAudio();
     message = s.error;
     notifyListeners();
   }
@@ -174,9 +205,11 @@ class LiveVoiceController extends ChangeNotifier with WidgetsBindingObserver {
   }
 
   Future<void> stop() async {
+    ++_epoch;
     _reconnects = 0;
     await _session?.stop();
     await _teardown();
+    VoiceService.instance.releaseLiveAudio();
     modelSpeaking = false;
     level = 0;
     notifyListeners();

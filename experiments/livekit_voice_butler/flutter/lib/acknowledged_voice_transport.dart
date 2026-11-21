@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'voice_session_coordinator.dart';
 
 /// An adapter boundary that requires positive completion acknowledgments.
@@ -21,17 +23,23 @@ class AcknowledgedVoiceTransport implements VoiceTransport {
     required this.cancelAgent,
     required this.stopRemote,
     required this.stopTts,
+    this.stopTimeout = const Duration(seconds: 3),
   });
 
   final StopWithAcknowledgement cancelAgent;
   final StopWithAcknowledgement stopRemote;
   final StopWithAcknowledgement stopTts;
+  final Duration stopTimeout;
 
   Future<void> _requireStop(
     String operation,
     StopWithAcknowledgement operationCallback,
   ) async {
-    if (!await operationCallback()) {
+    final acknowledged = await operationCallback().timeout(
+      stopTimeout,
+      onTimeout: () => false,
+    );
+    if (!acknowledged) {
       throw AudioStopNotAcknowledged(operation);
     }
   }

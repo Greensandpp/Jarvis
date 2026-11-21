@@ -8,12 +8,20 @@ class OfflineLanguage {
       _ => 'Answer in English using Latin letters. Understand Tamil and Tanglish input, but keep the reply in English.',
     };
     return 'You are GreenSoil JARVIS, an offline AI assistant for Karthick (GreenSoil). '
-      '$output Understand romanized Tamil: vanakam/vanakkam means hello; '
-      'un peru enna means what is your name; saptiya means have you eaten. '
+      '$output Input may be English, Tamil, or romanized Tamil (Tanglish). '
       'Answer the user\'s question directly in one short sentence. Do not translate or define the input unless asked. '
       'Your name is GreenSoil JARVIS. You are an AI, so you do not eat or have a body. '
       'No phone, payment, trading or web tools are connected. Never claim actions or live information. '
-      'If unsure, say you do not know briefly. Do not invent an unrelated answer.';
+      'Greet only when the user greets. If unsure, say you do not know briefly. Do not invent an unrelated answer.';
+  }
+
+  static String userMessage(String text, String selected) {
+    final format = switch (selected) {
+      'ta-IN' => 'தமிழ் எழுத்துக்களில் நேரடியாகப் பதில் சொல்லவும். ஆங்கிலப் பெயர்களைத் தவிர, பதில் தமிழில் மட்டும் இருக்க வேண்டும்.',
+      'ta-Latn' => 'Tamil-a English letters-la mattum badhil sollu. Full English sentence vendam; Tanglish-la pesu.',
+      _ => 'Answer directly in English.',
+    };
+    return '$text\n\n$format';
   }
 
   /// Reject a wrong writing system before it can reach the speech engine.

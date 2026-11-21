@@ -20,14 +20,14 @@ Future<void> main(List<String> args) async {
     final cases = <(String, String, bool Function(String))>[
       ('What is 2 plus 2? Reply with the digit only.', 'en-IN', (s) => s.contains('4')),
       ('vanakam', 'ta-IN', (s) => s.contains('வணக்க')),
-      ('un peru enna', 'ta-IN', (s) => s.toLowerCase().contains('jarvis')),
+      ('un peru enna', 'ta-IN', (s) => s.toLowerCase().contains('jarvis') || s.contains('ஜேஆர்விஸ்') || s.contains('ஜார்விஸ்')),
       ('saptiya', 'ta-IN', (s) => (s.contains('AI') || s.contains('செயற்கை')) &&
-        ['சாப்பிட', 'சாப்பாடு', 'உணவு', 'சாப்பிடு', 'சாப்பிடுவ'].any(s.contains)),
-      ('water ku tamil la enna', 'ta-IN', (s) => s.contains('தண்ணீர்') || s.contains('நீர்')),
+        ['சாப்ப', 'உணவ', 'உண்ண'].any(s.contains) && ['இல்லை', 'முடியாது', 'மாட்டேன்'].any(s.contains)),
+      ('water ku tamil la enna', 'ta-IN', (s) => (s.contains('தண்ணீர்') || s.contains('நீர்')) && !s.contains('பாசனம்')),
       ('nee manushana illa AI ah', 'ta-IN', (s) => s.contains('AI') || s.contains('செயற்கை')),
       ('vanakam', 'ta-Latn', (s) => s.toLowerCase().contains('vanak')),
       ('un peru enna', 'ta-Latn', (s) => s.toLowerCase().contains('jarvis')),
-      ('saptiya', 'ta-Latn', (s) => s.toLowerCase().contains('ai')),
+      ('saptiya', 'ta-Latn', (s) => RegExp(r'\bAI\b', caseSensitive: false).hasMatch(s) && ['saap', 'sap', 'unav'].any(s.toLowerCase().contains) && ['maatt', 'matt', 'illa', 'illai', 'mudiy', 'sapdala', 'saapdala'].any(s.toLowerCase().contains)),
     ];
     final results = <Map<String, Object>>[];
     for (final probe in cases) {

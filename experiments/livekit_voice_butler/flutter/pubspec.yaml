@@ -1,0 +1,15 @@
+name: greensoil_livekit_voice_experiment
+description: Isolated LiveKit Session bridge experiment for GreenSoil JARVIS
+publish_to: none
+version: 0.0.1
+environment:
+  sdk: ">=3.5.1 <4.0.0"
+dependencies:
+  flutter:
+    sdk: flutter
+  livekit_client: ^2.10.0
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+flutter:
+  uses-material-design: true

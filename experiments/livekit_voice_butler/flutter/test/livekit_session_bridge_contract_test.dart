@@ -36,8 +36,8 @@ void main() {
       tokenEndpoint: Uri.parse('https://example.invalid/api/livekit-token'),
       audioTransport: _NoopTransport(),
     );
-    await expectLater(
-      bridge.connect(
+    expect(
+      () => bridge.connect(
         microphonePermissionGranted: true,
         userApprovedMicrophone: false,
       ),
@@ -52,8 +52,8 @@ void main() {
       tokenEndpoint: Uri.parse('https://example.invalid/api/livekit-token'),
       audioTransport: _NoopTransport(),
     );
-    await expectLater(
-      bridge.connect(
+    expect(
+      () => bridge.connect(
         microphonePermissionGranted: false,
         userApprovedMicrophone: true,
       ),

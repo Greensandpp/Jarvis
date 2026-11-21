@@ -73,3 +73,21 @@ not proof that real audio is cancelled. No API or APK has been deployed.
 Before production, implement a bounded, non-reentrant agent cancellation
 and output-queue drain acknowledgement, agent-side session lifecycle,
 authentication, replay protection, and live tests.
+
+## Phase 14: documented LiveKit AgentSession interruption adapter
+
+The documented Python SDK `AgentSession.interrupt(force=True)` returns an
+awaitable that resolves when LiveKit's interruption processing completes.
+`livekit_agent_interrupt_adapter.py` now invokes this real SDK **method
+shape**, by scheduling a coroutine on a separate running agent asyncio loop.
+It adds explicit timeout, stopped-loop, stale-generation, and same-thread
+deadlock defenses; five deterministic tests exercise these contracts with
+fake session objects.
+
+This adapter is **not** yet wired into a running `AgentSession`. The
+backend must bind the actual session/loop, track authoritative response IDs
+and room membership, and implement independent remote playback drain and
+Android local TTS stop acknowledgements. In particular, a completed
+`session.interrupt()` future is NOT evidence that the phone's audio device
+has flushed its own buffer, or that Gemini stopped generating every queued
+audio chunk. There is no live cloud test, production change, secret, or APK.

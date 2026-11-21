@@ -40,17 +40,17 @@ export function buildSnake() {
  detail(head,[.118,.057,.16],[0,.10,.10]);detail(head,[.078,.038,.12],[0,.075,.24]);
  detail(head,[.145,.17,.024],[0,-.07,-.035]);
  for(const sign of [-1,1]){
-  detail(head,[.039,.025,.065],[sign*.082,.146,.147]);
-  detail(head,[.024,.018,.014],[sign*.101,.135,.189],eyeMaterial);
-  detail(head,[.004,.016,.008],[sign*.102,.135,.201],pupilMaterial);
+  detail(head,[.039,.012,.065],[sign*.082,.146,.147]);
+  detail(head,[.014,.009,.01],[sign*.101,.135,.189],eyeMaterial);
+  detail(head,[.0025,.008,.006],[sign*.102,.135,.201],pupilMaterial);
   detail(head,[.008,.006,.01],[sign*.049,.09,.343],pupilMaterial);
   for(let i=0;i<5;i++)detail(head,[.018,.034,.01],[sign*(.15-i*.014),-.18+i*.05,.005]);
  }
  const jaw=new THREE.Group();jaw.position.set(0,.06,.10);head.add(jaw);detail(jaw,[.084,.025,.125],[0,-.028,.13]);
  const fangMaterial=new THREE.MeshStandardMaterial({color:0xe4f6e9,roughness:.22});
- for(const sign of [-1,1]){const fang=new THREE.Mesh(new THREE.ConeGeometry(.009,.06,8),fangMaterial);fang.rotation.z=Math.PI;fang.position.set(sign*.045,.035,.23);head.add(fang);}
+ for(const sign of [-1,1]){const fang=new THREE.Mesh(new THREE.ConeGeometry(.011,.095,10),fangMaterial);fang.rotation.z=Math.PI;fang.position.set(sign*.045,.035,.23);head.add(fang);}
  const tongue=new THREE.Mesh(new THREE.CapsuleGeometry(.004,.12,3,6),eyeMaterial);tongue.rotation.x=Math.PI/2;tongue.position.set(0,-.037,.25);jaw.add(tongue);
- const wire=new THREE.SkinnedMesh(geo,new THREE.MeshBasicMaterial({color:0x30eccc,wireframe:true,transparent:true,opacity:.23,blending:THREE.AdditiveBlending,depthWrite:false}));wire.bind(mesh.skeleton,mesh.bindMatrix);wire.frustumCulled=false;mesh.add(wire);
+ const wire=new THREE.SkinnedMesh(geo,new THREE.MeshBasicMaterial({color:0x30eccc,wireframe:true,transparent:true,opacity:.075,blending:THREE.AdditiveBlending,depthWrite:false}));wire.bind(mesh.skeleton,mesh.bindMatrix);wire.frustumCulled=false;mesh.add(wire);
  return {mesh,bones,head,jaw,tongue,material,wire,step};
 }
 export function animateRig(r,t,state='idle',level=0,intro=1,dt=1) {
@@ -92,9 +92,9 @@ export function animateSnake(s,t,intro=1) {
   }
   b.updateWorldMatrix(false,false);
  }
- s.material.transparent=intro<1;s.material.opacity=clamp((intro-.72)/.16,0,1);
+ s.material.transparent=true;s.material.depthWrite=false;s.material.opacity=clamp((intro-.72)/.16,0,1)*.55;
  s.head.rotation.y=Math.sin(t*1.6)*.5;s.jaw.rotation.x=.15+(Math.sin(t*2)+1)*.23;s.tongue.scale.y=.35+(Math.sin(t*5)+1)*.325;
- s.mesh.visible=intro>.72 && Math.sin(t*.12)>-.93;s.mesh.updateMatrixWorld(true);
+ s.mesh.visible=intro>.72;s.mesh.updateMatrixWorld(true);
 }
 export function startScene() {
  const report=(v)=>window.HologramBridge?.postMessage(JSON.stringify(v));
@@ -116,13 +116,14 @@ export function startScene() {
   for(let j=0;j<3;j++){const m=new THREE.Mesh(new THREE.TorusGeometry(.13+j*.025,.003,5,48),new THREE.MeshBasicMaterial({color:j===1?0xd6b5ff:0x2effdb,transparent:true,opacity:.7,blending:THREE.AdditiveBlending,depthWrite:false}));m.rotation.x=j*.8;m.rotation.y=j*.65;palm.add(m);}energyHands.push(palm);
  }
  const orbit=new THREE.Group();scene.add(orbit);
- for(let layer=0;layer<3;layer++){const pts=[],colors=[];for(let i=0;i<220;i++){const u=i/219,a=u*Math.PI*5+layer*.07,r=1.04+Math.sin(u*Math.PI*2)*.12;pts.push(Math.cos(a)*r,.25+u*2.7,Math.sin(a)*r);const c=new THREE.Color().setHSL(.42+Math.sin(u*9+layer)*.18,.9,.56);colors.push(c.r,c.g,c.b);}const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(pts,3));g.setAttribute('color',new THREE.Float32BufferAttribute(colors,3));orbit.add(new THREE.Line(g,new THREE.LineBasicMaterial({vertexColors:true,transparent:true,opacity:layer===0?.72:.2,blending:THREE.AdditiveBlending,depthWrite:false})));}
+ for(let layer=0;layer<3;layer++){const pts=[],colors=[];for(let i=0;i<220;i++){const u=i/219,a=u*Math.PI*5+layer*.07,r=1.04+Math.sin(u*Math.PI*2)*.12;pts.push(Math.cos(a)*r,.25+u*2.7,Math.sin(a)*r);const c=new THREE.Color().setHSL(.42+Math.sin(u*9+layer)*.18,.9,.56);colors.push(c.r,c.g,c.b);}const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(pts,3));g.setAttribute('color',new THREE.Float32BufferAttribute(colors,3));orbit.add(new THREE.Line(g,new THREE.LineBasicMaterial({vertexColors:true,transparent:true,opacity:layer===0?.72:.2,blending:THREE.AdditiveBlending,depthWrite:false})));
+ if(layer===0){const curve=new THREE.CatmullRomCurve3(Array.from({length:220},(_,i)=>new THREE.Vector3(pts[i*3],pts[i*3+1],pts[i*3+2])));for(const [radius,opacity] of [[.012,.35],[.035,.045]])orbit.add(new THREE.Mesh(new THREE.TubeGeometry(curve,180,radius,5,false),new THREE.MeshBasicMaterial({color:0x19ffd2,transparent:true,opacity,blending:THREE.AdditiveBlending,depthWrite:false})));}}
  const scaffold=new THREE.SkeletonHelper(rig.mesh);scaffold.material.color.setHex(0x69f5ff);scaffold.material.transparent=true;scene.add(scaffold);
  const target=new THREE.WebGLRenderTarget(1,1,{depthBuffer:true});
  const postScene=new THREE.Scene(),postCamera=new THREE.OrthographicCamera(-1,1,1,-1,0,1);
  const postMaterial=new THREE.ShaderMaterial({uniforms:{image:{value:target.texture},texel:{value:new THREE.Vector2(1,1)}},vertexShader:'varying vec2 uv0;void main(){uv0=uv;gl_Position=vec4(position.xy,0.,1.);}',fragmentShader:`uniform sampler2D image;uniform vec2 texel;varying vec2 uv0;void main(){vec3 base=texture2D(image,uv0).rgb;vec3 glow=vec3(0.);for(int i=-2;i<=2;i++){for(int j=-2;j<=2;j++){vec3 c=texture2D(image,uv0+vec2(float(i),float(j))*texel*3.).rgb;glow+=max(c-vec3(.72),vec3(0.));}}gl_FragColor=vec4(base+glow*.035,1.);}`});
  postScene.add(new THREE.Mesh(new THREE.PlaneGeometry(2,2),postMaterial));
- const platform=new THREE.Mesh(new THREE.CylinderGeometry(1.3,1.4,.09,64),rig.metal);platform.position.y=.04;scene.add(platform);
+ const platform=new THREE.Mesh(new THREE.CylinderGeometry(.96,1.02,.025,64),new THREE.MeshStandardMaterial({color:0x050b10,metalness:.65,roughness:.35}));platform.position.y=.04;scene.add(platform);
  const ring=new THREE.Mesh(new THREE.TorusGeometry(1.35,.016,8,96),rig.glow);ring.rotation.x=Math.PI/2;ring.position.y=.1;scene.add(ring);
  const particlesGeo=new THREE.BufferGeometry(),particles=[];for(let i=0;i<220;i++)particles.push(Math.sin(i*93)*3,(i%40)/9,Math.cos(i*77)*3);particlesGeo.setAttribute('position',new THREE.Float32BufferAttribute(particles,3));
  const particleMaterial=new THREE.PointsMaterial({color:0x49ddff,size:.018,transparent:true,opacity:.7});const points=new THREE.Points(particlesGeo,particleMaterial);scene.add(points);

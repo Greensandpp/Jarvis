@@ -75,7 +75,7 @@ class JarvisBrainService {
       };
       try {
         final reply = await phone.reply(text, language);
-        return _finish(text, BrainResult(reply, const [], usedAi: true));
+        return await _finish(text, BrainResult(reply, const [], usedAi: true));
       } on LocalBrainInterrupted { throw BrainCancelled(); }
       catch (_) { return _finish(text, BrainResult('Phone-local AI could not complete this reply. ${phone.status}', const [], usedAi: false)); }
     }

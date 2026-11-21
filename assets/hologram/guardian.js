@@ -34,6 +34,7 @@ export function buildGuardian(){
    shape.quadraticCurveTo(cur[0],cur[1],exit[0],exit[1]);
   }
   shape.closePath();const edge=shape.getSpacedPoints(48).slice(0,-1),N=edge.length;
+  let area=0;for(let i=0;i<N;i++)area+=edge[i].x*edge[(i+1)%N].y-edge[(i+1)%N].x*edge[i].y;if(area<0)edge.reverse();
   const cx=edge.reduce((n,p)=>n+p.x,0)/N,cy=edge.reduce((n,p)=>n+p.y,0)/N;
   const width=Math.max(...edge.map(p=>p.x))-Math.min(...edge.map(p=>p.x));
   const bow=Math.min(.065,Math.max(.008,width*.15)),positions=[],indices=[],R=5;
@@ -49,6 +50,11 @@ export function buildGuardian(){
  }
  const shield=(w,h)=>[[-w*.85,h*.45],[-w,h*.1],[-w*.65,-h*.35],[0,-h*.55],[w*.65,-h*.35],[w,h*.1],[w*.85,h*.45],[0,h*.62]];
  const ring=(b,r,t,p,mat=trim)=>part(b,new THREE.TorusGeometry(r,t,8,40),p,mat);
+ // Continuous fitted under-armour prevents floating disconnected plates.
+ const torsoProfile=[[-.52,.19],[-.38,.205],[-.22,.235],[0,.32],[.18,.355],[.32,.3],[.43,.14]].map(([y,r])=>new THREE.Vector2(r,y));
+ part(chest,new THREE.LatheGeometry(torsoProfile,40),[0,0,0],dark,[1,1,.62]);
+ ell(head,[0,-.24,-.018],[.095,.14,.095],dark);
+ ell(chest,[0,-.29,.015],[.205,.25,.145],dark);
  ell(root,[0,0,0],[.255,.18,.16],dark);ell(chest,[0,.16,0],[.355,.29,.19],dark);
  for(let i=0;i<4;i++){
   ell(head,[0,-.26+i*.025,0],[.078,.018,.078],i%2?trim:dark);
@@ -96,6 +102,15 @@ export function buildGuardian(){
   plate(kn,[[-.08,.19],[.085,.19],[.105,.02],[.06,-.25],[0,-.29],[-.06,-.23],[-.095,.01]],[0,-.25,.075],.037);
   plate(kn,[[-.019,.14],[.018,.17],[.025,-.21],[0,-.25],[-.02,-.19]],[0,-.25,.13],.012,glow,.004);
   ell(an,[0,-.013,.065],[.115,.075,.22],dark);ell(an,[0,.018,.09],[.108,.06,.2]);for(let i=0;i<3;i++)ell(an,[0,.045-i*.008,.11+i*.04],[.095-i*.009,.025,.045],i===1?trim:metal);
+ }
+ for(const [s,side] of [[-1,'L'],[1,'R']]){
+  for(const [bone,rows,spacing,startY,baseZ] of [[named['hip'+side],6,.075,-.08,.143],[named['elbow'+side],4,.065,-.09,.116]]){
+   for(let row=0;row<rows;row++)for(let col=0;col<3;col++){
+    const w=rows===6?.034:.028,h=.049,x=(col-1)*w*1.65+(row%2?w*.35:0);
+    const leaf=plate(bone,[[-w,0],[-w*.65,h*.65],[0,h],[w*.65,h*.65],[w,0],[0,-h*.78]],[x,startY-row*spacing,baseZ-Math.abs(col-1)*.013],.006,(row+col)%7===0?trim:metal,.004);
+    leaf.rotation.z=s*(col-1)*.08;
+   }
+  }
  }
  const arrays={p:[],n:[],ix:[],w:[]},geometry=new THREE.BufferGeometry();let offset=0;
  for(let mi=0;mi<materials.length;mi++){

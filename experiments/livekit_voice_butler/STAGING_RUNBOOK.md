@@ -137,3 +137,13 @@ Provider free-tier status is not a Railway hosting invoice guarantee. No paid
 subscription, billing upgrade or original JARVIS/PB7 change is authorized here.
 Live audio, device QA and final deployment evidence must be reported from actual
 results, separately from unit-test and SDK-construction passes.
+
+The credential-backed staging test exposed a compatibility failure: google-genai
+3.6.1 defaults to API `v1`, whose Live websocket route returns HTTP 404. Both
+worker and smoke explicitly select `v1beta` and `vertexai=False`; a real-SDK
+regression assertion protects against changing defaults or accidental Vertex use.
+Staging agent mode has a 900-second process lifetime, followed by at most ten
+seconds for shutdown. Keep Railway restart policy NEVER. This bounds idle
+hosting during the first phone QA window; it is not an always-on production
+release or a guarantee of a provider invoice. Sessions retain their separate
+120-second signed deadline and persistent monthly allowance.

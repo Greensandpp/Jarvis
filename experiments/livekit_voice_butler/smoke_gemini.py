@@ -65,6 +65,7 @@ async def run():
     logging.disable(logging.CRITICAL)  # SDK exceptions must never log credentials.
     session = agents.AgentSession(llm=google.realtime.RealtimeModel(
         api_key=key, model=model_name, voice="Kore", max_output_tokens=256,
+        api_version="v1beta", vertexai=False,
         thinking_config=types.ThinkingConfig(thinking_budget=0),
     ), turn_handling={"interruption": {"enabled": True, "resume_false_interruption": False}})
     errors = []

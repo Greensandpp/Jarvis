@@ -148,6 +148,8 @@ class SDKTests(unittest.TestCase):
         async def check():
             session = voice_agent.build_session()
             self.assertIsInstance(session, agents.AgentSession)
+            self.assertEqual(session.llm._opts.api_version, "v1beta")
+            self.assertFalse(session.llm._opts.vertexai)
             await session.aclose()
         asyncio.run(check())
 

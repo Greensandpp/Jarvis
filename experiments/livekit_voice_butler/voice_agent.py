@@ -31,6 +31,9 @@ def build_session():
         llm=google.realtime.RealtimeModel(
             api_key=os.environ["GEMINI_API_KEY"],
             model=os.environ["GS_VOICE_GEMINI_MODEL"],
+            # google-genai 3.x defaults to v1; the Live websocket uses v1beta.
+            api_version="v1beta",
+            vertexai=False,
             voice="Kore",  # Provider voice choice; quality/gender require listening test.
             max_output_tokens=256,
         ),

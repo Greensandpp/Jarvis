@@ -7,7 +7,9 @@ case "${GS_VOICE_ROLE:-}" in
     exec gunicorn --bind "0.0.0.0:${PORT:-8080}" --workers 1 --threads 2 token_service_wsgi:application
     ;;
   agent)
-    exec python voice_agent.py start
+    # Development QA only: bound idle hosting time as well as session duration.
+    # Railway restart policy MUST remain NEVER for this staging service.
+    exec timeout --signal=TERM --kill-after=10s 900 python voice_agent.py start
     ;;
   smoke)
     # One bounded provider check, no HTTP listener and no room/microphone.

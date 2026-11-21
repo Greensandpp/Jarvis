@@ -91,3 +91,21 @@ Android local TTS stop acknowledgements. In particular, a completed
 `session.interrupt()` future is NOT evidence that the phone's audio device
 has flushed its own buffer, or that Gemini stopped generating every queued
 audio chunk. There is no live cloud test, production change, secret, or APK.
+
+## Phase 15: integrated agent-side cancellation runtime (isolated)
+
+`cancellation_runtime.py` assembles a real-method-shape LiveKit SDK
+interruption callback, per-response ownership registry, and private HTTP
+cancellation handler. The host injects a real running AgentSession,
+its asyncio loop, and a **real credential verifier**. Trusted agent-side
+speech-start events must explicitly register response/generation IDs.
+Five offline tests exercise the complete fake-session HTTP -> auth ->
+ownership -> SDK method-shape path, including stale and duplicate requests.
+
+**Not a deployed service, nor an actual Gemini voice test.** Tests use
+a fake `session.interrupt` method; they prove wiring logic, not SDK
+runtime behavior. The host must validate token expiry/audience, bind
+room membership, ensure agent loop isn't blocked by callback locks,
+and verify remote output queue drain plus native Android player stop.
+No real access tokens, paid API, Mic service, production APK, or
+GitHub merge are involved.

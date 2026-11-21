@@ -8,6 +8,7 @@ import asyncio
 import json
 import logging
 import os
+import re
 from pathlib import Path
 import sys
 
@@ -15,6 +16,19 @@ from livekit import agents
 from livekit.agents.voice import io
 from livekit.plugins import google
 from google.genai import types
+
+
+def provider_error_metadata(error):
+    root = getattr(error, "error", error)
+    message = str(root)
+    for name, value in os.environ.items():
+        if value and len(value) > 5 and any(word in name.upper() for word in ("KEY", "SECRET", "TOKEN", "BEARER", "PROXY")):
+            message = message.replace(value, "[redacted]")
+    message = re.sub(r"(?:https?|socks5h?)://\S+", "[endpoint]", message)
+    message = re.sub(r"AIza[A-Za-z0-9_-]+", "[redacted]", message)
+    return {"type": type(error).__name__, "cause_type": type(root).__name__,
+            "code": getattr(root, "code", None), "recoverable": getattr(error, "recoverable", None),
+            "detail": message[:512]}
 
 
 class CountingSink(io.AudioOutput):
@@ -54,8 +68,7 @@ async def run():
         thinking_config=types.ThinkingConfig(thinking_budget=0),
     ), turn_handling={"interruption": {"enabled": True, "resume_false_interruption": False}})
     errors = []
-    session.on("error", lambda ev: errors.append({"type": type(ev.error).__name__,
-                "code": getattr(ev.error, "code", None), "recoverable": getattr(ev.error, "recoverable", None)}))
+    session.on("error", lambda ev: errors.append(provider_error_metadata(ev.error)))
     sink = CountingSink()
     session.output.audio = sink
     try:

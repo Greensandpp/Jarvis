@@ -111,6 +111,15 @@ class SDKTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             require_free_only_environment()
 
+    def test_live_smoke_error_details_never_return_configured_credentials(self):
+        from smoke_gemini import provider_error_metadata
+        key = os.environ["GEMINI_API_KEY"]
+        error = RuntimeError("Rejected " + key + " at https://example.invalid/?key=" + key)
+        result = json.dumps(provider_error_metadata(error))
+        self.assertNotIn(key, result)
+        self.assertNotIn("https://", result)
+        self.assertIn("[redacted]", result)
+
     def test_durable_allowance_single_session_month_limit_and_replay(self):
         now = [time.time()]
         path = os.environ["GS_VOICE_LEDGER_PATH"]

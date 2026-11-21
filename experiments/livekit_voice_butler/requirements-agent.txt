@@ -1,0 +1,4 @@
+# Versions exercised by the SDK integration tests. No inference gateway/TTS.
+livekit-agents[google]==1.8.13
+livekit-api==1.2.3
+PyJWT==2.15.1

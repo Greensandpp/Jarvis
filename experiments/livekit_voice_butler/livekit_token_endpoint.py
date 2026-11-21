@@ -28,7 +28,8 @@ class TokenService:
                  token_issuer, max_issues_per_hour: int = 8,
                  enabled: bool = False, clock=time.monotonic):
         parsed = urlparse(livekit_url)
-        if parsed.scheme != "wss" or not parsed.hostname or parsed.username:
+        if (parsed.scheme != "wss" or not parsed.hostname or parsed.username
+                or parsed.password or parsed.query or parsed.fragment):
             raise ValueError("LIVEKIT_URL must be a wss:// endpoint")
         if len(owner_bearer) < 32:
             raise ValueError("Owner bearer must contain at least 32 characters")
@@ -102,6 +103,8 @@ class TokenService:
             token = self._issuer(room, identity)
             if not isinstance(token, str) or not token:
                 raise RuntimeError("No token minted")
+        except PermissionError:
+            return respond("429 Too Many Requests", {"error": "Voice usage allowance exhausted"})
         except Exception:
             return respond("503 Service Unavailable", {"error": "Token issuer unavailable"})
         return respond("201 Created", {
@@ -115,16 +118,28 @@ def mint_livekit_token(room: str, identity: str) -> str:
     from livekit import api
     key = os.environ["LIVEKIT_API_KEY"]
     secret = os.environ["LIVEKIT_API_SECRET"]
+    from session_policy import AGENT_NAME, UsageLedger, require_free_only_environment, sign_dispatch
+    require_free_only_environment()
+    ledger = UsageLedger(os.environ["GS_VOICE_LEDGER_PATH"])
+    deadline = ledger.reserve(room)
+    metadata = json.dumps({"grant": sign_dispatch(room, identity, deadline, secret)})
     return (
         api.AccessToken(key, secret)
         .with_identity(identity)
-        .with_ttl(timedelta(minutes=5))
+        .with_ttl(timedelta(seconds=max(1, deadline - int(time.time()))))
+        .with_room_config(api.RoomConfiguration(
+            empty_timeout=15, departure_timeout=5, max_participants=2,
+            agents=[api.RoomAgentDispatch(agent_name=AGENT_NAME, metadata=metadata)],
+        ))
         .with_grants(api.VideoGrants(
             room_join=True,
             room=room,
             can_publish=True,
             can_subscribe=True,
             can_publish_data=True,
+            can_publish_sources=["microphone"],
+            can_update_own_metadata=False,
+            can_manage_agent_session=False,
             room_admin=False,
             room_create=False,
             room_record=False,

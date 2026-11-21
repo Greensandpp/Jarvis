@@ -7,6 +7,7 @@ import 'package:livekit_client/livekit_client.dart' as livekit;
 import 'package:permission_handler/permission_handler.dart';
 
 import 'foreground_connection_gate.dart';
+import 'session_lease.dart';
 
 void main() => runApp(const GreenSoilVoiceExperimentApp());
 
@@ -43,6 +44,7 @@ class _VoiceExperimentScreenState extends State<VoiceExperimentScreen>
   final _textController = TextEditingController();
   final _foregroundGate = ForegroundConnectionGate();
   livekit.Session? _session;
+  SessionLease? _lease;
   bool _busy = false;
   bool _connected = false;
   bool _microphoneOn = false;
@@ -89,6 +91,7 @@ class _VoiceExperimentScreenState extends State<VoiceExperimentScreen>
     }
     setState(() => _busy = true);
     livekit.Session? candidate;
+    SessionLease? lease;
     try {
       final permission = await Permission.microphone.request();
       if (!permission.isGranted || !_foregroundGate.isCurrent(ticket)) {
@@ -102,10 +105,42 @@ class _VoiceExperimentScreenState extends State<VoiceExperimentScreen>
         ),
         options: livekit.SessionOptions(preConnectAudio: false),
       );
+      final ownedSession = candidate;
+      lease = SessionLease(
+        duration: const Duration(seconds: 120),
+        stop: () async {
+          if (_session == ownedSession) {
+            _session = null;
+            _connected = false;
+            _microphoneOn = false;
+            _updateStatus('Session ended. Microphone authorization revoked.');
+          }
+          try {
+            await ownedSession.room.localParticipant
+                ?.setMicrophoneEnabled(false).timeout(const Duration(seconds: 3));
+          } catch (_) {
+            // Session.end/dispose below still run.
+          }
+          try {
+            await ownedSession.end().timeout(const Duration(seconds: 3));
+          } finally {
+            try {
+              // Session.dispose releases observers; Room owns native capture.
+              await ownedSession.room.dispose().timeout(const Duration(seconds: 3));
+            } finally {
+              await ownedSession.dispose().timeout(const Duration(seconds: 3));
+            }
+          }
+        },
+      );
+      // Own the pending session so a background event can close it immediately.
+      _session = candidate;
+      _lease = lease;
       // Session.start may publish mic after connection. The user explicitly
       // pressed Connect and granted Android permission first.
-      await candidate.start();
+      await candidate.start().timeout(const Duration(seconds: 20));
       if (!mounted ||
+          lease.isClosed ||
           !_foregroundGate.isCurrent(ticket) ||
           candidate.connectionState != livekit.ConnectionState.connected) {
         throw StateError('No connected LiveKit session.');
@@ -114,15 +149,12 @@ class _VoiceExperimentScreenState extends State<VoiceExperimentScreen>
       _connected = true;
       _microphoneOn = true;
       _updateStatus('Connected. Microphone enabled by LiveKit.');
-    } catch (error) {
-      _updateStatus('Connection failed: $error');
-      if (candidate != null) {
-        // Network cleanup failures must not be presented as a connection.
-        try {
-          await candidate.end();
-        } catch (_) {}
-        await candidate.dispose();
+    } catch (_) {
+      if (lease != null) {
+        try { await lease.close(); } catch (_) {}
       }
+      // SDK exceptions may contain a URL or token; never show raw exceptions.
+      _updateStatus('Connection failed. Check backend readiness and private access.');
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -139,22 +171,30 @@ class _VoiceExperimentScreenState extends State<VoiceExperimentScreen>
     final enable = !_microphoneOn;
     final ticket = _foregroundGate.begin();
     if (ticket == null) return;
-    if (enable) {
-      final permission = await Permission.microphone.request();
-      if (!permission.isGranted || !_foregroundGate.isCurrent(ticket)) {
-        _updateStatus('Microphone permission denied or session left foreground.');
+    setState(() => _busy = true);
+    try {
+      if (enable) {
+        final permission = await Permission.microphone.request();
+        if (!permission.isGranted || !_foregroundGate.isCurrent(ticket)) {
+          _updateStatus('Microphone permission denied or session left foreground.');
+          return;
+        }
+      }
+      if (!_foregroundGate.isCurrent(ticket) || session != _session) return;
+      await participant.setMicrophoneEnabled(enable);
+      if (!_foregroundGate.isCurrent(ticket) || session != _session) {
+        try { await participant.setMicrophoneEnabled(false); } catch (_) {}
         return;
       }
-    }
-    if (!_foregroundGate.isCurrent(ticket) || session != _session) return;
-    try {
-      await participant.setMicrophoneEnabled(enable);
       if (mounted) {
         setState(() => _microphoneOn = enable);
         _updateStatus(enable ? 'Microphone on' : 'Microphone muted');
       }
-    } catch (error) {
-      _updateStatus('Microphone control error: $error');
+    } catch (_) {
+      await _disconnect();
+      _updateStatus('Microphone control failed. Session closed for safety.');
+    } finally {
+      if (mounted) setState(() => _busy = false);
     }
   }
 
@@ -166,30 +206,24 @@ class _VoiceExperimentScreenState extends State<VoiceExperimentScreen>
       await session.sendText(message);
       _textController.clear();
       _updateStatus('Text sent to connected agent.');
-    } catch (error) {
-      _updateStatus('Text send failed: $error');
+    } catch (_) {
+      _updateStatus('Text send failed. Check the voice connection.');
     }
   }
 
   Future<void> _disconnect() async {
     _foregroundGate.invalidate();
-    final session = _session;
-    if (session == null) return;
+    final lease = _lease;
+    _lease = null;
     _session = null;
     _connected = false;
     _microphoneOn = false;
     _updateStatus('Disconnecting — microphone authorization revoked.');
     try {
-      await session.room.localParticipant?.setMicrophoneEnabled(false);
+      await lease?.close();
     } catch (_) {
-      // Still terminate the session.
-    }
-    try {
-      await session.end();
-    } catch (_) {
-      // A failed network teardown is not proof of continued capture.
-    } finally {
-      await session.dispose();
+      _updateStatus('Session cleanup failed. Close Voice Lab before retrying.');
+      return;
     }
     _updateStatus('Disconnected');
   }
@@ -287,9 +321,10 @@ class _VoiceExperimentScreenState extends State<VoiceExperimentScreen>
               Text(_status, textAlign: TextAlign.center),
               const SizedBox(height: 12),
               const Text(
-                'Barge-in, local TTS cancellation, Tamil recognition, '
-                'background listening and remote audio-drain acknowledgment '
-                'are NOT enabled or verified here.',
+                'Sessions stop after two minutes and when leaving the app. '
+                'Live Gemini audio, Tamil/Tanglish quality and interruption '
+                'need a configured backend and device testing. Offline voice '
+                'is not implemented in this lab.',
                 textAlign: TextAlign.center,
                 style: TextStyle(fontSize: 12, color: Colors.amberAccent),
               ),

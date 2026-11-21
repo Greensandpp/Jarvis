@@ -19,7 +19,11 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  verify-backend-and-flutter:
+    uses: ./.github/workflows/livekit-voice-experiment-tests.yml
+
   compile-apk-only:
+    needs: verify-backend-and-flutter
     runs-on: ubuntu-latest
     timeout-minutes: 35
     defaults:

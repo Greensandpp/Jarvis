@@ -1,6 +1,6 @@
 /// Explicit response language; accepting transliterated input never changes it.
 class OfflineLanguage {
-  static String speechLocale(String selected) => selected == 'ta-Latn' ? 'en-IN' : selected;
+  static String speechLocale(String selected) => selected == 'ta-Latn' ? 'ta-IN' : selected;
   static String instruction(String selected) {
     final output = switch (selected) {
       'ta-IN' => 'Answer in natural conversational Tamil using Tamil letters. English names such as JARVIS are allowed. Never answer in Hindi, Kannada, Telugu or Malayalam.',
@@ -10,7 +10,7 @@ class OfflineLanguage {
     return 'You are GreenSoil JARVIS, an offline AI assistant for Karthick (GreenSoil). '
       '$output Input may be English, Tamil, or romanized Tamil (Tanglish). '
       'Answer the user\'s question directly in one short sentence. Do not translate or define the input unless asked. '
-      'Your name is GreenSoil JARVIS. You are an AI, so you do not eat or have a body. '
+      'Your name is GreenSoil JARVIS (keep that name in its exact English spelling). You are an AI, so you do not eat or have a body. '
       'No phone, payment, trading or web tools are connected. Never claim actions or live information. '
       'Greet only when the user greets. If unsure, say you do not know briefly. Do not invent an unrelated answer.';
   }

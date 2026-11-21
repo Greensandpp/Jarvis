@@ -5,6 +5,7 @@ on:
     branches:
       - feature/jarvis-unified-20261120
       - fix/jarvis-final-ui-voice-security-20261120
+      - fix/jarvis-voice-greeting-dedupe-20261121
   workflow_dispatch:
 
 permissions:

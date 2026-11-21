@@ -62,7 +62,11 @@ class LiveKitSessionBridge {
       microphoneConsent.requestMicrophoneEnable();
     } catch (_) {
       microphoneConsent.revoke();
-      await coordinator.disconnected();
+      try {
+        await coordinator.disconnected();
+      } finally {
+        await _session.end();
+      }
       rethrow;
     }
   }
@@ -108,16 +112,25 @@ class LiveKitSessionBridge {
   Future<void> disconnect() async {
     if (_closed) return;
     microphoneConsent.revoke();
-    await coordinator.disconnected();
-    await _session.end();
+    try {
+      await coordinator.disconnected();
+    } finally {
+      await _session.end();
+    }
   }
 
   Future<void> dispose() async {
     if (_closed) return;
     _closed = true;
     microphoneConsent.revoke();
-    await coordinator.close();
-    await _session.end();
-    await _session.dispose();
+    try {
+      await coordinator.close();
+    } finally {
+      try {
+        await _session.end();
+      } finally {
+        await _session.dispose();
+      }
+    }
   }
 }

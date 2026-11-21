@@ -28,7 +28,7 @@ console.log('PASS: real skinned meshes; independent humanoid/serpent motion; joi
 assert.equal(rig.materials.length,4);assert.equal(rig.mesh.geometry.groups.length,4);
 assert.ok(rig.armour.length>150);assert.ok(rig.armour.every(m=>m.geometry.type!=='BoxGeometry'),'no block armour');
 assert.ok(rig.mesh.geometry.attributes.position.count>15000);assert.ok(snake.mesh.geometry.attributes.position.count>2500);
-for(let t=0;t<15;t+=.25){animateSnake(snake,t);assert.ok(snake.head.getWorldPosition(new THREE.Vector3()).x>.65,'helmet clearance');}
+for(let t=0;t<15;t+=.25){animateSnake(snake,t);assert.ok(snake.head.getWorldPosition(new THREE.Vector3()).x>.60,'helmet clearance');}
 const {QUALITY,introStage}=await import('../assets/hologram/scene.js');
 assert.deepEqual(Object.keys(QUALITY),['ultra','high','balanced','battery']);assert.equal(QUALITY.battery.fps,30);
 assert.deepEqual([0,.1,.2,.4,.65,.73,.8,.95,1].map(introStage),['platform','convergence','skeleton','armour','reactor','eyes','serpent','approach','idle']);

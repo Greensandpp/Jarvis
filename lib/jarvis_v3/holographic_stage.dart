@@ -22,11 +22,13 @@ class HolographicStage extends StatefulWidget {
     required this.onIntroFinished,
     required this.playIntro,
     required this.reduceMotion,
+    this.onReady,
   });
   final ValueListenable<AssistantActivity> activity;
   final String theme;
   final double Function() soundLevel;
   final VoidCallback onTap, onIntroFinished;
+  final VoidCallback? onReady;
   final bool playIntro, reduceMotion;
   @override
   State<HolographicStage> createState() => HolographicStageState();
@@ -81,8 +83,10 @@ class HolographicStageState extends State<HolographicStage>
               final v = jsonDecode(m.message) as Map;
               switch (v['type']) {
                 case 'ready':
+                  final firstReady = !_ready;
                   _ready = true;
                   _sync();
+                  if (firstReady) widget.onReady?.call();
                 case 'tap':
                   widget.onTap();
                 case 'introFinished':

@@ -216,6 +216,13 @@ class _AppearanceSettingsScreenState extends State<AppearanceSettingsScreen> {
               onChanged: (v) => s.update(introEnabled: v),
             ),
             SwitchListTile(
+              key: const ValueKey('set-intro-sound'),
+              title: const Text('Intro sound'),
+              subtitle: const Text('Optional local energy tone. No assistant greeting.'),
+              value: s.introSound,
+              onChanged: s.introEnabled ? (v) => s.update(introSound: v) : null,
+            ),
+            SwitchListTile(
               key: const ValueKey('set-reduce-motion'),
               title: const Text('Reduce motion'),
               subtitle: const Text(

@@ -1,3 +1,5 @@
+import 'dart:async';
+import '../avatar/avatar_runtime.dart' show AvatarSound;
 import 'package:flutter/material.dart';
 
 import '../services/jarvis_service.dart';
@@ -250,6 +252,7 @@ class JarvisV3HomeState extends State<JarvisV3Home>
   }
 
   void skipIntro() {
+    unawaited(VoiceService.instance.stopEffect());
     for (final k in [_stageKey]) {
       k.currentState?.skipIntro();
     }
@@ -258,6 +261,7 @@ class JarvisV3HomeState extends State<JarvisV3Home>
 
   @override
   void dispose() {
+    unawaited(VoiceService.instance.stopEffect());
     WidgetsBinding.instance.removeObserver(this);
     activity.removeListener(_onActivity);
     conversation.removeListener(_onConversation);
@@ -271,6 +275,11 @@ class JarvisV3HomeState extends State<JarvisV3Home>
     _focus.dispose();
     _scroll.dispose();
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state != AppLifecycleState.resumed) unawaited(VoiceService.instance.stopEffect());
   }
 
   bool get _reduceMotion =>
@@ -289,7 +298,11 @@ class JarvisV3HomeState extends State<JarvisV3Home>
       },
       playIntro: _introRunning && !_reduceMotion,
       reduceMotion: _reduceMotion,
+      onReady: () {
+        if (_introRunning && !_reduceMotion && _settings.introSound) unawaited(AvatarSound.play('intro'));
+      },
       onIntroFinished: () {
+        unawaited(VoiceService.instance.stopEffect());
         if (mounted && _introRunning) setState(() => _introRunning = false);
       },
     ),

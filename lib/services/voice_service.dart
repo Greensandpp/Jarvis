@@ -5,7 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_tts/flutter_tts.dart';
 import 'package:permission_handler/permission_handler.dart';
 
-import '../avatar/avatar_runtime.dart' show publishAvatarSpeech;
+import '../avatar/avatar_runtime.dart' show publishAvatarSpeech, AvatarSound;
 import 'edge_tts_service.dart';
 import 'speech_output_controller.dart';
 import 'gemini_dictation.dart';
@@ -17,6 +17,7 @@ import 'settings_service.dart';
 class VoiceService {
   VoiceService._() {
     _initNativeSpeechChannel();
+    AvatarSound.outputPlayer = playEffect;
   }
   static final VoiceService instance = VoiceService._();
 
@@ -342,6 +343,34 @@ class VoiceService {
         .replaceAll('`', '')
         .replaceAll(RegExp(r'[\r\n]+'), ' ')
         .trim();
+  }
+
+  int? _effectRequestId;
+  Future<void> stopEffect() async {
+    final id = _effectRequestId;
+    if (id != null && id == output.activeRequestId) await output.stop();
+    if (_effectRequestId == id) _effectRequestId = null;
+  }
+
+  /// Optional local intro/outro tones share the same owner and yield to speech.
+  /// They never set SPEAKING or emit an assistant-completion event.
+  Future<void> playEffect(String path) async {
+    if (output.activeRequestId != null || output.externalSession) return;
+    await output.speak((ticket) async {
+      _effectRequestId = ticket.id;
+      try {
+        final granted = await _nativeSpeechChannel.invokeMethod<bool>('acquireOutputFocus', {'requestId': ticket.id}) ?? false;
+        if (ticket.cancelled || !granted) return;
+        await const MethodChannel('com.privateagent/accessibility').invokeMethod('playAudioFile', {'path': path});
+      } catch (_) {
+        // Effects are optional and must never block the home screen.
+      } finally {
+        if (!ticket.cancelled) {
+          try { await _nativeSpeechChannel.invokeMethod('releaseOutputFocus'); } catch (_) {}
+        }
+        if (_effectRequestId == ticket.id) _effectRequestId = null;
+      }
+    }, speaking: false);
   }
 
   Future<void> speak(String text) => speakIn(text,

@@ -109,20 +109,36 @@ void main() {
         'NATIVE_AUDIO_CANCEL PASS 5 native play/cancel requests; preparing observed: $preparingSamples; no delayed restart',
       );
 
-      await Future<void>.delayed(const Duration(seconds: 8));
-      await tester.pump();
-      final a = await stage.snapshot();
+      Map<String, dynamic> a = {};
+      for (var n = 0; n < 90; n++) {
+        await Future<void>.delayed(const Duration(milliseconds: 500));
+        await tester.pump();
+        a = await stage.snapshot();
+        if (a['intro'] == 'done') break;
+      }
       expect(a['engine'], 'Three.js r180 WebGL');
       expect(a['bones'], greaterThanOrEqualTo(36));
       expect(a['snakeBones'], 32);
       expect(a['intro'], 'done');
       expect(a['armourPlates'], greaterThan(150));
       expect(a['materials'], 4);
-      await Future<void>.delayed(const Duration(seconds: 1));
-      await tester.pump();
-      final b = await stage.snapshot();
+      Map<String, dynamic> b = {};
+      for (var n = 0; n < 40; n++) {
+        await Future<void>.delayed(const Duration(milliseconds: 250));
+        await tester.pump();
+        b = await stage.snapshot();
+        if ((b['frame'] as num) >= (a['frame'] as num) + 2) break;
+      }
+      expect(b['frame'], greaterThanOrEqualTo((a['frame'] as num) + 2));
       expect(a['humanoidHead'], isNot(equals(b['humanoidHead'])));
       expect(a['snakeHead'], isNot(equals(b['snakeHead'])));
+      final bounds = b['snakeHeadBounds'] as Map;
+      for (final v in bounds['min'] as List) {
+        expect(v, greaterThan(-1));
+      }
+      for (final v in bounds['max'] as List) {
+        expect(v, lessThan(1));
+      }
       // Change persisted theme only. The same scene and the same audio session survive.
       for (final theme in HologramThemeStore.themes) {
         await HologramThemeStore.instance.select(theme);

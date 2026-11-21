@@ -66,7 +66,7 @@ export function animateSnake(s,t,intro=1) {
  const path=(i)=>{const u=i/(count-1),a=t*.55+u*Math.PI*2;
   const radius=.82+Math.sin(t*1.1-u*7)*.055;
   const p=new THREE.Vector3(Math.cos(a)*radius,.4+u*2.35+Math.sin(t*1.4-u*6)*.08,Math.sin(a)*radius);
-  return p.lerp(new THREE.Vector3(.72+Math.sin(t*.6)*.04,2.8+Math.sin(t)*.07,.02),THREE.MathUtils.smoothstep(u,.84,1));
+  return p.lerp(new THREE.Vector3(.66+Math.sin(t*.6)*.025,2.8+Math.sin(t)*.07,.02),THREE.MathUtils.smoothstep(u,.84,1));
  };
  s.mesh.scale.setScalar(1);s.mesh.updateMatrixWorld(true);
  for(let i=0;i<count;i++) {
@@ -126,27 +126,33 @@ export function startScene() {
    m.rotation.set(i*.2,i*.3,i*.4);group.add(m);
   }
  }
- let quality='balanced',contextLost=false,introProgress=0;
- let state='idle',theme='snake',introStart=performance.now(),introEnabled=true,reduced=false,paused=false,level=0,done=false,elapsed=0,last=0,fps=60,frames=0,windowStart=0;
+ let quality='balanced',contextLost=false,introProgress=0,introElapsed=0,renderedFrames=0,lastIntroStage='',trailPrimed=false;
+ let state='idle',theme='snake',introEnabled=true,reduced=false,paused=false,level=0,done=false,elapsed=0,last=0,fps=60,frames=0,windowStart=0;
  let yaw=0,pitch=.06,distance=6.7,drag=false,startX=0,startY=0,lastInput=0,pointers=new Map(),pinch=0;
  function applyTheme(name){theme=THEMES[name]?name:'snake';for(const [key,env] of Object.entries(environments))env.visible=key===theme;const [a,b,c]=THEMES[theme];rig.glow.color.setHex(a);rig.glow.emissive.setHex(a);key.color.setHex(a);rim.color.setHex(b);snake.material.color.setHex(b);snake.material.emissive.setHex(a);snake.material.emissiveIntensity=.2;particleMaterial.color.setHex(a);trail.material.color.setHex(a);scene.fog.color.setHex(0x01070b);renderer.setClearColor(0x01070b);}
- window.jarvisScene={update(v){if(v.state)state=v.state;if(v.quality&&QUALITY[v.quality]&&v.quality!==quality){quality=v.quality;renderer.setPixelRatio(Math.min(devicePixelRatio,QUALITY[quality].pixelRatio));particlesGeo.setDrawRange(0,QUALITY[quality].particles);resize();}if(v.theme)applyTheme(v.theme);level=clamp(Number(v.level)||0,0,1);reduced=!!v.reduceMotion;if(v.intro===false){introEnabled=false;done=true;}},skipIntro(){introEnabled=false;done=true;report({type:'introFinished'});},pause(v){paused=!!v;},snapshot(){return{engine:'Three.js r180 WebGL',state,theme,bones:rig.bones.length,snakeBones:snake.bones.length,intro:done?'done':'running',introStage:introStage(introProgress),quality,contextLost,armourPlates:rig.armour.length,geometryBytes:rig.mesh.geometry.attributes.position.array.byteLength,materials:rig.materials.length,humanoidHead:rig.named.head.getWorldPosition(new THREE.Vector3()).toArray(),snakeHead:snake.head.getWorldPosition(new THREE.Vector3()).toArray(),fps,drawCalls:renderer.info.render.calls,triangles:renderer.info.render.triangles};}};
+ function screenBounds(object){
+  const box=new THREE.Box3().setFromObject(object,true),min=[Infinity,Infinity],max=[-Infinity,-Infinity];
+  for(const x of [box.min.x,box.max.x])for(const y of [box.min.y,box.max.y])for(const z of [box.min.z,box.max.z]){
+   const p=new THREE.Vector3(x,y,z).project(camera);min[0]=Math.min(min[0],p.x);min[1]=Math.min(min[1],p.y);max[0]=Math.max(max[0],p.x);max[1]=Math.max(max[1],p.y);
+  }return {min,max};
+ }
+ window.jarvisScene={update(v){if(v.state)state=v.state;if(v.quality&&QUALITY[v.quality]&&v.quality!==quality){quality=v.quality;renderer.setPixelRatio(Math.min(devicePixelRatio,QUALITY[quality].pixelRatio));particlesGeo.setDrawRange(0,QUALITY[quality].particles);resize();}if(v.theme)applyTheme(v.theme);level=clamp(Number(v.level)||0,0,1);reduced=!!v.reduceMotion;if(v.intro===false){introEnabled=false;done=true;}},skipIntro(){introEnabled=false;done=true;report({type:'introFinished'});},pause(v){paused=!!v;},snapshot(){return{engine:'Three.js r180 WebGL',frame:renderedFrames,state,theme,bones:rig.bones.length,snakeBones:snake.bones.length,intro:done?'done':'running',introStage:introStage(introProgress),quality,contextLost,armourPlates:rig.armour.length,geometryBytes:rig.mesh.geometry.attributes.position.array.byteLength,materials:rig.materials.length,humanoidHead:rig.named.head.getWorldPosition(new THREE.Vector3()).toArray(),snakeHead:snake.head.getWorldPosition(new THREE.Vector3()).toArray(),snakeHeadBounds:screenBounds(snake.head),fps,drawCalls:renderer.info.render.calls,triangles:renderer.info.render.triangles};}};
  const canvas=renderer.domElement;
  canvas.addEventListener('pointerdown',e=>{pointers.set(e.pointerId,[e.clientX,e.clientY]);if(pointers.size===1){drag=false;startX=e.clientX;startY=e.clientY;}if(pointers.size===2){const a=[...pointers.values()];pinch=Math.hypot(a[0][0]-a[1][0],a[0][1]-a[1][1]);}canvas.setPointerCapture(e.pointerId);lastInput=performance.now();});
  canvas.addEventListener('pointermove',e=>{if(!pointers.has(e.pointerId))return;const prev=pointers.get(e.pointerId);pointers.set(e.pointerId,[e.clientX,e.clientY]);if(pointers.size===2){const a=[...pointers.values()],d=Math.hypot(a[0][0]-a[1][0],a[0][1]-a[1][1]);distance=clamp(distance+(pinch-d)*.012,5,11);pinch=d;drag=true;}else{if(Math.hypot(e.clientX-startX,e.clientY-startY)>8)drag=true;if(drag){yaw+=(e.clientX-prev[0])*.006;pitch=clamp(pitch+(e.clientY-prev[1])*.004,-.25,.6);}}lastInput=performance.now();});
  canvas.addEventListener('pointerup',e=>{pointers.delete(e.pointerId);if(!drag)report({type:'tap'});lastInput=performance.now();});canvas.addEventListener('pointercancel',e=>pointers.delete(e.pointerId));
  canvas.addEventListener('wheel',e=>{e.preventDefault();distance=clamp(distance+e.deltaY*.003,5,11);lastInput=performance.now();},{passive:false});
  function resize(){const w=innerWidth,h=innerHeight;renderer.setSize(w,h);const size=renderer.getDrawingBufferSize(new THREE.Vector2());target.setSize(size.x,size.y);postMaterial.uniforms.texel.value.set(1/size.x,1/size.y);camera.aspect=w/h;camera.updateProjectionMatrix();}addEventListener('resize',resize);resize();particlesGeo.setDrawRange(0,QUALITY[quality].particles);renderer.setPixelRatio(Math.min(devicePixelRatio,QUALITY[quality].pixelRatio));resize();applyTheme(theme);
- function frame(now){requestAnimationFrame(frame);if(paused||document.hidden||contextLost){last=now;return;}if(now-last<1000/QUALITY[quality].fps-1)return;const dt=Math.min((now-last)/1000,.05);last=now;if(!reduced)elapsed+=dt;const t=elapsed;
-  let intro=introEnabled&&!reduced?clamp((now-introStart)/6500,0,1):1;introProgress=intro;scaffold.visible=intro>.16&&intro<.65;scaffold.material.opacity=1-THREE.MathUtils.smoothstep(intro,.35,.65);if(intro===1&&!done){done=true;report({type:'introFinished'});}
+ function frame(now){requestAnimationFrame(frame);if(paused||document.hidden||contextLost){last=now;return;}if(now-last<1000/QUALITY[quality].fps-1)return;const rawDt=last?Math.max(0,(now-last)/1000):0,dt=Math.min(rawDt,.05);last=now;introElapsed+=Math.min(rawDt,.25);if(!reduced)elapsed+=dt;const t=elapsed;
+  let intro=introEnabled&&!reduced?clamp(introElapsed/6.5,0,1):1;introProgress=intro;scaffold.visible=intro>.16&&intro<.65;scaffold.material.opacity=1-THREE.MathUtils.smoothstep(intro,.35,.65);if(intro===1&&!done){done=true;report({type:'introFinished'});}
   // Particle convergence is geometry motion, not a background crossfade.
   if(intro<.35){const p=particlesGeo.attributes.position;const collapse=1-Math.sin(clamp(intro/.3,0,1)*Math.PI)*.92;for(let i=0;i<p.count;i++){p.setXYZ(i,particles[i*3]*collapse,1.6+(particles[i*3+1]-1.6)*collapse,particles[i*3+2]*collapse);}p.needsUpdate=true;}
   animateRig(rig,t,state,level,intro,dt);animateSnake(snake,t,intro);
   if(!reduced){points.rotation.y=t*.035;ring.rotation.z=t*.1;environments[theme].children.forEach((m,i)=>{m.rotation.y=t*(theme==='inferno'?2:.2)+i*.2;m.rotation.z=Math.sin(t*.4+i)*.3;});}
   if(now-lastInput>2800&&!pointers.size){yaw*=.97;pitch+=(.06-pitch)*.03;distance+=(6.7-distance)*.03;}
-  const d=distance+(1-intro)*2;camera.position.set(Math.sin(yaw)*d,2+pitch*d,Math.cos(yaw)*d);camera.lookAt(0,1.7,0);
-  const p=new THREE.Vector3();snake.head.getWorldPosition(p);if(!reduced){trailPos.copyWithin(3,0,trailPos.length-3);trailPos.set([p.x,p.y,p.z],0);trailGeo.attributes.position.needsUpdate=true;trailGeo.computeBoundingSphere();}trail.visible=snake.mesh.visible;
-  renderer.info.reset();if(QUALITY[quality].bloom){renderer.setRenderTarget(target);renderer.render(scene,camera);renderer.setRenderTarget(null);renderer.render(postScene,postCamera);}else renderer.render(scene,camera);frames++;if(now-windowStart>2000){fps=frames*1000/(now-windowStart);frames=0;windowStart=now;if(fps<32)renderer.setPixelRatio(1);report({type:'metrics',...window.jarvisScene.snapshot()});}
+  const d=distance*Math.max(1,.45/camera.aspect)+(1-intro)*2;camera.position.set(Math.sin(yaw)*d,2+pitch*d,Math.cos(yaw)*d);camera.lookAt(0,1.7,0);
+  const p=new THREE.Vector3();snake.head.getWorldPosition(p);if(!trailPrimed){for(let i=0;i<trailPos.length;i+=3)trailPos.set([p.x,p.y,p.z],i);trailPrimed=true;}if(!reduced){trailPos.copyWithin(3,0,trailPos.length-3);trailPos.set([p.x,p.y,p.z],0);trailGeo.attributes.position.needsUpdate=true;trailGeo.computeBoundingSphere();}trail.visible=snake.mesh.visible;
+  renderer.info.reset();if(QUALITY[quality].bloom){renderer.setRenderTarget(target);renderer.render(scene,camera);renderer.setRenderTarget(null);renderer.render(postScene,postCamera);}else renderer.render(scene,camera);frames++;renderedFrames++;const stage=introStage(intro);if(stage!==lastIntroStage){lastIntroStage=stage;report({type:'introStage',stage,frame:renderedFrames});}if(now-windowStart>2000){fps=frames*1000/(now-windowStart);frames=0;windowStart=now;if(fps<32)renderer.setPixelRatio(1);report({type:'metrics',...window.jarvisScene.snapshot()});}
  }
  requestAnimationFrame(frame);report({type:'ready'});
  canvas.addEventListener('webglcontextlost',e=>{e.preventDefault();contextLost=true;report({type:'contextLost'});});

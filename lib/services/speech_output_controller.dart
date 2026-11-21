@@ -29,20 +29,23 @@ class SpeechOutputController {
     return next;
   }
 
-  Future<void> speak(Future<void> Function(SpeechTicket) play) async {
+  Future<void> speak(
+    Future<void> Function(SpeechTicket) play, {
+    bool speaking = true,
+  }) async {
     if (externalSession) return;
     _current?.cancel();
     final ticket = SpeechTicket(++_id);
     _current = ticket;
     await _stop();
     if (ticket.cancelled || externalSession) return;
-    onSpeaking(true);
+    if (speaking) onSpeaking(true);
     try {
       await Future.any([play(ticket), ticket.cancellation]);
     } finally {
       if (identical(_current, ticket)) {
         _current = null;
-        onSpeaking(false);
+        if (speaking) onSpeaking(false);
       }
     }
   }

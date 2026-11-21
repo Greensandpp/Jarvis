@@ -3,7 +3,6 @@ import 'dart:math' as math;
 import 'dart:typed_data';
 
 import 'package:flutter/foundation.dart';
-import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -69,7 +68,8 @@ void sendAvatarCommand(String command) {
 /// Played through the app's existing native MediaPlayer channel.
 class AvatarSound {
   AvatarSound._();
-  static const _channel = MethodChannel('com.privateagent/accessibility');
+  // Assigned by VoiceService; effects never bypass the output owner.
+  static Future<void> Function(String path)? outputPlayer;
   static final Map<String, String> _files = {};
 
   static bool get _supported {
@@ -92,7 +92,7 @@ class AvatarSound {
         await f.writeAsBytes(synthesize(kind), flush: true);
         path = _files[kind] = f.path;
       }
-      await _channel.invokeMethod('playAudioFile', {'path': path});
+      await outputPlayer?.call(path);
     } catch (e) {
       debugPrint('[AvatarSound] $kind not played: $e');
     }

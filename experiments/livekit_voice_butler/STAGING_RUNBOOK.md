@@ -147,3 +147,9 @@ seconds for shutdown. Keep Railway restart policy NEVER. This bounds idle
 hosting during the first phone QA window; it is not an always-on production
 release or a guarantee of a provider invoice. Sessions retain their separate
 120-second signed deadline and persistent monthly allowance.
+
+The first credential-backed room dispatch exposed `EOFError: unexpected EOF`
+in Python 3.13's forkserver process startup. SDK worker processes now explicitly
+use `spawn` with a 30-second initialization timeout. A real native-SDK child
+initialization test runs both in Python CI and as UID 10001 inside the actual
+staging container. A registered worker alone does not prove it can accept jobs.

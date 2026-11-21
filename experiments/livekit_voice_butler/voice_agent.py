@@ -82,7 +82,10 @@ async def serve_job(ctx):
             )
 
 
-server = agents.AgentServer(num_idle_processes=0, log_level="WARN")
+server = agents.AgentServer(
+    num_idle_processes=0, log_level="WARN", multiprocessing_context="spawn",
+    initialize_process_timeout=30,
+)
 server.rtc_session(agent_name=AGENT_NAME)(serve_job)
 
 if __name__ == "__main__":

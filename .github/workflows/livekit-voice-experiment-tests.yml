@@ -36,6 +36,7 @@ jobs:
           python -c 'import json; d=json.load(open("/tmp/voice-health.json")); assert d["live_voice_verified"] is False; assert d["issuance_enabled"] is False'
           test "$(curl --silent --output /dev/null --write-out '%{http_code}' -H 'Content-Type: application/json' -d '{}' http://127.0.0.1:18080/api/livekit-token)" = 503
           docker exec gs-voice-smoke awk '/^Uid:/{if ($2 != 10001) exit 1; found=1} END{if(!found) exit 1}' /proc/1/status
+          docker exec --user 10001 gs-voice-smoke python -m unittest test_sdk_integration.SDKTests.test_native_sdk_initializes_in_spawned_child
       - name: Remove disposable smoke container
         if: always()
         run: docker rm -f gs-voice-smoke || true

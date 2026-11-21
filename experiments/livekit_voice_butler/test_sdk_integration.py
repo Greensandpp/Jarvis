@@ -21,6 +21,18 @@ import voice_agent
 import token_service_wsgi
 
 
+def _native_spawn_check():
+    # Import and initialize the real native SDK in a fresh spawned child.
+    # No room connection, provider request or microphone capture is started.
+    from livekit import rtc
+    async def check():
+        room = rtc.Room()
+        session = agents.AgentSession()
+        await session.aclose()
+        await room.disconnect()
+    asyncio.run(check())
+
+
 class SDKTests(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
@@ -152,6 +164,17 @@ class SDKTests(unittest.TestCase):
             self.assertFalse(session.llm._opts.vertexai)
             await session.aclose()
         asyncio.run(check())
+
+    def test_native_sdk_initializes_in_spawned_child(self):
+        import multiprocessing
+        process = multiprocessing.get_context("spawn").Process(target=_native_spawn_check)
+        process.start()
+        process.join(timeout=25)
+        if process.is_alive():
+            process.terminate()
+            process.join(timeout=3)
+            self.fail("Native SDK spawn initialization timed out")
+        self.assertEqual(process.exitcode, 0)
 
     def test_job_hard_deadline_closes_provider_and_deletes_room(self):
         async def check():

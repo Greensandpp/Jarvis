@@ -1,5 +1,3 @@
-import 'dart:convert';
-import 'package:crypto/crypto.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -33,10 +31,16 @@ class SettingsService extends ChangeNotifier {
   bool get isReady => _prefs != null;
 
   Future<void> init() async {
-    _prefs = await SharedPreferences.getInstance();
+    _prefs ??= await SharedPreferences.getInstance();
     // Ensure system prompt is enabled so models always receive the agent action grammar
     if (_prefs?.getBool('ai_use_system_prompt') != true) {
       await _prefs?.setBool('ai_use_system_prompt', true);
+    }
+    // The default provider changed to Gemini. Owners who saved a key while
+    // the old DeepSeek default applied keep exactly what they had.
+    final p = _prefs;
+    if (p != null && p.getString('ai_provider') == null && (p.getString('ai_api_key') ?? '').isNotEmpty) {
+      await p.setString('ai_provider', (p.getString('ai_api_key') ?? '').startsWith('AIza') ? 'gemini' : 'deepseek');
     }
   }
 
@@ -44,21 +48,14 @@ class SettingsService extends ChangeNotifier {
   /// App shortcuts are represented as `app:<Android app label or package>`.
   /// The allowlisted action catalog is rendered in the overlay editor.
   static const List<String> defaultArcShortcuts = [
-    'open_tradingview',
-    'toggle_torch',
-    'payment_safety',
-    'summarize_screen',
+    'open_tradingview', 'toggle_torch', 'payment_safety', 'summarize_screen',
   ];
   List<String> get arcShortcuts =>
       _prefs?.getStringList('arc_shortcuts_v1') ?? defaultArcShortcuts;
   Future<void> setArcShortcuts(List<String> value) async {
     // No duplicates; limits panel clutter and stored data.
-    final cleaned = value
-        .map((e) => e.trim())
-        .where((e) => e.isNotEmpty)
-        .toSet()
-        .take(20)
-        .toList();
+    final cleaned = value.map((e) => e.trim()).where((e) => e.isNotEmpty)
+        .toSet().take(20).toList();
     await _prefs?.setStringList('arc_shortcuts_v1', cleaned);
     notifyListeners();
   }
@@ -105,103 +102,130 @@ class SettingsService extends ChangeNotifier {
     'custom': (label: 'Custom (OpenAI-compatible)', baseUrl: '', model: ''),
   };
 
-  String get provider => _prefs?.getString('ai_provider') ?? 'deepseek';
+  /// Google Gemini is the preferred provider for new installs; an existing
+  /// stored choice is never overwritten.
+  String get provider => _prefs?.getString('ai_provider') ?? 'gemini';
   Future<void> setProvider(String value) async {
-    if (value == provider) return;
-    await _prefs?.setString('ai_saved_model_$provider', model);
-    await _prefs?.setString('ai_saved_base_$provider', baseUrl);
+    if (value != provider) _verifiedThisSession = false;
     await _prefs?.setString('ai_provider', value);
     final preset = providers[value];
-    await _prefs?.setString(
-      'ai_base_url',
-      _prefs?.getString('ai_saved_base_$value') ?? preset?.baseUrl ?? '',
-    );
-    await _prefs?.setString(
-      'ai_model',
-      _prefs?.getString('ai_saved_model_$value') ?? preset?.model ?? '',
-    );
+    if (preset != null && preset.baseUrl.isNotEmpty) {
+      await _prefs?.setString('ai_base_url', preset.baseUrl);
+      await _prefs?.setString('ai_model', preset.model);
+    }
+    // Models discovered for another provider do not apply here.
+    await _prefs?.setStringList('ai_discovered_models', const []);
+    await _prefs?.setInt('ai_models_discovered_at', 0);
     notifyListeners();
   }
-
-  // Scope cached discovery and verification to this endpoint and credential.
-  // Only a digest is used in preference keys; credentials never enter logs.
-  String get aiConnectionId => sha256
-      .convert(
-        utf8.encode(
-          '$provider|${baseUrl.replaceAll(RegExp(r'/+$'), '')}|$apiKey',
-        ),
-      )
-      .toString();
-  String _aiKey(String key) => '${key}_$aiConnectionId';
 
   String get baseUrl =>
       _prefs?.getString('ai_base_url') ??
       providers[provider]?.baseUrl ??
-      providers['deepseek']!.baseUrl;
+      providers['gemini']!.baseUrl;
   Future<void> setBaseUrl(String value) async {
+    if (value.trim() != baseUrl) _verifiedThisSession = false;
     await _prefs?.setString('ai_base_url', value.trim());
     notifyListeners();
   }
 
   /// Chat models discovered for the current key (GET {base}/models).
-  List<String> get discoveredModels =>
-      _prefs?.getStringList(_aiKey('ai_discovered_models')) ?? const [];
+  List<String> get discoveredModels => _prefs?.getStringList('ai_discovered_models') ?? const [];
   Future<void> setDiscoveredModels(List<String> m) async {
-    await _prefs?.setStringList(_aiKey('ai_discovered_models'), m);
+    await _prefs?.setStringList('ai_discovered_models', m);
     notifyListeners();
   }
 
   /// "ONLINE" is only claimed after a real request succeeded.
-  bool get aiVerified =>
-      (_prefs?.getBool(_aiKey('ai_verified')) ?? false) &&
-      aiLastOkModel == model;
-  int get aiLastOkAt => _prefs?.getInt(_aiKey('ai_last_ok_at')) ?? 0;
-  String get aiLastOkModel =>
-      _prefs?.getString(_aiKey('ai_last_ok_model')) ?? '';
-  String get aiLastErrorKind =>
-      _prefs?.getString(_aiKey('ai_last_error_kind')) ?? '';
+  int _aiRequestsInFlight = 0;
+  void beginAiRequest() { _aiRequestsInFlight++; notifyListeners(); }
+  void endAiRequest() { if (_aiRequestsInFlight > 0) _aiRequestsInFlight--; notifyListeners(); }
+  bool _verifiedThisSession = false;
+  bool get aiVerified => _verifiedThisSession && (_prefs?.getBool('ai_verified') ?? false);
+  int get aiLastOkAt => _prefs?.getInt('ai_last_ok_at') ?? 0;
+  String get aiLastOkModel => _prefs?.getString('ai_last_ok_model') ?? '';
+  String get aiLastErrorKind => _prefs?.getString('ai_last_error_kind') ?? '';
 
   Future<void> recordAiSuccess(String model) async {
-    await setModel(model);
-    await _prefs?.setBool(_aiKey('ai_verified'), true);
-    await _prefs?.setInt(
-      _aiKey('ai_last_ok_at'),
-      DateTime.now().millisecondsSinceEpoch,
-    );
-    await _prefs?.setString(_aiKey('ai_last_ok_model'), model);
-    await _prefs?.setString(_aiKey('ai_last_error_kind'), '');
-    notifyListeners();
+    final changed = aiLastOkModel != model || aiLastErrorKind.isNotEmpty || !aiVerified;
+    _verifiedThisSession = true;
+    await _prefs?.setBool('ai_verified', true);
+    await _prefs?.setInt('ai_last_ok_at', DateTime.now().millisecondsSinceEpoch);
+    await _prefs?.setString('ai_last_ok_model', model);
+    await _prefs?.setString('ai_last_error_kind', '');
+    if (changed) notifyListeners();
   }
 
   Future<void> recordAiFailure(String kind) async {
-    await _prefs?.setString(_aiKey('ai_last_error_kind'), kind);
-    await _prefs?.setBool(_aiKey('ai_verified'), false);
+    final changed = aiLastErrorKind != kind;
+    await _prefs?.setString('ai_last_error_kind', kind);
+    _verifiedThisSession = false;
+    await _prefs?.setBool('ai_verified', false);
+    if (changed) notifyListeners();
+  }
+
+  /// Automatic model selection (default ON). Choosing a model by hand in
+  /// Settings or Diagnostics pins it (auto OFF) until auto is re-enabled.
+  bool get modelAuto => _prefs?.getBool('ai_model_auto') ?? true;
+  Future<void> setModelAuto(bool value) async {
+    await _prefs?.setBool('ai_model_auto', value);
     notifyListeners();
+  }
+
+  /// When the model list was last discovered for this key (epoch ms).
+  int get modelsDiscoveredAt => _prefs?.getInt('ai_models_discovered_at') ?? 0;
+  Future<void> setModelsDiscoveredAt(int ms) async {
+    await _prefs?.setInt('ai_models_discovered_at', ms);
+  }
+
+  /// One line shown everywhere the model appears (Settings, Diagnostics,
+  /// Control Center, chat dock) so they can never disagree.
+  String get modelLabel {
+    final used = aiLastOkModel;
+    final temp = used.isNotEmpty && used != model && aiVerified ? ' · last reply via $used' : '';
+    return '$model (${modelAuto ? 'auto' : 'manual'})$temp';
   }
 
   /// Honest status line: never ONLINE without a verified request.
   String get aiStatusLabel {
-    if (apiKey.isEmpty && provider != 'ollama') return 'AI NOT CONNECTED';
-    if (aiLastErrorKind.isNotEmpty)
-      return 'AI ERROR · ${aiLastErrorKind.toUpperCase()}';
+    if (_aiRequestsInFlight > 0) return 'CONNECTING';
+    if (apiKey.isEmpty && provider != 'ollama') return 'CONFIGURATION MISSING';
+    if (aiLastErrorKind == 'auth') return 'AUTH REQUIRED';
+    if (const ['dns', 'connect', 'timeout'].contains(aiLastErrorKind)) return 'OFFLINE';
+    if (aiLastErrorKind.isNotEmpty) return 'AI ERROR · ${aiLastErrorKind.toUpperCase()}';
     if (aiVerified) return 'AI ONLINE · $aiLastOkModel';
     return 'AI NOT VERIFIED · run test';
   }
 
   String get apiKey => _prefs?.getString('ai_api_key') ?? '';
   Future<void> setApiKey(String value) async {
-    await _prefs?.setString('ai_api_key', value.trim());
+    final key = value.trim();
+    final changed = key != apiKey;
+    await _prefs?.setString('ai_api_key', key);
+    if (changed) {
+      _verifiedThisSession = false;
+      // A new key has its own model list; rediscover on next use.
+      await _prefs?.setInt('ai_models_discovered_at', 0);
+    }
+    // Google AI Studio keys ("AIza…") only work with Gemini: select it so the
+    // default settings work without further changes. A custom endpoint is kept.
+    if (key.startsWith('AIza') && provider != 'gemini' && provider != 'custom') {
+      await setProvider('gemini');
+      return;
+    }
     notifyListeners();
   }
 
   String get model =>
       _prefs?.getString('ai_model') ??
       providers[provider]?.model ??
-      'deepseek-chat';
-  Future<void> setModel(String value) async {
-    if (value.trim() == model) return;
-    await _prefs?.setString('ai_model', value.trim());
-    await _prefs?.setString('ai_saved_model_$provider', value.trim());
+      'gemini-2.5-flash';
+  /// [pin] = chosen by the owner (turns automatic selection off).
+  Future<void> setModel(String value, {bool pin = false}) async {
+    final v = value.trim();
+    final changed = v != model;
+    await _prefs?.setString('ai_model', v);
+    if (pin && changed) await _prefs?.setBool('ai_model_auto', false);
     notifyListeners();
   }
 
@@ -361,8 +385,7 @@ class SettingsService extends ChangeNotifier {
 
   /// Tool-calling brain (open-ended reasoning + tools). When off, the original
   /// single-shot intent router is used.
-  bool get brainToolCalling =>
-      _prefs?.getBool('jarvis_brain_tool_calling') ?? true;
+  bool get brainToolCalling => _prefs?.getBool('jarvis_brain_tool_calling') ?? true;
   Future<void> setBrainToolCalling(bool v) async {
     await _prefs?.setBool('jarvis_brain_tool_calling', v);
     notifyListeners();
@@ -371,11 +394,8 @@ class SettingsService extends ChangeNotifier {
   /// Reply language: auto (follow the user's Tamil / English / Tanglish), or fixed.
   String get replyLanguage {
     final v = _prefs?.getString('jarvis_reply_language') ?? 'auto';
-    return const ['auto', 'english', 'tamil', 'tanglish'].contains(v)
-        ? v
-        : 'auto';
+    return const ['auto', 'english', 'tamil', 'tanglish'].contains(v) ? v : 'auto';
   }
-
   Future<void> setReplyLanguage(String v) async {
     if (!const ['auto', 'english', 'tamil', 'tanglish'].contains(v)) return;
     await _prefs?.setString('jarvis_reply_language', v);
@@ -383,8 +403,7 @@ class SettingsService extends ChangeNotifier {
   }
 
   /// Prefer a female voice (Edge neural Pallavi/Neerja, or a female local TTS voice).
-  bool get preferFemaleVoice =>
-      _prefs?.getBool('jarvis_prefer_female_voice') ?? true;
+  bool get preferFemaleVoice => _prefs?.getBool('jarvis_prefer_female_voice') ?? true;
   Future<void> setPreferFemaleVoice(bool v) async {
     await _prefs?.setBool('jarvis_prefer_female_voice', v);
     notifyListeners();
@@ -406,21 +425,62 @@ class SettingsService extends ChangeNotifier {
 
   /// Microphone recognition language is independent of the spoken JARVIS voice.
   /// Indian English is a better default for local accents; Tamil can be selected.
+  /// Microphone language: 'auto' = Tamil + English + Tanglish (Indian English
+  /// recogniser with Tamil language detection on Android 14+, Gemini voice
+  /// input fallback), or a fixed 'en-IN' / 'ta-IN' / 'en-GB'.
+  static const speechLocales = ['auto', 'en-IN', 'ta-IN', 'en-GB'];
   String get speechInputLocale {
-    final locale = _prefs?.getString('jarvis_speech_input_locale') ?? 'en-IN';
-    return const ['en-IN', 'ta-IN', 'en-GB'].contains(locale)
-        ? locale
-        : 'en-IN';
+    final locale = _prefs?.getString('jarvis_speech_input_locale') ?? 'auto';
+    return speechLocales.contains(locale) ? locale : 'auto';
   }
 
   Future<void> setSpeechInputLocale(String locale) async {
-    if (!const ['en-IN', 'ta-IN', 'en-GB'].contains(locale)) return;
+    if (!speechLocales.contains(locale)) return;
     await _prefs?.setString('jarvis_speech_input_locale', locale);
     notifyListeners();
   }
 
+  /// Speech engine: 'auto' (phone recogniser; Gemini voice input on a mic tap
+  /// when the phone recogniser is missing or keeps failing), 'device', 'gemini'.
+  static const speechEngines = ['auto', 'device', 'gemini'];
+  String get speechEngine {
+    final e = _prefs?.getString('jarvis_speech_engine') ?? 'auto';
+    return speechEngines.contains(e) ? e : 'auto';
+  }
+
+  Future<void> setSpeechEngine(String e) async {
+    if (!speechEngines.contains(e)) return;
+    await _prefs?.setString('jarvis_speech_engine', e);
+    notifyListeners();
+  }
+
+  /// Set when the phone recogniser failed repeatedly (auto engine then uses
+  /// Gemini voice input for mic taps). Cleared from Settings → Voice.
+  bool get deviceSpeechBroken => _prefs?.getBool('jarvis_device_speech_broken') ?? false;
+  Future<void> setDeviceSpeechBroken(bool v) async {
+    if (v == deviceSpeechBroken) return;
+    await _prefs?.setBool('jarvis_device_speech_broken', v);
+    notifyListeners();
+  }
+
+  /// Local TTS voice per language: pinned by the owner ('' = automatic) and
+  /// the automatic choice with its reason (for Diagnostics).
+  String ttsVoicePinned(String lang) => _prefs?.getString('tts_voice_pinned_$lang') ?? '';
+  Future<void> setTtsVoicePinned(String lang, String name) async {
+    await _prefs?.setString('tts_voice_pinned_$lang', name);
+    notifyListeners();
+  }
+
+  String ttsVoiceAuto(String lang) => _prefs?.getString('tts_voice_auto_$lang') ?? '';
+  String ttsVoiceAutoReason(String lang) => _prefs?.getString('tts_voice_auto_reason_$lang') ?? '';
+  Future<void> setTtsVoiceAuto(String lang, String name, String reason) async {
+    await _prefs?.setString('tts_voice_auto_$lang', name);
+    await _prefs?.setString('tts_voice_auto_reason_$lang', reason);
+    notifyListeners();
+  }
+
   /// Voice profile: 'paul' (British Jarvis), 'friday' (Irish), 'stark' (US), 'kip' (Deep), 'cortana' (Smooth).
-  String get jarvisVoice => _prefs?.getString('jarvis_voice') ?? 'paul';
+  String get jarvisVoice => _prefs?.getString('jarvis_voice') ?? 'friday';
   Future<void> setJarvisVoice(String value) async {
     await _prefs?.setString('jarvis_voice', value);
     notifyListeners();
@@ -429,14 +489,15 @@ class SettingsService extends ChangeNotifier {
   /// Studio Neural Voice (Edge-TTS) for ultra-realistic human speech.
   /// Defaults to en-GB-RyanNeural (Paul Bettany British JARVIS style).
   String get jarvisNeuralVoice =>
-      _prefs?.getString('jarvis_neural_voice') ?? 'en-GB-RyanNeural';
+      _prefs?.getString('jarvis_neural_voice') ?? 'en-IN-NeerjaNeural';
   Future<void> setJarvisNeuralVoice(String value) async {
     await _prefs?.setString('jarvis_neural_voice', value);
     notifyListeners();
   }
 
   /// Whether to prioritize ultra-realistic neural human voices over offline TTS.
-  bool get useNeuralVoice => _prefs?.getBool('jarvis_use_neural_voice') ?? true;
+  bool get useNeuralVoice =>
+      _prefs?.getBool('jarvis_use_neural_voice') ?? true;
   Future<void> setUseNeuralVoice(bool value) async {
     await _prefs?.setBool('jarvis_use_neural_voice', value);
     notifyListeners();
@@ -505,8 +566,7 @@ class SettingsService extends ChangeNotifier {
 
   /// Smart Home / Home Assistant URL (e.g. http://192.168.1.100:8123)
   String get homeAssistantUrl =>
-      _prefs?.getString('smart_home_ha_url') ??
-      'http://homeassistant.local:8123';
+      _prefs?.getString('smart_home_ha_url') ?? 'http://homeassistant.local:8123';
   Future<void> setHomeAssistantUrl(String value) async {
     await _prefs?.setString('smart_home_ha_url', value.trim());
     notifyListeners();
@@ -521,7 +581,8 @@ class SettingsService extends ChangeNotifier {
   }
 
   /// Whether Smart Home integration is enabled
-  bool get smartHomeEnabled => _prefs?.getBool('smart_home_enabled') ?? true;
+  bool get smartHomeEnabled =>
+      _prefs?.getBool('smart_home_enabled') ?? true;
   Future<void> setSmartHomeEnabled(bool value) async {
     await _prefs?.setBool('smart_home_enabled', value);
     notifyListeners();
@@ -552,7 +613,8 @@ class SettingsService extends ChangeNotifier {
   }
 
   /// Commute travel mode: 'driving', 'transit', 'walking', 'cycling'
-  String get commuteMode => _prefs?.getString('commute_mode') ?? 'driving';
+  String get commuteMode =>
+      _prefs?.getString('commute_mode') ?? 'driving';
   Future<void> setCommuteMode(String value) async {
     await _prefs?.setString('commute_mode', value);
     notifyListeners();
@@ -567,7 +629,8 @@ class SettingsService extends ChangeNotifier {
   }
 
   /// Jarvis Eye Multimodal Camera Perception
-  bool get jarvisEyeEnabled => _prefs?.getBool('jarvis_eye_enabled') ?? true;
+  bool get jarvisEyeEnabled =>
+      _prefs?.getBool('jarvis_eye_enabled') ?? true;
   Future<void> setJarvisEyeEnabled(bool value) async {
     await _prefs?.setBool('jarvis_eye_enabled', value);
     notifyListeners();

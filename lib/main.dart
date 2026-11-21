@@ -5,7 +5,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_overlay_window/flutter_overlay_window.dart';
 
 import 'app.dart';
+import 'jarvis_v3/hologram_theme_store.dart';
+import 'jarvis_v3/chat_interface_settings.dart';
 import 'overlay/overlay_app.dart';
+import 'services/ai_service.dart';
 import 'services/calendar_reminder_service.dart';
 import 'services/hermes_evolution_service.dart';
 import 'services/jarvis_service.dart';
@@ -17,6 +20,7 @@ import 'services/settings_service.dart';
 import 'services/task_executor.dart';
 import 'services/telegram_service.dart';
 import 'services/todo_service.dart';
+import 'services/voice_service.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -24,6 +28,8 @@ Future<void> main() async {
 
   final settings = SettingsService.instance;
   await settings.init();
+  await HologramThemeStore.instance.load();
+  await ChatInterfaceSettings.instance.load();
 
   final executor = TaskExecutor.instance;
   await executor.init();
@@ -35,6 +41,12 @@ Future<void> main() async {
   if (settings.jarvisAlwaysOn) {
     JarvisService.instance.ensureAlwaysOnRunning();
   }
+
+  // Background: discover the models this key can use and auto-select the
+  // best Gemini model (throttled; no network unless cloud AI is allowed).
+  unawaited(AiService.instance.discoverAndSelectModels());
+  // Background: pick the best installed Tamil / English (female) voices.
+  unawaited(VoiceService.instance.autoSelectVoices());
 
   _wireTelegram(executor, settings);
   _wireOverlayCommands(executor);

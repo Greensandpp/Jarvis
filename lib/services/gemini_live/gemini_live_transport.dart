@@ -18,9 +18,8 @@ class LiveTokenGrant {
   final String? model;
 }
 
-class LiveTokenException implements Exception {
-  const LiveTokenException(this.message);
-  final String message;
+class LiveTokenException extends SafeLiveFailure {
+  const LiveTokenException(super.message);
   @override
   String toString() => 'LiveTokenException: $message';
 }

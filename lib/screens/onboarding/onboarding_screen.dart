@@ -26,7 +26,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
 
   int _page = 0;
   bool _serviceEnabled = false;
-  String _provider = 'deepseek';
+  String _provider = 'gemini'; // Google Gemini is the preferred provider
 
   @override
   void initState() {

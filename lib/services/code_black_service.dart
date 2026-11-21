@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../app.dart';
 import '../screens/security/code_black_screen.dart';
-import 'edge_tts_service.dart';
+import 'voice_service.dart';
 
 /// 🎭 "Code Black" — Deceptive Hardware Lockout & Anti-Prying Service
 ///
@@ -53,7 +53,7 @@ class CodeBlackService extends ChangeNotifier {
       ));
     }
 
-    unawaited(EdgeTtsService.instance.speak(
+    unawaited(VoiceService.instance.speak(
       'Code Black initiated. Hardware isolation engaged. Say Override Alpha or tap emergency override to disarm.',
     ));
   }
@@ -66,7 +66,7 @@ class CodeBlackService extends ChangeNotifier {
     notifyListeners();
     HapticFeedback.mediumImpact();
 
-    unawaited(EdgeTtsService.instance.speak(
+    unawaited(VoiceService.instance.speak(
       'Code Black disarmed. Biometrics verified. Welcome back, sir.',
     ));
   }

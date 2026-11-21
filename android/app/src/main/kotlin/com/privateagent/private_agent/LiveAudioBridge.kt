@@ -272,9 +272,13 @@ class LiveAudioBridge(private val context: Context, messenger: BinaryMessenger) 
         ensureTrack(rate)
         require(rate == 24000 || rate == 16000 || rate == 48000)
         require(bytes.size % 2 == 0 && bytes.size <= rate * 2)
-        if (!playQueue.offer(Packet(bytes, playbackEpoch.get()))) {
-            flushPlayback()
-            emit(mapOf("type" to "error", "value" to "playback_overflow"))
+        val epoch = playbackEpoch.get()
+        for (offset in bytes.indices step 1920) {
+            if (!playQueue.offer(Packet(bytes.copyOfRange(offset, minOf(offset + 1920, bytes.size)), epoch))) {
+                flushPlayback()
+                emit(mapOf("type" to "error", "value" to "playback_overflow"))
+                break
+            }
         }
     }
 

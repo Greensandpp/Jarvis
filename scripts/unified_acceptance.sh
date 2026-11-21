@@ -76,6 +76,28 @@ for mode in core aira office apex mira; do
 done
 [[ $ok == 1 ]] && res U03 PASS "core/aira/office/apex/mira launched; 2 frames each (see mode-*.png)" || res U03 FAIL "a mode crashed"
 
+# U03S Serpent Guardian (V3: owner-supplied reference render with live effects).
+# Frames across the intro/materialize timeline + SERPENT_PERF log lines per performance mode.
+SG_KEY='<string name="flutter.avatar_settings_v1_serpent_guardian">{&quot;debug&quot;:true,&quot;introSound&quot;:false,&quot;outroSound&quot;:false,&quot;performance&quot;:&quot;PERF&quot;}</string>'
+ok=1
+for perf in balanced quality battery; do
+  seed $STD serpent "" "${SG_KEY/PERF/$perf}"
+  launch $STD 2
+  if [[ $perf == balanced ]]; then
+    for s in 1 2 3 4 5 6 7 8 10 13; do shot "serpent-$perf-t$(printf %02d $s)"; sleep 1; done
+  else
+    sleep 12; shot "serpent-$perf"
+  fi
+  sleep 10
+  adb logcat -d | grep -E "SERPENT_PERF" | sed "s/^/[$perf] /" >> "$OUT/serpent-perf.txt"
+  if crashed $STD || [[ -z "$(adb shell pidof $STD | tr -d '\r')" ]]; then ok=0; log "  serpent ($perf) crashed"; fi
+done
+perf_lines=$(grep -c SERPENT_PERF "$OUT/serpent-perf.txt" 2>/dev/null || echo 0)
+log "  serpent perf (CI emulator, swiftshader software GPU — pessimistic):"
+grep -oE "\[(balanced|quality|battery)\].*SERPENT_PERF .*" "$OUT/serpent-perf.txt" | sed -E 's/I\/flutter *\( *[0-9]+\): //' | tail -n 9 | sed 's/^/    /' | tee -a "$OUT/summary.txt"
+[[ $ok == 1 && $perf_lines -gt 0 ]] && res U03S PASS "serpent guardian ran in balanced/quality/battery, $perf_lines perf samples (serpent-*.png, serpent-perf.txt)" \
+  || res U03S FAIL "serpent crashed or no perf samples (lines=$perf_lines)"
+
 # U04 AIRA models
 ok=1
 for model in amberHologram electricWeb jellyfish violetVortex solarFlare; do

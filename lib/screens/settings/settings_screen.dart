@@ -1,7 +1,11 @@
+import 'dart:async';
+
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import '../../jarvis_v3/appearance_settings.dart';
 
 import '../../services/personality_service.dart';
+import '../../services/ai_service.dart';
 import '../../services/settings_service.dart';
 import '../../services/telegram_service.dart';
 import '../../widgets/glass_widgets.dart';
@@ -10,6 +14,7 @@ import '../brain/trading_ai_screen.dart';
 import '../brain/control_center_screen.dart';
 import 'jarvis_settings_screen.dart';
 import 'permissions_screen.dart';
+import '../home/home_screen.dart';
 import '../../core/build_profile.dart';
 
 /// Next-Generation Liquid Glass Settings Screen.
@@ -35,6 +40,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   bool _obscureToken = true;
 
   String _lastSyncedProvider = '';
+  String _lastSyncedModel = '';
 
   @override
   void initState() {
@@ -43,22 +49,26 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _apiKeyController = TextEditingController(text: _settings.apiKey);
     _modelController = TextEditingController(text: _settings.model);
     _tokenController = TextEditingController(text: _settings.telegramToken);
-    _chatsController = TextEditingController(
-      text: _settings.telegramAllowedChats.join(', '),
-    );
+    _chatsController =
+        TextEditingController(text: _settings.telegramAllowedChats.join(', '));
     _lastSyncedProvider = _settings.provider;
-    _syncedModel = _settings.model;
-    _syncedBase = _settings.baseUrl;
-    _syncedKey = _settings.apiKey;
+    _lastSyncedModel = _settings.model;
 
     PersonalityService.instance.init().then((_) {
       if (mounted) setState(() {});
     });
 
-    for (final c in [_baseUrlController, _apiKeyController, _modelController]) {
+    for (final c in [
+      _baseUrlController,
+      _apiKeyController,
+      _modelController,
+    ]) {
       c.addListener(_onAiFieldChanged);
     }
-    for (final c in [_tokenController, _chatsController]) {
+    for (final c in [
+      _tokenController,
+      _chatsController,
+    ]) {
       c.addListener(_onTelegramFieldChanged);
     }
     _settings.addListener(_onSettingsChanged);
@@ -71,10 +81,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _settings.removeListener(_onSettingsChanged);
     _telegram.removeListener(_onTelegramChanged);
     PersonalityService.instance.removeListener(_onServiceChanged);
-    for (final c in [_baseUrlController, _apiKeyController, _modelController]) {
+    for (final c in [
+      _baseUrlController,
+      _apiKeyController,
+      _modelController,
+    ]) {
       c.removeListener(_onAiFieldChanged);
     }
-    for (final c in [_tokenController, _chatsController]) {
+    for (final c in [
+      _tokenController,
+      _chatsController,
+    ]) {
       c.removeListener(_onTelegramFieldChanged);
     }
     _baseUrlController.dispose();
@@ -85,24 +102,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
     super.dispose();
   }
 
-  String? _syncedModel, _syncedBase, _syncedKey;
   void _onSettingsChanged() {
     if (!mounted) return;
     if (_settings.provider != _lastSyncedProvider) {
       _lastSyncedProvider = _settings.provider;
       _baseUrlController.text = _settings.baseUrl;
       _modelController.text = _settings.model;
-      _apiKeyController.text = _settings.apiKey;
+      _lastSyncedModel = _settings.model;
+    } else if (_settings.model != _lastSyncedModel) {
+      // Model changed elsewhere (auto-selection, Diagnostics, fallback after
+      // 404): follow it unless the owner is typing a different one here.
+      if (_modelController.text.trim() == _lastSyncedModel) _modelController.text = _settings.model;
+      _lastSyncedModel = _settings.model;
     }
-    if (_syncedModel != _settings.model)
-      _modelController.text = _settings.model;
-    if (_syncedBase != _settings.baseUrl)
-      _baseUrlController.text = _settings.baseUrl;
-    if (_syncedKey != _settings.apiKey)
-      _apiKeyController.text = _settings.apiKey;
-    _syncedModel = _settings.model;
-    _syncedBase = _settings.baseUrl;
-    _syncedKey = _settings.apiKey;
     setState(() {});
   }
 
@@ -150,31 +162,27 @@ class _SettingsScreenState extends State<SettingsScreen> {
         SnackBar(
           content: const Row(
             children: [
-              Icon(
-                Icons.check_circle_outline,
-                color: Colors.greenAccent,
-                size: 20,
-              ),
+              Icon(Icons.check_circle_outline, color: Colors.greenAccent, size: 20),
               SizedBox(width: 10),
               Text('Telegram configuration saved & reloaded'),
             ],
           ),
           duration: const Duration(seconds: 2),
           behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(14),
-          ),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
         ),
       );
   }
 
   Future<void> _saveAiSettings() async {
-    final base = _baseUrlController.text,
-        key = _apiKeyController.text,
-        model = _modelController.text;
-    await _settings.setBaseUrl(base);
-    await _settings.setApiKey(key);
-    await _settings.setModel(model);
+    final keyChanged = _apiKeyController.text.trim() != _settings.apiKey;
+    final typedModel = _modelController.text.trim();
+    final modelEdited = typedModel != _lastSyncedModel;
+    await _settings.setBaseUrl(_baseUrlController.text);
+    await _settings.setApiKey(_apiKeyController.text);
+    // A model typed here by the owner is pinned; otherwise auto-selection stays on.
+    if (modelEdited && typedModel.isNotEmpty) await _settings.setModel(typedModel, pin: true);
+    unawaited(AiService.instance.discoverAndSelectModels(force: keyChanged));
     if (!mounted) return;
     setState(() {});
     ScaffoldMessenger.of(context)
@@ -183,20 +191,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
         SnackBar(
           content: const Row(
             children: [
-              Icon(
-                Icons.check_circle_outline,
-                color: Colors.greenAccent,
-                size: 20,
-              ),
+              Icon(Icons.check_circle_outline, color: Colors.greenAccent, size: 20),
               SizedBox(width: 10),
               Text('AI provider settings saved successfully'),
             ],
           ),
           duration: const Duration(seconds: 2),
           behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(14),
-          ),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
         ),
       );
   }
@@ -264,6 +266,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
             child: ListView(
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 40),
               children: [
+                ListTile(
+                  leading: const Icon(Icons.smart_toy_outlined), title: const Text('Agents'),
+                  subtitle: const Text('Private Agent / Phone Agent'),
+                  onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (context) => Scaffold(
+                    appBar: AppBar(title: const Text('Agents')),
+                    body: ListView(children: [
+                      for (final label in ['Private Agent', 'Phone Agent'])
+                        ListTile(title: Text(label), onTap: () => Navigator.of(context).push(
+                          MaterialPageRoute(builder: (_) => const HomeScreen(agentMode: AppMode.agent)),
+                        )),
+                    ]),
+                  ))),
+                ),
                 _sectionHeader(
                   icon: Icons.psychology_rounded,
                   title: 'AI Intelligence Engine',
@@ -308,6 +323,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   icon: Icons.palette_outlined,
                   title: 'Appearance & Visual Theme',
                   color: const Color(0xFFF472B6),
+                ),
+                ListTile(
+                  key: const ValueKey('settings-appearance-v3'),
+                  leading: const Icon(Icons.chat_bubble_outline),
+                  title: const Text('Chat interface, intro and animation presets'),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () => Navigator.of(context).push(MaterialPageRoute<void>(
+                      builder: (_) => const AppearanceSettingsScreen())),
                 ),
                 _appearanceCard(),
               ],
@@ -390,9 +413,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             prefixIcon: const Icon(Icons.vpn_key_outlined, size: 20),
             suffixIcon: IconButton(
               icon: Icon(
-                _obscureKey
-                    ? Icons.visibility_outlined
-                    : Icons.visibility_off_outlined,
+                _obscureKey ? Icons.visibility_outlined : Icons.visibility_off_outlined,
                 size: 20,
               ),
               onPressed: () => setState(() => _obscureKey = !_obscureKey),
@@ -402,9 +423,22 @@ class _SettingsScreenState extends State<SettingsScreen> {
           GlassTextField(
             controller: _modelController,
             labelText: 'Model',
-            hintText: 'deepseek-chat',
+            hintText: 'gemini-2.5-flash',
             prefixIcon: const Icon(Icons.psychology_outlined, size: 20),
           ),
+          Material(type: MaterialType.transparency, child: SwitchListTile(
+            key: const ValueKey('settings-model-auto'),
+            contentPadding: EdgeInsets.zero,
+            title: const Text('Choose the best model automatically'),
+            subtitle: Text('Active: ${_settings.modelLabel}'
+                '${_settings.discoveredModels.isEmpty ? '' : ' · ${_settings.discoveredModels.length} models found for this key'}',
+                key: const ValueKey('settings-model-label')),
+            value: _settings.modelAuto,
+            onChanged: (v) async {
+              await _settings.setModelAuto(v);
+              if (v) unawaited(AiService.instance.discoverAndSelectModels(force: true));
+            },
+          )),
           const SizedBox(height: 16),
           // Save button with liquid glass styling
           SizedBox(
@@ -417,9 +451,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     ? const Color(0xFF6366F1)
                     : Theme.of(context).colorScheme.surfaceContainerHighest,
                 foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16),
-                ),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                 elevation: _aiDirty ? 4 : 0,
               ),
               icon: Icon(
@@ -428,10 +460,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
               label: Text(
                 _aiDirty ? 'Save changes' : 'Saved',
-                style: const TextStyle(
-                  fontWeight: FontWeight.w700,
-                  fontSize: 13.5,
-                ),
+                style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13.5),
               ),
             ),
           ),
@@ -442,40 +471,23 @@ class _SettingsScreenState extends State<SettingsScreen> {
               key: const ValueKey('open-control-center'),
               icon: const Icon(Icons.dashboard_customize),
               label: const Text('JARVIS Control Center (all settings)'),
-              onPressed: () => Navigator.of(context).push(
-                MaterialPageRoute(builder: (_) => const ControlCenterScreen()),
-              ),
+              onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const ControlCenterScreen())),
             ),
           ),
           const SizedBox(height: 8),
-          Text(
-            BuildProfile.label,
-            key: const ValueKey('build-profile'),
-            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
-          ),
-          if (BuildProfile.isStandard)
-            Text(
-              BuildProfile.standardNotice,
-              key: const ValueKey('build-profile-notice'),
-              style: const TextStyle(fontSize: 11),
-            ),
+          Text(BuildProfile.label, key: const ValueKey('build-profile'),
+            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
+          if (BuildProfile.isStandard) Text(BuildProfile.standardNotice,
+            key: const ValueKey('build-profile-notice'), style: const TextStyle(fontSize: 11)),
           const SizedBox(height: 6),
-          Text(
-            _settings.aiStatusLabel,
-            key: const ValueKey('settings-ai-status'),
-            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
-          ),
+          Text(_settings.aiStatusLabel, key: const ValueKey('settings-ai-status'),
+            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
           const SizedBox(height: 6),
           SizedBox(
             width: double.infinity,
             child: OutlinedButton.icon(
               key: const ValueKey('open-ai-diagnostics'),
-              onPressed: () => Navigator.of(context)
-                  .push(
-                    MaterialPageRoute(
-                      builder: (_) => const AiDiagnosticsScreen(),
-                    ),
-                  )
+              onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const AiDiagnosticsScreen()))
                   .then((_) => setState(() {})),
               icon: const Icon(Icons.network_check, size: 18),
               label: const Text('Test connection & discover models'),
@@ -486,9 +498,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             width: double.infinity,
             child: OutlinedButton.icon(
               key: const ValueKey('open-trading-ai'),
-              onPressed: () => Navigator.of(context).push(
-                MaterialPageRoute(builder: (_) => const TradingAiScreen()),
-              ),
+              onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const TradingAiScreen())),
               icon: const Icon(Icons.candlestick_chart, size: 18),
               label: const Text('Trading AI (paper only)'),
             ),
@@ -508,8 +518,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           const SizedBox(height: 10),
           GlassSwitchTile(
             title: 'Allow Cloud AI (privacy-sensitive)',
-            subtitle:
-                'OFF by default. Enabling sends your prompts and possibly screen context to your selected AI provider. Do not use for private apps.',
+            subtitle: 'OFF by default. Enabling sends your prompts and possibly screen context to your selected AI provider. Do not use for private apps.',
             icon: Icons.cloud_off_outlined,
             value: _settings.allowCloudAi,
             onChanged: (v) => _settings.setAllowCloudAi(v),
@@ -517,8 +526,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           const SizedBox(height: 8),
           GlassSwitchTile(
             title: 'Allow External Search, Weather & Maps',
-            subtitle:
-                'OFF by default. If enabled, search terms, location names or coordinates may be sent to third-party services.',
+            subtitle: 'OFF by default. If enabled, search terms, location names or coordinates may be sent to third-party services.',
             icon: Icons.public_off_outlined,
             value: _settings.allowExternalLookups,
             onChanged: (v) => _settings.setAllowExternalLookups(v),
@@ -526,8 +534,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           const SizedBox(height: 8),
           GlassSwitchTile(
             title: 'Allow Smart Home Network',
-            subtitle:
-                'OFF by default. Connect only to a trusted Home Assistant device after you approve its network access.',
+            subtitle: 'OFF by default. Connect only to a trusted Home Assistant device after you approve its network access.',
             icon: Icons.home_outlined,
             value: _settings.allowSmartHomeNetwork,
             onChanged: (v) => _settings.setAllowSmartHomeNetwork(v),
@@ -535,8 +542,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           const SizedBox(height: 8),
           GlassSwitchTile(
             title: 'Allow Online Neural Voice',
-            subtitle:
-                'OFF by default. Enabling may send spoken reply text to an external voice service. Offline Android TTS is used otherwise.',
+            subtitle: 'OFF by default. Enabling may send spoken reply text to an external voice service. Offline Android TTS is used otherwise.',
             icon: Icons.record_voice_over_outlined,
             value: _settings.allowCloudTts,
             onChanged: (v) => _settings.setAllowCloudTts(v),
@@ -647,19 +653,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
                               ),
                               decoration: BoxDecoration(
                                 color: isAlwaysOn
-                                    ? const Color(
-                                        0xFF00E5FF,
-                                      ).withValues(alpha: 0.18)
+                                    ? const Color(0xFF00E5FF).withValues(alpha: 0.18)
                                     : theme.colorScheme.surfaceContainerHighest,
                                 borderRadius: BorderRadius.circular(6),
                                 border: Border.all(
                                   color: isAlwaysOn
-                                      ? const Color(
-                                          0xFF00E5FF,
-                                        ).withValues(alpha: 0.6)
-                                      : theme.colorScheme.outline.withValues(
-                                          alpha: 0.3,
-                                        ),
+                                      ? const Color(0xFF00E5FF).withValues(alpha: 0.6)
+                                      : theme.colorScheme.outline.withValues(alpha: 0.3),
                                   width: 0.8,
                                 ),
                               ),
@@ -702,29 +702,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 runSpacing: 6,
                 children: [
                   GlassPill(
-                    icon: const Icon(
-                      Icons.mic_rounded,
-                      size: 13,
-                      color: Color(0xFF00E5FF),
-                    ),
+                    icon: const Icon(Icons.mic_rounded, size: 13, color: Color(0xFF00E5FF)),
                     label: isAlwaysOn ? 'Hands-Free Receptors' : 'Tap to Talk',
                     color: const Color(0xFF00E5FF),
                   ),
                   GlassPill(
-                    icon: const Icon(
-                      Icons.record_voice_over_rounded,
-                      size: 13,
-                      color: Color(0xFFFFD700),
-                    ),
+                    icon: const Icon(Icons.record_voice_over_rounded, size: 13, color: Color(0xFFFFD700)),
                     label: '$voice Studio Voice',
                     color: const Color(0xFFFFD700),
                   ),
                   GlassPill(
-                    icon: const Icon(
-                      Icons.psychology_outlined,
-                      size: 13,
-                      color: Color(0xFFBA68C8),
-                    ),
+                    icon: const Icon(Icons.psychology_outlined, size: 13, color: Color(0xFFBA68C8)),
                     label: '$persona Tone',
                     color: const Color(0xFFBA68C8),
                   ),
@@ -744,9 +732,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
       child: InkWell(
         borderRadius: BorderRadius.circular(22),
         onTap: () {
-          Navigator.of(
-            context,
-          ).push(MaterialPageRoute(builder: (_) => const PermissionsScreen()));
+          Navigator.of(context).push(
+            MaterialPageRoute(builder: (_) => const PermissionsScreen()),
+          );
         },
         child: Padding(
           padding: const EdgeInsets.all(18),
@@ -787,9 +775,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         Text(
                           'Microphone, SMS stream, Email inbox & Accessibility service',
                           style: TextStyle(
-                            color: Theme.of(
-                              context,
-                            ).colorScheme.onSurfaceVariant,
+                            color: Theme.of(context).colorScheme.onSurfaceVariant,
                             fontSize: 12,
                           ),
                         ),
@@ -800,9 +786,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   Icon(
                     Icons.arrow_forward_ios_rounded,
                     size: 16,
-                    color: Theme.of(
-                      context,
-                    ).colorScheme.onSurfaceVariant.withValues(alpha: 0.6),
+                    color: Theme.of(context).colorScheme.onSurfaceVariant.withValues(alpha: 0.6),
                   ),
                 ],
               ),
@@ -812,38 +796,22 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 runSpacing: 6,
                 children: [
                   GlassPill(
-                    icon: Icon(
-                      Icons.sms_outlined,
-                      size: 13,
-                      color: Colors.blueAccent,
-                    ),
+                    icon: Icon(Icons.sms_outlined, size: 13, color: Colors.blueAccent),
                     label: 'SMS Inbox',
                     color: Colors.blueAccent,
                   ),
                   GlassPill(
-                    icon: Icon(
-                      Icons.mark_email_unread_outlined,
-                      size: 13,
-                      color: Colors.amber,
-                    ),
+                    icon: Icon(Icons.mark_email_unread_outlined, size: 13, color: Colors.amber),
                     label: 'Email Stream',
                     color: Colors.amber,
                   ),
                   GlassPill(
-                    icon: Icon(
-                      Icons.mic_rounded,
-                      size: 13,
-                      color: Color(0xFF00E5FF),
-                    ),
+                    icon: Icon(Icons.mic_rounded, size: 13, color: Color(0xFF00E5FF)),
                     label: 'Mic Receptor',
                     color: Color(0xFF00E5FF),
                   ),
                   GlassPill(
-                    icon: Icon(
-                      Icons.accessibility_new_rounded,
-                      size: 13,
-                      color: Color(0xFF818CF8),
-                    ),
+                    icon: Icon(Icons.accessibility_new_rounded, size: 13, color: Color(0xFF818CF8)),
                     label: 'Screen Touch',
                     color: Color(0xFF818CF8),
                   ),
@@ -877,8 +845,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             min: 200,
             max: 5000,
             divisions: 24,
-            displayValue:
-                '${(_settings.stepDelayMs / 1000).toStringAsFixed(1)}s',
+            displayValue: '${(_settings.stepDelayMs / 1000).toStringAsFixed(1)}s',
             onChanged: (v) => _settings.setStepDelayMs(v.round()),
           ),
           const SizedBox(height: 4),
@@ -913,9 +880,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         children: [
           GlassSwitchTile(
             title: 'Enable Telegram Remote Bridge',
-            subtitle: running
-                ? 'Bot actively polling for commands'
-                : 'Bot service stopped',
+            subtitle: running ? 'Bot actively polling for commands' : 'Bot service stopped',
             icon: Icons.send_rounded,
             value: _settings.telegramEnabled,
             onChanged: (v) async {
@@ -935,9 +900,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             prefixIcon: const Icon(Icons.key_outlined, size: 20),
             suffixIcon: IconButton(
               icon: Icon(
-                _obscureToken
-                    ? Icons.visibility_outlined
-                    : Icons.visibility_off_outlined,
+                _obscureToken ? Icons.visibility_outlined : Icons.visibility_off_outlined,
                 size: 20,
               ),
               onPressed: () => setState(() => _obscureToken = !_obscureToken),
@@ -961,23 +924,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     ? const Color(0xFF0EA5E9)
                     : Theme.of(context).colorScheme.surfaceContainerHighest,
                 foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16),
-                ),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                 elevation: _telegramDirty ? 4 : 0,
               ),
               icon: Icon(
-                _telegramDirty
-                    ? Icons.save_rounded
-                    : Icons.check_circle_outline,
+                _telegramDirty ? Icons.save_rounded : Icons.check_circle_outline,
                 size: 18,
               ),
               label: Text(
                 _telegramDirty ? 'Save Telegram settings' : 'Telegram saved',
-                style: const TextStyle(
-                  fontWeight: FontWeight.w700,
-                  fontSize: 13.5,
-                ),
+                style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13.5),
               ),
             ),
           ),
@@ -988,17 +944,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
               decoration: BoxDecoration(
                 color: Colors.greenAccent.withValues(alpha: 0.12),
                 borderRadius: BorderRadius.circular(14),
-                border: Border.all(
-                  color: Colors.greenAccent.withValues(alpha: 0.35),
-                ),
+                border: Border.all(color: Colors.greenAccent.withValues(alpha: 0.35)),
               ),
               child: Row(
                 children: [
-                  const Icon(
-                    Icons.verified_user_rounded,
-                    size: 18,
-                    color: Colors.greenAccent,
-                  ),
+                  const Icon(Icons.verified_user_rounded, size: 18, color: Colors.greenAccent),
                   const SizedBox(width: 10),
                   Expanded(
                     child: Column(
@@ -1016,9 +966,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           'Chat ID: $owner',
                           style: TextStyle(
                             fontSize: 11.5,
-                            color: Theme.of(
-                              context,
-                            ).colorScheme.onSurfaceVariant,
+                            color: Theme.of(context).colorScheme.onSurfaceVariant,
                           ),
                         ),
                       ],
@@ -1028,36 +976,21 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     style: TextButton.styleFrom(
                       foregroundColor: Colors.redAccent,
                       backgroundColor: Colors.redAccent.withValues(alpha: 0.12),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 6,
-                      ),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                     ),
                     icon: const Icon(Icons.link_off_rounded, size: 15),
-                    label: const Text(
-                      'Unpair',
-                      style: TextStyle(
-                        fontWeight: FontWeight.w700,
-                        fontSize: 12,
-                      ),
-                    ),
+                    label: const Text('Unpair', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12)),
                     onPressed: () async {
                       await _settings.setTelegramOwnerChatId('');
                       if (!mounted) return;
                       setState(() {});
                       ScaffoldMessenger.of(context).showSnackBar(
                         SnackBar(
-                          content: const Text(
-                            'Telegram owner pairing unlinked',
-                          ),
+                          content: const Text('Telegram owner pairing unlinked'),
                           duration: const Duration(seconds: 2),
                           behavior: SnackBarBehavior.floating,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(14),
-                          ),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                         ),
                       );
                     },
@@ -1071,17 +1004,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
               decoration: BoxDecoration(
                 color: Colors.amberAccent.withValues(alpha: 0.08),
                 borderRadius: BorderRadius.circular(14),
-                border: Border.all(
-                  color: Colors.amberAccent.withValues(alpha: 0.25),
-                ),
+                border: Border.all(color: Colors.amberAccent.withValues(alpha: 0.25)),
               ),
               child: Row(
                 children: [
-                  const Icon(
-                    Icons.link_outlined,
-                    size: 18,
-                    color: Colors.amberAccent,
-                  ),
+                  const Icon(Icons.link_outlined, size: 18, color: Colors.amberAccent),
                   const SizedBox(width: 10),
                   Expanded(
                     child: Column(
@@ -1099,9 +1026,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           'For security, enter your authorized numeric Telegram Chat ID above before enabling the bridge. Auto-pair is disabled.',
                           style: TextStyle(
                             fontSize: 11,
-                            color: Theme.of(
-                              context,
-                            ).colorScheme.onSurfaceVariant,
+                            color: Theme.of(context).colorScheme.onSurfaceVariant,
                           ),
                         ),
                       ],
@@ -1189,9 +1114,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             Icon(
               icon,
               size: 20,
-              color: isSelected
-                  ? theme.colorScheme.primary
-                  : theme.colorScheme.onSurfaceVariant,
+              color: isSelected ? theme.colorScheme.primary : theme.colorScheme.onSurfaceVariant,
             ),
             const SizedBox(height: 6),
             Text(
@@ -1199,9 +1122,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               style: TextStyle(
                 fontSize: 12,
                 fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-                color: isSelected
-                    ? theme.colorScheme.primary
-                    : theme.colorScheme.onSurface,
+                color: isSelected ? theme.colorScheme.primary : theme.colorScheme.onSurface,
               ),
             ),
           ],

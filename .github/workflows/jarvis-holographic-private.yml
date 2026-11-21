@@ -1,0 +1,102 @@
+name: JARVIS holographic private development
+on:
+  push:
+    branches: [fix/jarvis-detailed-guardian-20261121, integration/hybrid-native-voice-20261121]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: hologram-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  validate-build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 65
+    env:
+      CI: 'true'
+      FLUTTER_SUPPRESS_ANALYTICS: 'true'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.50.1'
+          cache: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Verify reproducible offline scene bundle
+        run: |
+          npm install --no-save --prefix /tmp/jarvis-bundle esbuild@0.27.0
+          ESBUILD=/tmp/jarvis-bundle/node_modules/.bin/esbuild bash scripts/build_hologram_bundle.sh
+          git diff --exit-code -- assets/hologram/scene.bundle.js
+      - run: flutter pub get --enforce-lockfile
+      - name: Analyze and regression tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p evidence
+          flutter analyze --no-fatal-infos 2>&1 | tee evidence/analyze.txt
+          flutter test --reporter expanded 2>&1 | tee evidence/flutter-tests.txt
+          node scripts/hologram_test.mjs | tee evidence/3d-rig-tests.txt
+      - name: Real WebGL render and motion checks
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install --no-save --prefix /tmp/jarvis-render playwright@1.62.1
+          /tmp/jarvis-render/node_modules/.bin/playwright install --with-deps chromium
+          NODE_PATH=/tmp/jarvis-render/node_modules CHROMIUM_PATH=$(find /home/runner/.cache/ms-playwright -path '*/chrome-linux64/chrome' | head -1) node scripts/hologram_browser_test.cjs
+      - name: Build development APKs and verify signatures and permissions
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p private-apks evidence/apk
+          for flavor in standard full; do
+            flutter build apk --debug --flavor "$flavor"
+            cp "build/app/outputs/flutter-apk/app-$flavor-debug.apk" "private-apks/JARVIS-$flavor-debug.apk"
+          done
+          TOOLS=$(find "$ANDROID_HOME/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -1)
+          for apk in private-apks/*.apk; do
+            n=$(basename "$apk" .apk)
+            "$TOOLS/apksigner" verify --print-certs "$apk" > "evidence/apk/$n-signature.txt"
+            "$TOOLS/aapt" dump badging "$apk" > "evidence/apk/$n-badging.txt"
+            python3 scripts/check_apk_elf_16kb.py "$apk" "evidence/apk/$n-16kb.json" > "evidence/apk/$n-16kb.txt"
+            "$TOOLS/zipalign" -c -P 16 -v 4 "$apk" > "evidence/apk/$n-zipalign.txt"
+            "$TOOLS/aapt" dump permissions "$apk" > "evidence/apk/$n-permissions.txt"
+          done
+          ! grep -E 'QUERY_ALL_PACKAGES|REQUEST_INSTALL_PACKAGES|MANAGE_EXTERNAL_STORAGE|WRITE_CONTACTS|shizuku' evidence/apk/*permissions.txt
+          ! grep -E 'SYSTEM_ALERT_WINDOW|READ_CONTACTS|BIND_ACCESSIBILITY|WRITE_SETTINGS|PACKAGE_USAGE_STATS' evidence/apk/JARVIS-standard-debug-permissions.txt
+          sha256sum private-apks/*.apk > evidence/apk/SHA256SUMS.txt
+      - name: Enable disposable CI emulator hardware acceleration
+        run: sudo chmod a+rw /dev/kvm
+      - name: Android 16 WebView acceptance (both development variants)
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 36
+          target: google_apis
+          arch: x86_64
+          profile: pixel_7
+          ram-size: 4096M
+          heap-size: 512M
+          emulator-boot-timeout: 600
+          disable-animations: false
+          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -cores 3
+          script: bash scripts/hologram_android_acceptance.sh
+      - name: Encrypt test-only binaries before storage
+        run: |
+          python3 -m pip install cryptography
+          python3 scripts/encrypt_development_apks.py ci/artifact-recipient-public.pem private-apks encrypted-apks
+      - uses: actions/upload-artifact@v4
+        with:
+          name: JARVIS-ENCRYPTED-PRIVATE-DEVELOPMENT
+          path: encrypted-apks/
+          retention-days: 7
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: JARVIS-HOLOGRAM-TEST-EVIDENCE
+          path: evidence/
+          retention-days: 7

@@ -4,14 +4,14 @@ import 'package:shared_preferences/shared_preferences.dart';
 /// Lets the brain / voice commands switch visual mode and AIRA model while the
 /// visual host is on screen. Values are also persisted, so they survive restart.
 class VisualRequest {
-  final String? mode; // core / aira / office / apex / mira
+  final String? mode; // core / aira / office / apex / mira / serpent
   final String? airaModel; // AiraModel.name
   const VisualRequest({this.mode, this.airaModel});
 }
 
 final ValueNotifier<VisualRequest?> visualBus = ValueNotifier<VisualRequest?>(null);
 
-const visualModes = ['core', 'aira', 'office', 'apex', 'mira'];
+const visualModes = ['core', 'aira', 'office', 'apex', 'mira', 'serpent'];
 
 Future<void> requestVisual({String? mode, String? airaModel}) async {
   final p = await SharedPreferences.getInstance();

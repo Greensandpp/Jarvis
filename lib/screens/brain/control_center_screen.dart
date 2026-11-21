@@ -3,12 +3,14 @@ import 'package:flutter/material.dart';
 import '../../brain/brain.dart';
 import '../../brain/jarvis_brain_service.dart';
 import '../../brain/semantic_memory.dart';
+import '../../avatar/avatar_settings_screen.dart';
 import '../../brain/visual_bus.dart';
 import '../../core/build_profile.dart';
 import '../../services/conversational_memory_service.dart';
 import '../../services/hermes_evolution_service.dart';
 import '../../services/settings_service.dart';
 import '../../services/skill_memory_service.dart';
+import '../../services/voice_selection.dart';
 import '../../services/voice_service.dart';
 import '../settings/jarvis_settings_screen.dart';
 import '../settings/permissions_screen.dart';
@@ -36,7 +38,7 @@ class ControlCenterScreen extends StatelessWidget {
       ('Trading (paper)', 'Risk gate, indicators, OI, journal audit', Icons.candlestick_chart, () => go(const TradingAiScreen())),
       ('Agents & Audit', 'Five agents and every tool action', Icons.groups, () => go(const _AgentsPage())),
       ('Tools', 'What JARVIS can do and what needs approval', Icons.build, () => go(const _ToolsPage())),
-      ('Visuals', 'JARVIS Core, AIRA (10 models), Office, APEX, MIRA', Icons.auto_awesome, () => go(const _VisualsPage())),
+      ('Visuals', 'JARVIS Core, AIRA (10 models), Office, APEX, MIRA, Serpent Guardian', Icons.auto_awesome, () => go(const _VisualsPage())),
       ('Permissions', 'Android permissions for this build', Icons.admin_panel_settings, () => go(const PermissionsScreen())),
       ('Automation', 'Original JARVIS workflows, routines, HUD settings', Icons.auto_mode, () => go(const JarvisSettingsScreen())),
       ('Device & PC', 'Phone controls; Windows companion status', Icons.devices, () => go(const _DevicePage())),
@@ -45,11 +47,15 @@ class ControlCenterScreen extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(title: const Text('JARVIS Control Center')),
       body: ListView(children: [
-        ListTile(
-          key: const ValueKey('cc-status'),
-          leading: const Icon(Icons.info_outline),
-          title: Text('${BuildProfile.label} · ${s.aiStatusLabel}'),
-          subtitle: Text('Brain ${s.brainToolCalling ? 'ON' : 'OFF (original router)'} · reply ${s.replyLanguage}'),
+        ListenableBuilder(
+          listenable: s,
+          builder: (context, _) => ListTile(
+            key: const ValueKey('cc-status'),
+            leading: const Icon(Icons.info_outline),
+            title: Text('${BuildProfile.label} · ${s.aiStatusLabel}'),
+            subtitle: Text('Brain ${s.brainToolCalling ? 'ON' : 'OFF (original router)'} · reply ${s.replyLanguage}\n'
+                'Provider ${s.provider} · Model ${s.modelLabel}', key: const ValueKey('cc-model')),
+          ),
         ),
         for (final it in items)
           ListTile(
@@ -77,7 +83,8 @@ class _BrainPageState extends State<_BrainPage> {
   Widget build(BuildContext context) => Scaffold(
         appBar: AppBar(title: const Text('AI Brain')),
         body: ListView(padding: const EdgeInsets.all(12), children: [
-          Text(s.aiStatusLabel, key: const ValueKey('brain-status'), style: const TextStyle(fontWeight: FontWeight.w700)),
+          ListenableBuilder(listenable: s, builder: (context, _) => Text('${s.aiStatusLabel}\nModel: ${s.modelLabel}',
+              key: const ValueKey('brain-status'), style: const TextStyle(fontWeight: FontWeight.w700))),
           SwitchListTile(
             key: const ValueKey('brain-toggle'),
             title: const Text('Tool-calling brain'),
@@ -164,6 +171,34 @@ class _VoicePage extends StatefulWidget {
 
 class _VoicePageState extends State<_VoicePage> {
   final s = SettingsService.instance;
+
+  Future<void> _pickVoice(String lang) async {
+    final all = await VoiceService.instance.installedVoices(refresh: true);
+    final ranked = rankVoices(all, lang, preferFemale: s.preferFemaleVoice);
+    if (!mounted) return;
+    const auto = '__auto__';
+    final chosen = await showDialog<String>(context: context, builder: (ctx) => SimpleDialog(
+      title: Text(lang == 'ta-IN' ? 'Tamil voice' : 'English (India) voice'),
+      children: [
+        SimpleDialogOption(onPressed: () => Navigator.pop(ctx, auto), child: const Text('Automatic (recommended)')),
+        if (ranked.isEmpty)
+          const Padding(padding: EdgeInsets.all(16),
+            child: Text('No voice for this language is installed. Install it in Android Settings → Text-to-speech.')),
+        for (final v in ranked)
+          SimpleDialogOption(
+            onPressed: () => Navigator.pop(ctx, v.name),
+            child: Text('${v.name}\n${v.gender == VoiceGender.unknown ? 'gender not reported' : v.gender.name} · '
+                '${v.networkRequired ? 'online' : 'offline'}'),
+          ),
+      ],
+    ));
+    if (chosen == null) return;
+    await s.setTtsVoicePinned(lang, chosen == auto ? '' : chosen);
+    if (chosen == auto) await VoiceService.instance.autoSelectVoices();
+    await VoiceService.instance.speakIn(lang == 'ta-IN' ? 'வணக்கம், நான் JARVIS.' : 'Hello, JARVIS voice check.',
+        languageTag: lang, neuralVoice: '', female: s.preferFemaleVoice);
+    if (mounted) setState(() {});
+  }
   @override
   Widget build(BuildContext context) => Scaffold(
         appBar: AppBar(title: const Text('Voice')),
@@ -188,14 +223,67 @@ class _VoicePageState extends State<_VoicePage> {
           ),
           const Text('Microphone language'),
           SegmentedButton<String>(
+            key: const ValueKey('voice-mic-language'),
             segments: const [
-              ButtonSegment(value: 'en-IN', label: Text('English (India)')),
+              ButtonSegment(value: 'auto', label: Text('Auto (தமிழ்+English+Tanglish)')),
+              ButtonSegment(value: 'en-IN', label: Text('English')),
               ButtonSegment(value: 'ta-IN', label: Text('தமிழ்')),
             ],
-            selected: {s.speechInputLocale == 'ta-IN' ? 'ta-IN' : 'en-IN'},
+            selected: {s.speechInputLocale == 'en-GB' ? 'en-IN' : s.speechInputLocale},
             onSelectionChanged: (v) async {
               await s.setSpeechInputLocale(v.first);
               setState(() {});
+            },
+          ),
+          const SizedBox(height: 8),
+          const Text('Speech engine'),
+          SegmentedButton<String>(
+            key: const ValueKey('voice-engine'),
+            segments: const [
+              ButtonSegment(value: 'auto', label: Text('Auto')),
+              ButtonSegment(value: 'device', label: Text('Phone')),
+              ButtonSegment(value: 'gemini', label: Text('Gemini')),
+            ],
+            selected: {s.speechEngine},
+            onSelectionChanged: (v) async {
+              await s.setSpeechEngine(v.first);
+              setState(() {});
+            },
+          ),
+          Text(
+              'Auto uses the phone recogniser and switches to Gemini voice input on a mic tap if the phone '
+              'recogniser is missing or keeps failing${s.deviceSpeechBroken ? ' (it failed earlier on this phone)' : ''}. '
+              'Gemini voice input needs cloud AI allowed in Privacy; it never runs for always-on wake-word listening.',
+              style: const TextStyle(fontSize: 12)),
+          if (s.deviceSpeechBroken)
+            TextButton(
+              key: const ValueKey('voice-reset-recognizer'),
+              onPressed: () async {
+                await s.setDeviceSpeechBroken(false);
+                setState(() {});
+              },
+              child: const Text('Try the phone recogniser again'),
+            ),
+          const Divider(),
+          const Text('Reply voices (offline voices first, female when preferred)'),
+          for (final lang in const ['ta-IN', 'en-IN'])
+            ListTile(
+              key: ValueKey('voice-pick-$lang'),
+              dense: true,
+              title: Text(lang == 'ta-IN' ? 'Tamil voice' : 'English (India) voice'),
+              subtitle: Text(s.ttsVoicePinned(lang).isNotEmpty
+                  ? '${s.ttsVoicePinned(lang)} · chosen by you'
+                  : '${s.ttsVoiceAuto(lang).isEmpty ? 'engine default' : s.ttsVoiceAuto(lang)} · ${s.ttsVoiceAutoReason(lang).isEmpty ? 'tap Auto-select' : s.ttsVoiceAutoReason(lang)}'),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => _pickVoice(lang),
+            ),
+          OutlinedButton.icon(
+            key: const ValueKey('voice-auto-select'),
+            icon: const Icon(Icons.auto_fix_high),
+            label: const Text('Auto-select voices now'),
+            onPressed: () async {
+              await VoiceService.instance.autoSelectVoices();
+              if (mounted) setState(() {});
             },
           ),
           const SizedBox(height: 8),
@@ -429,6 +517,14 @@ class _VisualsPage extends StatelessWidget {
                 }
               }, child: Text(m.toUpperCase())),
           ]),
+          const SizedBox(height: 12),
+          ListTile(
+            key: const ValueKey('vis-serpent-settings'),
+            leading: const Icon(Icons.all_inclusive, color: Color(0xFF00E8A2)),
+            title: const Text('Serpent Guardian avatar settings'),
+            subtitle: const Text('Colours (RGB/HEX), particles, size, position, speed, glow, lightning, sounds, performance'),
+            onTap: () => Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => const AvatarSettingsScreen())),
+          ),
           const SizedBox(height: 12),
           const Text('AIRA models'),
           Wrap(spacing: 6, children: [

@@ -158,10 +158,16 @@ class AiraCoreViewState extends State<AiraCoreView>
 /// model picker and per-model settings. Never talks to AI directly; it only
 /// renders the shared JARVIS state supplied by [liveState].
 class AiraModeView extends StatefulWidget {
-  const AiraModeView({super.key, required this.liveState, this.soundLevel});
+  const AiraModeView({super.key, required this.liveState, this.soundLevel,
+      this.developerControls = true});
 
   final ValueListenable<AiraVisualState> liveState;
   final double Function()? soundLevel;
+
+  /// Manual state preview, the model gallery and the in-view header. The
+  /// production main screen turns these off: state follows real events, and
+  /// model choice lives in Appearance settings.
+  final bool developerControls;
 
   @override
   State<AiraModeView> createState() => _AiraModeViewState();
@@ -211,7 +217,7 @@ class _AiraModeViewState extends State<AiraModeView> {
     return ValueListenableBuilder<AiraVisualState>(
       valueListenable: widget.liveState,
       builder: (context, live, _) {
-        final state = _preview ?? live;
+        final state = widget.developerControls ? (_preview ?? live) : live;
         final m = _prefs.model;
         return LayoutBuilder(builder: (context, box) {
           final roomy = box.maxHeight >= 430;
@@ -230,7 +236,7 @@ class _AiraModeViewState extends State<AiraModeView> {
                   soundLevel: widget.soundLevel,
                 ),
               ),
-              Positioned(
+              if (widget.developerControls) Positioned(
                 top: 8, left: 14, right: 8,
                 child: Row(children: [
                   Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start,
@@ -253,7 +259,7 @@ class _AiraModeViewState extends State<AiraModeView> {
                   ),
                 ]),
               ),
-              if (_loaded && roomy)
+              if (widget.developerControls && _loaded && roomy)
                 Positioned(
                   left: 0, right: 0, bottom: 4,
                   child: Column(mainAxisSize: MainAxisSize.min, children: [
@@ -268,7 +274,7 @@ class _AiraModeViewState extends State<AiraModeView> {
                     )),
                   ]),
                 ),
-              if (_loaded && !roomy)
+              if (widget.developerControls && _loaded && !roomy)
                 Positioned(
                   right: 8, bottom: 8,
                   child: FilledButton.tonalIcon(

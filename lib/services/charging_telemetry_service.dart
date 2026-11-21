@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
-import 'edge_tts_service.dart';
+import 'voice_service.dart';
 
 /// ⚡ Arc Reactor Charging Telemetry Service
 ///
@@ -46,17 +46,18 @@ class ChargingTelemetryService extends ChangeNotifier {
     if (call.method == 'onPowerConnected') {
       final args = call.arguments;
       if (args is Map) {
-        _applyTelemetryMap(args, connected: true);
+        _applyTelemetryMap(args, connected: true, announce: true);
       }
     } else if (call.method == 'onPowerDisconnected') {
       final args = call.arguments;
       if (args is Map) {
-        _applyTelemetryMap(args, connected: false);
+        _applyTelemetryMap(args, connected: false, announce: true);
       }
     }
   }
 
-  void _applyTelemetryMap(Map data, {required bool connected}) {
+  void _applyTelemetryMap(Map data, {required bool connected, bool announce = false}) {
+    final changed = _batteryLevel >= 0 && connected != _isCharging;
     _isCharging = connected;
     _batteryLevel = (data['batteryLevel'] as num?)?.toInt() ?? _batteryLevel;
     _voltageMv = (data['voltageMv'] as num?)?.toInt() ?? 4100;
@@ -65,19 +66,19 @@ class ChargingTelemetryService extends ChangeNotifier {
     _chargeType = (data['chargeType'] ?? (connected ? 'AC Wall Supply' : 'Internal Arc Core')).toString();
     _wattage = (data['wattage'] as num?)?.toDouble() ?? (_voltageMv / 1000.0 * 2.5);
 
-    if (connected) {
+    if (announce && changed && connected) {
       _lastCoupledTime = DateTime.now();
       showCinematicHud.value = true;
       if (_voiceAnnouncements) {
         final wattStr = _wattage > 0 ? '${_wattage.toStringAsFixed(1)} Watts' : 'nominal levels';
         final tempStr = _temperatureC > 0 ? ', core temperature at ${_temperatureC.toStringAsFixed(1)}° Celsius' : '';
-        unawaited(EdgeTtsService.instance.speak(
+        unawaited(VoiceService.instance.speak(
           'Arc reactor coupled, sir. Energy intake active at $wattStr. Power cells at $_batteryLevel percent$tempStr.',
         ));
       }
-    } else {
+    } else if (announce && changed) {
       if (_voiceAnnouncements) {
-        unawaited(EdgeTtsService.instance.speak(
+        unawaited(VoiceService.instance.speak(
           'Arc reactor decoupled, sir. System running on internal reserves at $_batteryLevel percent power.',
         ));
       }

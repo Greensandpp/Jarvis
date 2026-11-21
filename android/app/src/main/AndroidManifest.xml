@@ -1,16 +1,6 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
-    <uses-permission android:name="android.permission.WRITE_CONTACTS" tools:node="remove" />
-    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" tools:node="remove" />
-    <uses-permission android:name="android.permission.REQUEST_DELETE_PACKAGES" tools:node="remove" />
-    <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE" tools:node="remove" />
-    <uses-permission android:name="moe.shizuku.manager.permission.API_V23" tools:node="remove" />
-    <!-- Deny transitive plugin requests too; launcher-intent queries below
-         provide only the visibility needed to open user-facing apps. -->
-    <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES" tools:node="remove" />
-    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" tools:node="remove" />
-    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" tools:node="remove" />
     <!-- Network -->
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
@@ -22,6 +12,7 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
 
     <!-- App listing / launching -->
+    <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES" />
 
     <!-- Voice input -->
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
@@ -44,6 +35,8 @@
     <uses-feature android:name="android.hardware.camera.flash" android:required="false" />
 
     <!-- Storage Access (Files, Downloads, Documents) -->
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="29" tools:ignore="ScopedStorage" />
 
     <!-- App Usage Stats (Most Used Apps / Screen Time) -->
     <uses-permission android:name="android.permission.PACKAGE_USAGE_STATS" tools:ignore="ProtectedPermissions" />
@@ -54,7 +47,7 @@
         android:allowBackup="false"
         android:fullBackupContent="false"
         android:usesCleartextTraffic="true"
-        android:requestLegacyExternalStorage="false"
+        android:requestLegacyExternalStorage="true"
         android:icon="@mipmap/ic_launcher">
         <activity
             android:name=".MainActivity"
@@ -126,7 +119,14 @@
                 android:resource="@xml/file_paths" />
         </provider>
 
-        <provider android:name="rikka.shizuku.ShizukuProvider" tools:node="remove" />
+        <!-- Shizuku provider (optional privileged commands) -->
+        <provider
+            android:name="rikka.shizuku.ShizukuProvider"
+            android:authorities="${applicationId}.shizuku"
+            android:multiprocess="false"
+            android:enabled="false"
+            android:exported="true"
+            android:permission="android.permission.INTERACT_ACROSS_USERS_FULL" />
 
         <!-- Don't delete the meta-data below.
              This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->
@@ -140,10 +140,6 @@
 
          In particular, this is used by the Flutter engine in io.flutter.plugin.text.ProcessTextPlugin. -->
     <queries>
-        <intent>
-            <action android:name="android.intent.action.MAIN" />
-            <category android:name="android.intent.category.LAUNCHER" />
-        </intent>
         <!-- Camera intent for Jarvis Eye optical scanner -->
         <intent>
             <action android:name="android.media.action.IMAGE_CAPTURE" />

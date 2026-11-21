@@ -1,4 +1,3 @@
-import 'voice_selection.dart';
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
@@ -6,7 +5,11 @@ import 'package:flutter/services.dart';
 import 'package:flutter_tts/flutter_tts.dart';
 import 'package:permission_handler/permission_handler.dart';
 
+import '../avatar/avatar_runtime.dart' show publishAvatarSpeech, AvatarSound;
 import 'edge_tts_service.dart';
+import 'speech_output_controller.dart';
+import 'gemini_dictation.dart';
+import 'voice_selection.dart';
 import 'settings_service.dart';
 
 /// Voice interaction: native continuous speech-to-text for commands,
@@ -14,38 +17,42 @@ import 'settings_service.dart';
 class VoiceService {
   VoiceService._() {
     _initNativeSpeechChannel();
+    AvatarSound.outputPlayer = playEffect;
   }
   static final VoiceService instance = VoiceService._();
 
-  static const MethodChannel _nativeSpeechChannel = MethodChannel(
-    'com.privateagent/speech',
-  );
+  static const MethodChannel _nativeSpeechChannel =
+      MethodChannel('com.privateagent/speech');
   final FlutterTts _tts = FlutterTts();
 
-  bool liveOwnsAudio = false;
-  int _outputEpoch = 0;
-
+  bool get liveOwnsAudio => output.externalSession;
   Future<void> acquireLiveAudio() async {
-    liveOwnsAudio = true;
+    output.externalSession = true;
     await stopListening();
     await stopSpeaking();
   }
-
-  void releaseLiveAudio() { liveOwnsAudio = false; }
+  void releaseLiveAudio() { output.externalSession = false; }
 
   bool _speechReady = false;
   bool _ttsReady = false;
   bool _listening = false;
-  Completer<void>? _speakCompleter;
+  late final SpeechOutputController output = SpeechOutputController(
+    stopDrivers: () async {
+      await EdgeTtsService.instance.stop();
+      try { await _tts.stop(); } catch (_) {}
+      try { await _nativeSpeechChannel.invokeMethod('releaseOutputFocus'); } catch (_) {}
+    },
+    onSpeaking: (speaking) => isSpeaking.value = speaking,
+  );
 
+  final ValueNotifier<int> completedSpeech = ValueNotifier<int>(0);
   final ValueNotifier<bool> isSpeaking = ValueNotifier<bool>(false);
   final ValueNotifier<double> soundLevel = ValueNotifier<double>(0.0);
   final ValueNotifier<bool> listeningNotifier = ValueNotifier<bool>(false);
 
   void Function(bool isListening)? onListeningChanged;
   void Function(String status)? onSpeechStatus;
-  void Function(String words, bool isFinal, List<String> candidates)?
-  onSpeechResult;
+  void Function(String words, bool isFinal, List<String> candidates)? onSpeechResult;
 
   bool get isListening => _listening;
   bool get isAvailable => _speechReady;
@@ -57,8 +64,7 @@ class VoiceService {
           final args = call.arguments as Map?;
           final text = (args?['text'] ?? '').toString();
           final isFinal = args?['isFinal'] == true;
-          final candidates =
-              (args?['candidates'] as List?)
+          final candidates = (args?['candidates'] as List?)
                   ?.map((e) => e.toString())
                   .toList() ??
               (text.isNotEmpty ? [text] : <String>[]);
@@ -68,16 +74,20 @@ class VoiceService {
           break;
         case 'onSpeechStatus':
           final status = call.arguments.toString();
+          _trackRecognizerHealth(status);
           onSpeechStatus?.call(status);
           if (status == 'listening') {
             _listening = true;
             listeningNotifier.value = true;
             onListeningChanged?.call(true);
-          } else if (status == 'notListening') {
+          } else if (status == 'notListening' || status == 'endOfSpeech' || status.startsWith('error:')) {
             _listening = false;
             listeningNotifier.value = false;
             onListeningChanged?.call(false);
           }
+          break;
+        case 'onOutputFocusLost':
+          if ((call.arguments as num?)?.toInt() == output.activeRequestId) await stopSpeaking();
           break;
         case 'onSoundLevel':
           final level = (call.arguments as num?)?.toDouble() ?? 0.0;
@@ -87,18 +97,82 @@ class VoiceService {
     });
   }
 
+  // ---------------------------------------------------------------- engine
+
+  int _fatalErrors = 0;
+  bool _dictating = false;
+  String lastSpeechEngine = 'device';
+
+  /// Android SpeechRecognizer errors that mean "this recogniser cannot work
+  /// here" (not a normal no-match / timeout): network(2), audio(3),
+  /// server(4), client(5), busy(10/11), language not supported /
+  /// unavailable(12/13). Missing mic permission (9) is not a recogniser
+  /// fault — granting the permission fixes it — so it is not counted.
+  static const fatalRecognizerErrors = {2, 3, 4, 5, 10, 11, 12, 13};
+
+  void _trackRecognizerHealth(String status) {
+    if (status == 'listening') return;
+    if (!status.startsWith('error:')) return;
+    final code = int.tryParse(status.substring(6));
+    if (code == null || !fatalRecognizerErrors.contains(code)) {
+      if (code == 6 || code == 7) _fatalErrors = 0; // normal silence / no match
+      return;
+    }
+    _fatalErrors++;
+    if (_fatalErrors >= 2) unawaited(SettingsService.instance.setDeviceSpeechBroken(true));
+  }
+
+  /// Which engine a listen request uses. Gemini voice input only for explicit
+  /// mic taps (never always-on wake-word listening) and only when allowed.
+  @visibleForTesting
+  static String engineFor({required String setting, required bool manual, required bool deviceAvailable,
+      required bool deviceBroken, required bool geminiAllowed}) {
+    if (!manual || !geminiAllowed) return 'device';
+    if (setting == 'gemini') return 'gemini';
+    if (setting == 'auto' && (!deviceAvailable || deviceBroken)) return 'gemini';
+    return 'device';
+  }
+
+  Future<bool> _startGeminiDictation(
+      void Function(String words, bool isFinal, List<String> candidates) onResult) async {
+    if (!await _ensureMicPermission()) return false;
+    _dictating = true;
+    _listening = true;
+    lastSpeechEngine = 'gemini';
+    listeningNotifier.value = true;
+    onListeningChanged?.call(true);
+    onSpeechStatus?.call('listening');
+    unawaited(() async {
+      var text = '';
+      try {
+        text = await GeminiDictation.instance.listenOnce(onLevel: (l) => soundLevel.value = l);
+      } catch (e) {
+        debugPrint('[VoiceService] Gemini voice input failed: $e');
+        onSpeechStatus?.call('error:gemini');
+      } finally {
+        _dictating = false;
+        _listening = false;
+        soundLevel.value = 0;
+        listeningNotifier.value = false;
+        onListeningChanged?.call(false);
+      }
+      onSpeechStatus?.call('endOfSpeech');
+      onResult(text, true, text.isEmpty ? const [] : [text]);
+    }());
+    return true;
+  }
+
   Future<bool> _ensureMicPermission() async {
     try {
       final status = await Permission.microphone.request();
       return status.isGranted;
     } catch (_) {
-      // Missing permission APIs must not authorize microphone access.
+      // Unknown permission state fails closed; tests must mock the permission channel.
       return false;
     }
   }
 
   Future<bool> initSpeech() async {
-    // Permission may be revoked after the recognizer was initialized.
     if (!await _ensureMicPermission()) {
       _speechReady = false;
       return false;
@@ -115,65 +189,85 @@ class VoiceService {
   }
 
   Future<void> initTts({String? voiceProfile}) async {
+    final profile = voiceProfile ?? SettingsService.instance.jarvisVoice;
     try {
-      await _tts.setPitch(1.0);
-      await _tts.setSpeechRate(0.48);
+      // Tamil neural voice profiles use Tamil local TTS as offline fallback.
+      if (SettingsService.instance.jarvisNeuralVoice.startsWith('ta-IN-')) {
+        await _tts.setLanguage('ta-IN');
+        await _tts.setPitch(1.0);
+        await _tts.setSpeechRate(0.48);
+      } else {
+        switch (profile) {
+        case 'friday':
+          await _tts.setLanguage('en-IE');
+          await _tts.setPitch(1.05);
+          await _tts.setSpeechRate(0.52);
+          break;
+        case 'stark':
+          await _tts.setLanguage('en-US');
+          await _tts.setPitch(0.95);
+          await _tts.setSpeechRate(0.55);
+          break;
+        case 'kip':
+          await _tts.setLanguage('en-GB');
+          await _tts.setPitch(0.78);
+          await _tts.setSpeechRate(0.48);
+          break;
+        case 'cortana':
+          await _tts.setLanguage('en-US');
+          await _tts.setPitch(1.10);
+          await _tts.setSpeechRate(0.52);
+          break;
+        case 'paul':
+        default:
+          await _tts.setLanguage('en-GB');
+          await _tts.setPitch(0.86);
+          await _tts.setSpeechRate(0.48);
+
+          try {
+            final dynamic voices = await _tts.getVoices;
+            if (voices is List && voices.isNotEmpty) {
+              for (final v in voices) {
+                if (v is Map) {
+                  final name = (v['name'] ?? '').toString().toLowerCase();
+                  final locale = (v['locale'] ?? '').toString().toLowerCase();
+                  if (locale.contains('en-gb') || locale.contains('en_gb')) {
+                    if (name.contains('gbd') ||
+                        name.contains('gbb') ||
+                        name.contains('male') ||
+                        name.contains('-r-') ||
+                        name.contains('language') && name.contains('b')) {
+                      await _tts.setVoice({
+                        'name': v['name'].toString(),
+                        'locale': v['locale'].toString(),
+                      });
+                      break;
+                    }
+                  }
+                }
+              }
+            }
+          } catch (_) {}
+          break;
+        }
+      }
+
       await _tts.awaitSpeakCompletion(true);
 
-      _tts.setStartHandler(() {
-        isSpeaking.value = true;
-      });
-      _tts.setCompletionHandler(() {
-        isSpeaking.value = false;
-        if (_speakCompleter != null && !_speakCompleter!.isCompleted) {
-          _speakCompleter!.complete();
-        }
-      });
-      _tts.setErrorHandler((_) {
-        isSpeaking.value = false;
-        if (_speakCompleter != null && !_speakCompleter!.isCompleted) {
-          _speakCompleter!.complete();
-        }
-      });
-      _tts.setCancelHandler(() {
-        isSpeaking.value = false;
-        if (_speakCompleter != null && !_speakCompleter!.isCompleted) {
-          _speakCompleter!.complete();
-        }
-      });
-
-      _ttsReady = await _configureOfflineVoice(
-        SettingsService.instance.jarvisNeuralVoice.startsWith('ta-IN-')
-            ? 'ta-IN'
-            : 'en-IN',
-      );
+      _ttsReady = true;
     } catch (_) {
-      _ttsReady = false;
+      try {
+        await _tts.setLanguage('en-US');
+        _ttsReady = true;
+      } catch (_) {
+        _ttsReady = false;
+      }
     }
-  }
-
-  Future<bool> _configureOfflineVoice(
-    String languageTag, {
-    bool? female,
-  }) async {
-    final dynamic voices = await _tts.getVoices;
-    final selected = selectOfflineVoice(
-      voices is List ? voices : [],
-      languageTag,
-      female: female ?? SettingsService.instance.preferFemaleVoice,
-    );
-    if (selected == null) {
-      lastVoiceUsed = 'No installed offline $languageTag voice';
-      return false;
-    }
-    final result = await _tts.setVoice(selected);
-    if (result != 1) return false;
-    lastVoiceUsed = 'local ${selected['locale']} · ${selected['name']}';
-    return true;
   }
 
   /// Forces re-initialization of TTS with a new voice profile.
   Future<void> reconfigureVoice([String? profile]) async {
+    await stopSpeaking();
     _ttsReady = false;
     await initTts(voiceProfile: profile);
   }
@@ -181,29 +275,41 @@ class VoiceService {
   /// Starts native continuous speech recognition.
   /// [onResult] receives primary recognized words, isFinal, and N-best candidates.
   Future<bool> startListening({
-    required void Function(String words, bool isFinal, List<String> candidates)
-    onResult,
+    required void Function(String words, bool isFinal, List<String> candidates) onResult,
     bool continuous = true,
     bool manual = false,
   }) async {
-    if (liveOwnsAudio) return false;
-    if (!await initSpeech() || liveOwnsAudio) return false;
+    if (output.externalSession) return false;
+    final s = SettingsService.instance;
+    final engine = engineFor(
+      setting: s.speechEngine,
+      manual: manual,
+      deviceAvailable: _speechReady || !(await _deviceRecognizerMissing()),
+      deviceBroken: s.deviceSpeechBroken,
+      geminiAllowed: GeminiDictation.instance.allowed,
+    );
+    if (engine == 'gemini') {
+      if (_dictating) return true;
+      if (_listening) await stopListening();
+      onSpeechResult = onResult;
+      return _startGeminiDictation(onResult);
+    }
+    lastSpeechEngine = 'device';
+    if (!await initSpeech()) return false;
     onSpeechResult = onResult;
     if (_listening && continuous && !manual) {
       // Already running continuous listening loop
       return true;
     }
     try {
-      await _nativeSpeechChannel.invokeMethod('startListening', {
+      final accepted = await _nativeSpeechChannel.invokeMethod<bool>('startListening', {
         'continuous': continuous,
         'offlineOnly': true,
         'manual': manual,
         'locale': SettingsService.instance.speechInputLocale,
       });
-      _listening = true;
-      listeningNotifier.value = true;
-      onListeningChanged?.call(true);
-      return true;
+      // Capture becomes active only on the real recognizer ready event.
+      return accepted == true;
     } catch (e) {
       debugPrint('[VoiceService] startListening error: $e');
       _listening = false;
@@ -215,9 +321,7 @@ class VoiceService {
 
   /// Notifies the native audio engine that media/music playback has started
   /// so that speech recognition yields audio focus to YouTube/Spotify.
-  Future<void> notifyMediaPlaybackStarted({
-    Duration duration = const Duration(seconds: 45),
-  }) async {
+  Future<void> notifyMediaPlaybackStarted({Duration duration = const Duration(seconds: 45)}) async {
     try {
       await _nativeSpeechChannel.invokeMethod('notifyMediaStarted', {
         'durationMs': duration.inMilliseconds,
@@ -227,6 +331,7 @@ class VoiceService {
 
   /// Stops speech recognition immediately.
   Future<void> stopListening() async {
+    if (_dictating) GeminiDictation.instance.stop();
     _listening = false;
     listeningNotifier.value = false;
     onListeningChanged?.call(false);
@@ -239,21 +344,9 @@ class VoiceService {
   /// instead of spelling out letters like "J dot A dot R dot V dot I dot S".
   String sanitizeForSpeech(String text) {
     return text
-        .replaceAll(
-          RegExp(r'J\.A\.R\.V\.I\.S\.?', caseSensitive: false),
-          'Jarvis',
-        )
-        .replaceAll(
-          RegExp(r'\bJ\.A\.R\.V\.I\.S\b', caseSensitive: false),
-          'Jarvis',
-        )
-        .replaceAll(
-          RegExp(
-            r'J\s*\.\s*A\s*\.\s*R\s*\.\s*V\s*\.\s*I\s*\.\s*S\.?',
-            caseSensitive: false,
-          ),
-          'Jarvis',
-        )
+        .replaceAll(RegExp(r'J\.A\.R\.V\.I\.S\.?', caseSensitive: false), 'Jarvis')
+        .replaceAll(RegExp(r'\bJ\.A\.R\.V\.I\.S\b', caseSensitive: false), 'Jarvis')
+        .replaceAll(RegExp(r'J\s*\.\s*A\s*\.\s*R\s*\.\s*V\s*\.\s*I\s*\.\s*S\.?', caseSensitive: false), 'Jarvis')
         .replaceAll(RegExp(r'\bJARVIS\b'), 'Jarvis')
         .replaceAll('*', '')
         .replaceAll('#', '')
@@ -262,173 +355,217 @@ class VoiceService {
         .trim();
   }
 
-  Future<void> speak(String text) async {
-    if (liveOwnsAudio) return;
-    final epoch = ++_outputEpoch;
-    final clean = sanitizeForSpeech(text);
-    if (clean.isEmpty) return;
-
-    // Temporarily pause microphone while speaking to eliminate echo and feedback
-    final wasListening = _listening;
-    if (wasListening) {
-      await stopListening();
-    }
-
-    await _stopOutput();
-    if (liveOwnsAudio || epoch != _outputEpoch) return;
-    isSpeaking.value = true;
-
-    try {
-      // 1. Try Ultra-Realistic Studio Neural Voice if enabled
-      if (SettingsService.instance.useNeuralVoice &&
-          SettingsService.instance.allowCloudTts) {
-        try {
-          final played = await EdgeTtsService.instance.speak(clean);
-          if (played) {
-            return;
-          }
-        } catch (e) {
-          debugPrint(
-            '[VoiceService] Neural voice error, falling back to local TTS: $e',
-          );
-        }
-      }
-
-      if (liveOwnsAudio || epoch != _outputEpoch) return;
-      // 2. Fall back to local FlutterTts (offline safe)
-      await initTts();
-      if (!_ttsReady) {
-        return;
-      }
-      try {
-        _speakCompleter = Completer<void>();
-        if (liveOwnsAudio || epoch != _outputEpoch) return;
-        await _tts.speak(clean);
-        // Wait for audio synthesis and speaker playback to finish completely
-        await _speakCompleter?.future.timeout(const Duration(seconds: 90));
-      } catch (_) {
-      } finally {
-        _speakCompleter = null;
-      }
-    } finally {
-      isSpeaking.value = false;
-    }
+  int? _effectRequestId;
+  Future<void> stopEffect() async {
+    final id = _effectRequestId;
+    if (id != null && id == output.activeRequestId) await output.stop();
+    if (_effectRequestId == id) _effectRequestId = null;
   }
 
-  /// Speaks in the reply language chosen by the brain. Neural (Edge) voice
-  /// when cloud TTS is allowed, otherwise the phone's local TTS in that
-  /// language, preferring a voice whose name marks it female.
+  /// Optional local intro/outro tones share the same owner and yield to speech.
+  /// They never set SPEAKING or emit an assistant-completion event.
+  Future<void> playEffect(String path) async {
+    if (output.activeRequestId != null || output.externalSession) return;
+    await output.speak((ticket) async {
+      _effectRequestId = ticket.id;
+      try {
+        final granted = await _nativeSpeechChannel.invokeMethod<bool>('acquireOutputFocus', {'requestId': ticket.id}) ?? false;
+        if (ticket.cancelled || !granted) return;
+        await const MethodChannel('com.privateagent/accessibility').invokeMethod('playAudioFile', {'path': path});
+      } catch (_) {
+        // Effects are optional and must never block the home screen.
+      } finally {
+        if (!ticket.cancelled) {
+          try { await _nativeSpeechChannel.invokeMethod('releaseOutputFocus'); } catch (_) {}
+        }
+        if (_effectRequestId == ticket.id) _effectRequestId = null;
+      }
+    }, speaking: false);
+  }
+
+  Future<void> speak(String text) => speakIn(text,
+      languageTag: SettingsService.instance.jarvisNeuralVoice.startsWith('ta-') ? 'ta-IN' : 'en-IN',
+      neuralVoice: SettingsService.instance.jarvisNeuralVoice,
+      female: SettingsService.instance.preferFemaleVoice);
+
   Future<void> speakIn(
     String text, {
     required String languageTag,
     required String neuralVoice,
     required bool female,
   }) async {
-    if (liveOwnsAudio) return;
-    final epoch = ++_outputEpoch;
     final clean = sanitizeForSpeech(text);
     if (clean.isEmpty) return;
-    final wasListening = _listening;
-    if (wasListening) await stopListening();
-    await _stopOutput();
-    if (liveOwnsAudio || epoch != _outputEpoch) return;
-    isSpeaking.value = true;
-    try {
-      if (SettingsService.instance.useNeuralVoice &&
-          SettingsService.instance.allowCloudTts) {
-        try {
-          if (await EdgeTtsService.instance.speak(clean, voice: neuralVoice)) {
+    await output.speak((ticket) async {
+      if (_listening) await stopListening();
+      if (ticket.cancelled) return;
+      bool focused = false;
+      try {
+        focused =
+            await _nativeSpeechChannel.invokeMethod<bool>(
+              'acquireOutputFocus',
+              {'requestId': ticket.id},
+            ) ??
+            false;
+      } catch (_) {}
+      if (ticket.cancelled) return;
+      if (!focused) {
+        lastVoiceUsed = 'Audio focus unavailable — text only';
+        return;
+      }
+      try {
+        publishAvatarSpeech(clean, languageTag: languageTag);
+        final settings = SettingsService.instance;
+        if (neuralVoice.isNotEmpty &&
+            settings.useNeuralVoice &&
+            settings.allowCloudTts) {
+          final played = await EdgeTtsService.instance.speak(
+            clean,
+            voice: neuralVoice,
+          );
+          if (ticket.cancelled) return;
+          if (played) {
+            completedSpeech.value++;
             lastVoiceUsed = 'neural $neuralVoice';
             return;
           }
-        } catch (_) {}
-      }
-      await initTts();
-      try {
-        if (!await _configureOfflineVoice(languageTag, female: female)) return;
-        _speakCompleter = Completer<void>();
-        if (liveOwnsAudio || epoch != _outputEpoch) return;
-        await _tts.speak(clean);
-        await _speakCompleter?.future.timeout(const Duration(seconds: 90));
-      } catch (_) {
+        }
+        await initTts();
+        if (ticket.cancelled || !_ttsReady) return;
+        final supported = await _tts.isLanguageAvailable(languageTag);
+        if (ticket.cancelled) return;
+        if (supported != true) {
+          lastVoiceUsed = '$languageTag unavailable — text only';
+          return;
+        }
+        await _tts.setLanguage(languageTag);
+        final used = await _applyLocalVoice(languageTag, female: female);
+        if (ticket.cancelled) return;
+        if (used == null) {
+          lastVoiceUsed = '$languageTag offline voice unavailable — text only';
+          return;
+        }
+        lastVoiceUsed = 'local $languageTag · $used';
+        final result = await _tts.speak(clean);
+        if (!ticket.cancelled && (result == 1 || result == true)) completedSpeech.value++;
       } finally {
-        _speakCompleter = null;
-        _ttsReady = false; // restore the owner's normal voice profile next time
+        // A cancelled request must never release the newer owner's focus.
+        if (!ticket.cancelled) {
+          try {
+            await _nativeSpeechChannel.invokeMethod('releaseOutputFocus');
+          } catch (_) {}
+        }
       }
-    } finally {
-      isSpeaking.value = false;
-    }
+    });
   }
 
   String lastVoiceUsed = 'none yet';
+
+  bool? _recognizerMissing;
+  Future<bool> _deviceRecognizerMissing() async {
+    if (_recognizerMissing != null) return _recognizerMissing!;
+    try {
+      final ok = await _nativeSpeechChannel.invokeMethod<bool>('isAvailable');
+      _recognizerMissing = ok == false;
+    } catch (_) {
+      _recognizerMissing = false; // unknown: keep the original behaviour
+    }
+    return _recognizerMissing!;
+  }
+
+  List<TtsVoice>? _voices;
+
+  /// Installed TTS voices (cached; refreshed by [autoSelectVoices]).
+  Future<List<TtsVoice>> installedVoices({bool refresh = false}) async {
+    if (_voices != null && !refresh) return _voices!;
+    try {
+      final dynamic raw = await _tts.getVoices;
+      _voices = raw is List ? raw.map(TtsVoice.fromMap).whereType<TtsVoice>().toList() : <TtsVoice>[];
+    } catch (_) {
+      _voices = <TtsVoice>[];
+    }
+    return _voices!;
+  }
+
+  /// Picks the best installed Tamil and Indian-English voice (female when
+  /// preferred, offline first) and stores the choice + reason. Pinned voices
+  /// chosen by the owner are kept.
+  Future<Map<String, VoiceChoice>> autoSelectVoices() async {
+    final s = SettingsService.instance;
+    final all = await installedVoices(refresh: true);
+    final out = <String, VoiceChoice>{};
+    for (final lang in const ['ta-IN', 'en-IN']) {
+      final c = chooseVoice(all, lang, preferFemale: s.preferFemaleVoice, pinned: s.ttsVoicePinned(lang));
+      out[lang] = c;
+      await s.setTtsVoiceAuto(lang, c.voice?.name ?? '', c.reason);
+    }
+    return out;
+  }
+
+  /// Applies the chosen local voice for [languageTag] (offline fallback:
+  /// the engine default for that language when nothing better exists).
+  Future<String?> _applyLocalVoice(String languageTag, {required bool female}) async {
+    final s = SettingsService.instance;
+    final all = await installedVoices();
+    final eligible = s.allowCloudTts ? all : all.where((v) => !v.networkRequired).toList();
+    final c = chooseVoice(eligible, languageTag, preferFemale: female, pinned: s.ttsVoicePinned(languageTag));
+    final v = c.voice;
+    if (v != null) {
+      try {
+        final applied = await _tts.setVoice(v.toFlutterTts());
+        if (applied == 1 || applied == true) return v.name;
+        return null;
+      } catch (_) {
+        // Fall through to the engine default for the language.
+      }
+    }
+    // An engine default can silently choose a network voice. Fail to text.
+    return null;
+  }
 
   /// Honest microphone / TTS status for Settings → Diagnostics.
   Future<Map<String, String>> diagnostics() async {
     final out = <String, String>{};
     final mic = await Permission.microphone.status;
-    out['Microphone permission'] = mic.isGranted
-        ? 'granted'
-        : mic.isPermanentlyDenied
-        ? 'denied (open app settings)'
-        : 'not granted';
+    out['Microphone permission'] = mic.isGranted ? 'granted' : mic.isPermanentlyDenied ? 'denied (open app settings)' : 'not granted';
     try {
       final ok = await _nativeSpeechChannel.invokeMethod<bool>('isAvailable');
-      out['Speech recognizer'] = ok == true
-          ? 'available'
-          : 'not available on this phone';
+      out['Speech recognizer'] = ok == true ? 'available' : 'not available on this phone';
     } catch (e) {
       out['Speech recognizer'] = 'unknown ($e)';
     }
-    out['Recognition language'] = SettingsService.instance.speechInputLocale;
+    final st = SettingsService.instance;
+    out['Recognition language'] = st.speechInputLocale == 'auto'
+        ? 'auto (Tamil + English + Tanglish)'
+        : st.speechInputLocale;
+    out['Speech engine'] = '${st.speechEngine}${st.deviceSpeechBroken ? ' · phone recogniser failed earlier → Gemini voice input on mic tap' : ''}'
+        '${GeminiDictation.instance.allowed ? '' : ' · Gemini voice input unavailable: ${GeminiDictation.instance.unavailableReason}'}';
+    out['Last speech engine'] = '$lastSpeechEngine (Gemini: ${GeminiDictation.instance.lastStatus})';
+    for (final lang in const ['ta-IN', 'en-IN']) {
+      final pinned = st.ttsVoicePinned(lang);
+      out['Voice $lang'] = pinned.isNotEmpty
+          ? '$pinned (chosen by you)'
+          : '${st.ttsVoiceAuto(lang).isEmpty ? 'engine default' : st.ttsVoiceAuto(lang)} — ${st.ttsVoiceAutoReason(lang)}';
+    }
     try {
       final langs = await _tts.getLanguages;
-      final l = langs is List
-          ? langs.map((e) => '$e'.toLowerCase().replaceAll('_', '-')).toList()
-          : <String>[];
-      out['TTS Tamil (ta-IN)'] = l.any((e) => e.startsWith('ta'))
-          ? 'installed'
-          : 'not installed — install Tamil in Google TTS';
-      out['TTS Indian English'] = l.any((e) => e.startsWith('en-in'))
-          ? 'installed'
-          : 'not listed';
+      final l = langs is List ? langs.map((e) => '$e'.toLowerCase().replaceAll('_', '-')).toList() : <String>[];
+      out['TTS Tamil (ta-IN)'] = l.any((e) => e.startsWith('ta')) ? 'installed' : 'not installed — install Tamil in Google TTS';
+      out['TTS Indian English'] = l.any((e) => e.startsWith('en-in')) ? 'installed' : 'not listed';
       final voices = await _tts.getVoices;
       final fem = voices is List
-          ? voices
-                .where(
-                  (v) =>
-                      v is Map &&
-                      ('${v['name']}'.toLowerCase().contains('female') ||
-                          '${v['gender']}'.toLowerCase() == 'female'),
-                )
-                .length
+          ? voices.where((v) => v is Map && ('${v['name']}'.toLowerCase().contains('female') || '${v['gender']}'.toLowerCase() == 'female')).length
           : 0;
-      out['Local voices'] =
-          '${voices is List ? voices.length : 0} (named female: $fem)';
+      out['Local voices'] = '${voices is List ? voices.length : 0} (named female: $fem)';
     } catch (e) {
       out['TTS'] = 'error: $e';
     }
     final s = SettingsService.instance;
-    out['Neural voice'] = s.useNeuralVoice && s.allowCloudTts
-        ? 'enabled (needs internet)'
-        : 'off (Privacy: cloud TTS not allowed)';
+    out['Neural voice'] = s.useNeuralVoice && s.allowCloudTts ? 'enabled (needs internet)' : 'off (Privacy: cloud TTS not allowed)';
     out['Female preference'] = s.preferFemaleVoice ? 'on' : 'off';
     out['Last voice used'] = lastVoiceUsed;
     return out;
   }
 
-  Future<void> stopSpeaking() async {
-    ++_outputEpoch;
-    await _stopOutput();
-  }
-
-  Future<void> _stopOutput() async {
-    try {
-      await EdgeTtsService.instance.stop();
-      await _tts.stop();
-      isSpeaking.value = false;
-      if (_speakCompleter != null && !_speakCompleter!.isCompleted) {
-        _speakCompleter!.complete();
-      }
-    } catch (_) {}
-  }
+  Future<void> stopSpeaking() => output.stop();
 }

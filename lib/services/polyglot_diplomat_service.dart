@@ -1,6 +1,6 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
-import 'package:flutter_tts/flutter_tts.dart';
+import 'voice_service.dart';
 import 'ai_service.dart';
 
 /// A single spoken translation turn in Polyglot Diplomat.
@@ -28,12 +28,10 @@ class PolyglotMessage {
 /// Supports instantaneous neural translation, phonetic transliteration, and native
 /// accent spoken voice playback.
 class PolyglotDiplomatService extends ChangeNotifier {
-  PolyglotDiplomatService._() {
-    _initTts();
-  }
+  PolyglotDiplomatService._();
 
   static final PolyglotDiplomatService instance = PolyglotDiplomatService._();
-  final FlutterTts _tts = FlutterTts();
+
 
   String _sourceLanguage = 'English';
   String _targetLanguage = 'Spanish';
@@ -102,13 +100,7 @@ class PolyglotDiplomatService extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> _initTts() async {
-    try {
-      await _tts.setSpeechRate(0.5);
-      await _tts.setVolume(1.0);
-      await _tts.setPitch(1.0);
-    } catch (_) {}
-  }
+
 
   /// Swaps source and target languages for natural two-way conversation.
   void swapLanguages() {
@@ -180,8 +172,7 @@ Statement:
   Future<void> speakText(String text, {required String language}) async {
     try {
       final locale = _languageLocaleMap[language] ?? 'en-US';
-      await _tts.setLanguage(locale);
-      await _tts.speak(text);
+      await VoiceService.instance.speakIn(text, languageTag: locale, neuralVoice: '', female: true);
     } catch (_) {}
   }
 }

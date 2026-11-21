@@ -130,7 +130,7 @@ class JarvisService extends ChangeNotifier {
   final List<Map<String, String>> _dialogHistory = [];
 
   bool get isAlwaysOn => SettingsService.instance.jarvisAlwaysOn;
-  bool get _shouldListenContinuously => isAlwaysOn || _isInJarvisMode;
+  bool get _shouldListenContinuously => isAlwaysOn;
   ProactiveSuggestion? get pendingProactiveSuggestion => _pendingProactiveSuggestion;
   bool get isAwaitingProactiveConfirmation => _pendingProactiveSuggestion != null;
 
@@ -180,7 +180,6 @@ class JarvisService extends ChangeNotifier {
     NotesKnowledgeService.instance.init();
     MacroRecorderService.instance.init();
     unawaited(ProactiveAgentService.instance.evaluateProactiveNeeds());
-    ProactiveAgentService.instance.startProactiveMonitor();
 
     _voice.soundLevel.addListener(() {
       _soundLevel = _voice.soundLevel.value;
@@ -188,6 +187,15 @@ class JarvisService extends ChangeNotifier {
     });
 
     _voice.onSpeechStatus = (status) {
+      if (status.startsWith('error:')) {
+        _speechSilenceTimer?.cancel();
+        if (_phase == JarvisPhase.listening) {
+          _phase = JarvisPhase.idle;
+          _statusMessage = 'MICROPHONE UNAVAILABLE';
+          notifyListeners();
+        }
+        return;
+      }
       if (status == 'endOfSpeech') {
         if (_isAwake && _lastUserSpeech.isNotEmpty) {
           _speechSilenceTimer?.cancel();
@@ -215,7 +223,7 @@ class JarvisService extends ChangeNotifier {
         }
         // A manual ARC interrupt owns the next listening transition.
         // Do not race it with this automatic TTS completion callback.
-        if (_shouldListenContinuously && !_arcTapTransitioning) {
+        if (_shouldListenContinuously && !_arcTapTransitioning && !_voice.output.externalSession) {
           if (_isAwake) {
             _keepAwake();
           }
@@ -428,10 +436,11 @@ class JarvisService extends ChangeNotifier {
   /// Called when user navigates into JARVIS mode.
   void onEnterJarvisMode() {
     _isInJarvisMode = true;
+    ProactiveAgentService.instance.startProactiveMonitor();
     _standDown();
-    startListening();
+    if (isAlwaysOn) startListening();
     // Arm mid-air proximity sensor for zero-touch gestures while in JARVIS mode
-    unawaited(AirGestureService.instance.start());
+    unawaited(AirGestureService.instance.start(announce: false));
     _statusMessage = 'STANDBY // SAY "HEY JARVIS"';
     notifyListeners();
   }
@@ -439,9 +448,10 @@ class JarvisService extends ChangeNotifier {
   /// Called when user leaves JARVIS mode to prevent background audio captures.
   void onExitJarvisMode() {
     _isInJarvisMode = false;
-    unawaited(AirGestureService.instance.stop());
+    unawaited(AirGestureService.instance.stop(announce: false));
     // Always-On mode listens continuously across the app like Google Assistant
     if (!isAlwaysOn) {
+      ProactiveAgentService.instance.stopProactiveMonitor();
       _standDown();
       if (_phase == JarvisPhase.listening) {
         stopListening();
@@ -477,26 +487,31 @@ class JarvisService extends ChangeNotifier {
 
   /// Session guard to ensure rich executive greeting is spoken once per session upon launch
   bool _hasGreetedThisSession = false;
+  bool _greetingInProgress = false;
 
   /// Initial vocal greeting when user enters JARVIS mode.
-  /// Dynamically synthesizes date, time, calendar meetings (e.g. Jack), and pending to-dos.
+  /// Serialize even forced requests so rapid taps cannot overlap greetings.
   Future<void> speakGreeting({bool force = false}) async {
-    if (!force && _hasGreetedThisSession) return;
+    if (_greetingInProgress || (!force && _hasGreetedThisSession)) return;
+    _greetingInProgress = true;
     _hasGreetedThisSession = true;
+    try {
+      onEnterJarvisMode();
+      _wakeUp();
+      _phase = JarvisPhase.thinking;
+      _statusMessage = 'SYNTHESIZING EXECUTIVE BRIEFING';
+      notifyListeners();
 
-    onEnterJarvisMode();
-    _wakeUp();
-    _phase = JarvisPhase.thinking;
-    _statusMessage = 'SYNTHESIZING EXECUTIVE BRIEFING';
-    notifyListeners();
-
-    final greeting = await PersonalityService.instance.generateExecutiveGreeting();
-    _lastJarvisSpeech = greeting;
-    _phase = JarvisPhase.speaking;
-    _statusMessage = 'EXECUTIVE BRIEFING // READY';
-    notifyListeners();
-    await _voice.speak(greeting);
-    _standDown();
+      final greeting = await PersonalityService.instance.generateExecutiveGreeting();
+      _lastJarvisSpeech = greeting;
+      _phase = JarvisPhase.speaking;
+      _statusMessage = 'EXECUTIVE BRIEFING // READY';
+      notifyListeners();
+      await _voice.speak(greeting);
+      _standDown();
+    } finally {
+      _greetingInProgress = false;
+    }
   }
 
   /// Autonomously speaks a proactive question and opens a hands-free confirmation listening window.
@@ -617,6 +632,7 @@ class JarvisService extends ChangeNotifier {
 
   /// Begins recording voice input.
   Future<bool> startListening({bool manual = false}) async {
+    if (_voice.output.externalSession) return false;
     await _voice.stopSpeaking();
 
     if (manual) {

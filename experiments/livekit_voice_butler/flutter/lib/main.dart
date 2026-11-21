@@ -106,9 +106,18 @@ class _VoiceExperimentScreenState extends State<VoiceExperimentScreen>
         options: livekit.SessionOptions(preConnectAudio: false),
       );
       final ownedSession = candidate;
+      void sessionChanged() {
+        if (_session == ownedSession && _connected &&
+            ownedSession.connectionState != livekit.ConnectionState.connected) {
+          // Do not keep a stale connected UI or reconnect capture in background.
+          unawaited(_disconnect());
+        }
+      }
+      ownedSession.addListener(sessionChanged);
       lease = SessionLease(
         duration: const Duration(seconds: 120),
         stop: () async {
+          ownedSession.removeListener(sessionChanged);
           if (_session == ownedSession) {
             _session = null;
             _connected = false;
@@ -218,12 +227,15 @@ class _VoiceExperimentScreenState extends State<VoiceExperimentScreen>
     _session = null;
     _connected = false;
     _microphoneOn = false;
+    if (mounted) setState(() => _busy = true);
     _updateStatus('Disconnecting — microphone authorization revoked.');
     try {
       await lease?.close();
     } catch (_) {
       _updateStatus('Session cleanup failed. Close Voice Lab before retrying.');
       return;
+    } finally {
+      if (mounted) setState(() => _busy = false);
     }
     _updateStatus('Disconnected');
   }

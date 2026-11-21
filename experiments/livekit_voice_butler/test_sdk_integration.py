@@ -137,17 +137,19 @@ class SDKTests(unittest.TestCase):
     def test_job_hard_deadline_closes_provider_and_deletes_room(self):
         async def check():
             from types import SimpleNamespace
-            room = SimpleNamespace(name="room", on=lambda *args: None)
+            # Real rtc.Room.name is empty until connect finishes.
+            room = SimpleNamespace(name="", on=lambda *args: None)
             session = SimpleNamespace(on=lambda *args: None, aclose=AsyncMock(), start=AsyncMock())
             ctx = SimpleNamespace(
-                room=room, job=SimpleNamespace(metadata="ignored"),
+                room=room, job=SimpleNamespace(metadata="ignored", room=SimpleNamespace(name="room")),
                 connect=AsyncMock(), wait_for_participant=AsyncMock(), add_shutdown_callback=lambda *_: None,
                 api=SimpleNamespace(room=SimpleNamespace(delete_room=AsyncMock())),
             )
             claims = {"sub": "owner-test", "exp": time.time() + 0.03}
-            with patch.object(voice_agent, "verify_dispatch", return_value=claims), patch.object(voice_agent, "build_session", return_value=session):
+            with patch.object(voice_agent, "verify_dispatch", return_value=claims) as verifier, patch.object(voice_agent, "build_session", return_value=session):
                 with self.assertRaises(TimeoutError):
                     await voice_agent.serve_job(ctx)
+            verifier.assert_called_once_with("ignored", "room", self.secret)
             session.aclose.assert_awaited_once()
             ctx.api.room.delete_room.assert_awaited_once()
             self.assertFalse(session.start.call_args.kwargs["record"])

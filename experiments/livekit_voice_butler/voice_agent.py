@@ -40,8 +40,11 @@ def build_session():
 
 async def serve_job(ctx):
     require_free_only_environment()
-    claims = verify_dispatch(ctx.job.metadata, ctx.room.name, os.environ["LIVEKIT_API_SECRET"])
-    UsageLedger(os.environ["GS_VOICE_LEDGER_PATH"]).consume(ctx.room.name, claims["exp"])
+    # rtc.Room.name is empty until connect; use the trusted job room envelope
+    # to verify admission BEFORE opening a transport or provider connection.
+    room_name = ctx.job.room.name
+    claims = verify_dispatch(ctx.job.metadata, room_name, os.environ["LIVEKIT_API_SECRET"])
+    UsageLedger(os.environ["GS_VOICE_LEDGER_PATH"]).consume(room_name, claims["exp"])
     session = None
     closed = asyncio.Event()
     try:
@@ -72,7 +75,7 @@ async def serve_job(ctx):
                 await asyncio.wait_for(session.aclose(), timeout=5)
         finally:
             await asyncio.wait_for(
-                ctx.api.room.delete_room(api.DeleteRoomRequest(room=ctx.room.name)), timeout=5
+                ctx.api.room.delete_room(api.DeleteRoomRequest(room=room_name)), timeout=5
             )
 
 

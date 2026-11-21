@@ -32,8 +32,10 @@ jobs:
           LIVEKIT_URL: ''
           GEMINI_API_KEY: ''
         run: |
+          python -m pip install --upgrade pip pip-audit
           python -m pip install -r experiments/livekit_voice_butler/requirements-agent.txt -r experiments/livekit_voice_butler/requirements-token.txt
           python -m unittest discover -s experiments/livekit_voice_butler -p 'test_*.py' -v
+          python -m pip_audit --local
 
   flutter-voice-gates:
     runs-on: ubuntu-latest

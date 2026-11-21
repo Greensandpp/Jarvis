@@ -32,3 +32,25 @@ python -m unittest discover -s experiments/livekit_voice_butler -p 'test_*.py'
 3. Stress-test interruptions, reconnection and background/foreground transitions.
 4. Separately benchmark cloud minutes, Tamil/Tanglish quality and offline TTS.
 5. Require explicit approval and regression PASS before any merge.
+
+## Phase 12: private HTTP cancellation handler (not deployed)
+
+`cancellation_server.py` implements a stdlib WSGI POST /cancel
+handler matching the experimental Flutter cancellation client schema.
+The application requires injected callbacks for bearer-token verification,
+per-room ownership authorization, and actual agent cancellation plus
+positive confirmation. If the agent fails to confirm or raises an error,
+the response is NOT successful. The handler rejects non-HTTPS proxy
+metadata, invalid HTTP method/content type, malformed IDs, oversized
+payloads, and bad/missing authorization.
+
+`test_cancellation_server.py` contains 9 deterministic offline HTTP tests.
+Existing GitHub Actions Python job executes these via test_*.py discovery.
+
+WARNING: This is a testable handler contract, NOT a running backend.
+There is no live token verifier, cancellation-capable agent, real room
+registry, WSGI deployment, or Android client binding. Production deployment
+would require validated TLS proxy configuration, token validation with
+expiry/audience, authorization, response-generation ownership binding,
+replay protection, rate limiting, observability and a real agent-side
+cancel-and-confirm implementation. No secrets or live cloud bills.

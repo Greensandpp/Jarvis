@@ -78,7 +78,7 @@ class _VoiceExperimentScreenState extends State<VoiceExperimentScreen>
       }
       candidate = livekit.Session.fromConfigurableTokenSource(
         livekit.EndpointTokenSource(url: endpoint),
-        options: const livekit.SessionOptions(preConnectAudio: false),
+        options: livekit.SessionOptions(preConnectAudio: false),
       );
       // Session.start may publish mic after connection. The user explicitly
       // pressed Connect and granted Android permission first.

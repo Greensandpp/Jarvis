@@ -18,27 +18,27 @@ export {buildGuardian as buildRig} from "./guardian.js";
 export function buildSnake() {
  const count=32,length=5.3,step=length/(count-1),bones=[];
  for(let i=0;i<count;i++){const b=new THREE.Bone();b.name='serpent_'+i;b.position.y=i?step:0;if(i)bones[i-1].add(b);bones.push(b);}
- const rows=160,sides=18,positions=[],indices=[];
+ const rows=220,sides=24,positions=[],indices=[];
  for(let row=0;row<=rows;row++){
-  const u=row/rows,r=(.012+.072*Math.sin(Math.min(1,u*1.7)*Math.PI/2))*(1-.2*Math.exp(-(((u-.91)/.08)**2)));
+  const u=row/rows,r=(.008+.046*Math.sin(Math.min(1,u*1.7)*Math.PI/2))*(1-.2*Math.exp(-(((u-.91)/.08)**2)));
   for(let j=0;j<=sides;j++){
-   const a=j/sides*Math.PI*2,scale=1+.045*Math.cos(row*Math.PI+j*Math.PI/2);positions.push(Math.cos(a)*r*scale,u*length,Math.sin(a)*r*scale*.88);
+   const a=j/sides*Math.PI*2,scale=1+.085*Math.cos(row*Math.PI+j*Math.PI/2);positions.push(Math.cos(a)*r*scale,u*length,Math.sin(a)*r*scale*.88);
    if(row<rows&&j<sides){const k=row*(sides+1)+j;indices.push(k,k+1,k+sides+1,k+1,k+sides+2,k+sides+1);}
   }
  }
  const geo=new THREE.BufferGeometry();geo.setAttribute('position',new THREE.Float32BufferAttribute(positions,3));geo.setIndex(indices);geo.computeVertexNormals();
  const si=[],sw=[];for(let i=0;i<geo.attributes.position.count;i++){const y=geo.attributes.position.getY(i)/step,k=clamp(Math.floor(y),0,count-2),f=clamp(y-k,0,1);si.push(k,k+1,0,0);sw.push(1-f,f,0,0);}
  geo.setAttribute('skinIndex',new THREE.Uint16BufferAttribute(si,4));geo.setAttribute('skinWeight',new THREE.Float32BufferAttribute(sw,4));
- const material=new THREE.MeshStandardMaterial({color:0x15876c,emissive:0x06533e,emissiveIntensity:.7,metalness:.7,roughness:.26,side:THREE.DoubleSide});
+ const material=new THREE.MeshStandardMaterial({color:0x28444b,emissive:0x003d3f,emissiveIntensity:.32,metalness:.84,roughness:.19,envMapIntensity:1.5,side:THREE.DoubleSide});
  const mesh=new THREE.SkinnedMesh(geo,material);mesh.add(bones[0]);mesh.bind(new THREE.Skeleton(bones));mesh.frustumCulled=false;
  const head=new THREE.Group();bones[count-1].add(head);
- const eyeMaterial=new THREE.MeshStandardMaterial({color:0xffca51,emissive:0xffa31c,emissiveIntensity:1.4});
+ const eyeMaterial=new THREE.MeshStandardMaterial({color:0x8ffff0,emissive:0x00fbd9,emissiveIntensity:2.5});
  const pupilMaterial=new THREE.MeshBasicMaterial({color:0x03130d});
  const detail=(parent,scale,pos,mat=material)=>{const m=new THREE.Mesh(new THREE.SphereGeometry(1,18,12),mat);m.scale.set(...scale);m.position.set(...pos);parent.add(m);return m;};
  // Horizontal cranial wedge and forward snout, with a separate lower jaw.
  // The spread hood stays behind the neck instead of forming stacked bulbs.
- detail(head,[.118,.085,.16],[0,.10,.10]);detail(head,[.088,.052,.12],[0,.075,.24]);
- detail(head,[.19,.205,.032],[0,-.07,-.035]);
+ detail(head,[.118,.057,.16],[0,.10,.10]);detail(head,[.078,.038,.12],[0,.075,.24]);
+ detail(head,[.145,.17,.024],[0,-.07,-.035]);
  for(const sign of [-1,1]){
   detail(head,[.039,.025,.065],[sign*.082,.146,.147]);
   detail(head,[.024,.018,.014],[sign*.101,.135,.189],eyeMaterial);
@@ -50,7 +50,8 @@ export function buildSnake() {
  const fangMaterial=new THREE.MeshStandardMaterial({color:0xe4f6e9,roughness:.22});
  for(const sign of [-1,1]){const fang=new THREE.Mesh(new THREE.ConeGeometry(.009,.06,8),fangMaterial);fang.rotation.z=Math.PI;fang.position.set(sign*.045,.035,.23);head.add(fang);}
  const tongue=new THREE.Mesh(new THREE.CapsuleGeometry(.004,.12,3,6),eyeMaterial);tongue.rotation.x=Math.PI/2;tongue.position.set(0,-.037,.25);jaw.add(tongue);
- return {mesh,bones,head,jaw,tongue,material,step};
+ const wire=new THREE.SkinnedMesh(geo,new THREE.MeshBasicMaterial({color:0x30eccc,wireframe:true,transparent:true,opacity:.23,blending:THREE.AdditiveBlending,depthWrite:false}));wire.bind(mesh.skeleton,mesh.bindMatrix);wire.frustumCulled=false;mesh.add(wire);
+ return {mesh,bones,head,jaw,tongue,material,wire,step};
 }
 export function animateRig(r,t,state='idle',level=0,intro=1,dt=1) {
  const blend=dt===1?1:1-Math.exp(-dt*9);
@@ -58,11 +59,11 @@ export function animateRig(r,t,state='idle',level=0,intro=1,dt=1) {
  n.pelvis.position.y=1.5+Math.sin(t*1.2)*.035+(1-intro)*.8;n.pelvis.rotation.y=Math.sin(t*.32)*.12;
  n.chest.rotation.z=Math.sin(t*.7)*.015;n.chest.scale.y=1+Math.sin(t*2)*.008;
  n.head.rotation.y=Math.sin(t*.73)*.24;n.head.rotation.x=listening?-.14:Math.sin(t*.6)*.05;
- for(const side of ['L','R']){const sign=side==='L'?1:-1;
-  n['shoulder'+side].rotation.z=THREE.MathUtils.lerp(n['shoulder'+side].rotation.z,sign*(.1+Math.sin(t*.9)*.06+(listening?.55:thinking?.8:speaking?.16+Math.sin(t*2.2)*.14:0)),blend);
-  n['elbow'+side].rotation.x=THREE.MathUtils.lerp(n['elbow'+side].rotation.x,-.12-(thinking?1.1:speaking?.32+Math.sin(t*1.8)*.2:Math.sin(t*.7)*.12),blend);
-  n['wrist'+side].rotation.y=Math.sin(t*1.3)*.2;
-  for(let f=0;f<5;f++){const curl=.18+(Math.sin(t*1.4+f*.3)+1)*.23;n['finger'+side+f].rotation.x=curl;n['tip'+side+f].rotation.x=curl*.7;}
+ for(const side of ['L','R']){const sign=side==='L'?-1:1;
+  n['shoulder'+side].rotation.z=THREE.MathUtils.lerp(n['shoulder'+side].rotation.z,sign*(.45+Math.sin(t*.9)*.025+(listening?.14:thinking?.12:speaking?.18+Math.sin(t*2.2)*.06:0)),blend);
+  n['elbow'+side].rotation.x=THREE.MathUtils.lerp(n['elbow'+side].rotation.x,-.5-(thinking?.4:speaking?.14+Math.sin(t*1.8)*.08:Math.sin(t*.7)*.04),blend);
+  n['wrist'+side].rotation.y=Math.sin(t*1.3)*.1;n['wrist'+side].rotation.x=-.65;
+  for(let f=0;f<5;f++){const curl=.04+(Math.sin(t*1.4+f*.3)+1)*.025;n['finger'+side+f].rotation.x=curl;n['tip'+side+f].rotation.x=curl*.7;}
  }
  n.jaw.rotation.x=THREE.MathUtils.lerp(n.jaw.rotation.x,speaking?.08+Math.abs(Math.sin(t*14))*(.12+level*.3):0,blend);
  n.eyeL.rotation.y=n.eyeR.rotation.y=Math.sin(t*.73)*.15;
@@ -98,7 +99,7 @@ export function animateSnake(s,t,intro=1) {
 export function startScene() {
  const report=(v)=>window.HologramBridge?.postMessage(JSON.stringify(v));
  let renderer;try{renderer=new THREE.WebGLRenderer({antialias:true,alpha:false,powerPreference:'high-performance'});}catch(e){report({type:'error',message:'WebGL unavailable'});return;}
- document.body.appendChild(renderer.domElement);renderer.setPixelRatio(Math.min(devicePixelRatio,1.5));renderer.setClearColor(0x01070b);
+ document.body.appendChild(renderer.domElement);renderer.setPixelRatio(Math.min(devicePixelRatio,1.5));renderer.setClearColor(0x01070b);renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=1.18;
  const scene=new THREE.Scene(),camera=new THREE.PerspectiveCamera(36,1,.1,60);scene.fog=new THREE.FogExp2(0x01070b,.045);
  renderer.info.autoReset=false;renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=1.15;
  const studio=new THREE.Scene();studio.background=new THREE.Color(0x263545);
@@ -106,9 +107,16 @@ export function startScene() {
   const panel=new THREE.Mesh(new THREE.PlaneGeometry(w,h),new THREE.MeshBasicMaterial({color:c,side:THREE.DoubleSide}));panel.position.set(x,y,z);panel.lookAt(0,1.5,0);studio.add(panel);
  }
  let environment;function restoreEnvironment(){environment?.dispose();const pmrem=new THREE.PMREMGenerator(renderer);environment=pmrem.fromScene(studio,.08);scene.environment=environment.texture;pmrem.dispose();}restoreEnvironment();
- const ambient=new THREE.HemisphereLight(0xb8eaff,0x142029,1.8);scene.add(ambient);
- const key=new THREE.PointLight(0x49ddff,90,12),rim=new THREE.PointLight(0x8056ff,65,12);key.position.set(2,4,3);rim.position.set(-2,3,-2);scene.add(key,rim);
+ const ambient=new THREE.HemisphereLight(0xe4efff,0x0c1422,1.15);scene.add(ambient);
+ const key=new THREE.PointLight(0xf1f5ff,52,12),rim=new THREE.PointLight(0x8056ff,65,12);key.position.set(2,4,3);rim.position.set(-2,3,-2);scene.add(key,rim);
  const rig=buildRig(),snake=buildSnake();scene.add(rig.mesh,snake.mesh);
+ const energyHands=[];
+ for(const side of ['L','R']){const palm=new THREE.Group();palm.position.set(0,-.10,.13);rig.named['wrist'+side].add(palm);
+  const core=new THREE.Mesh(new THREE.IcosahedronGeometry(.085,3),new THREE.MeshBasicMaterial({color:0xbffff2,transparent:true,opacity:.9,blending:THREE.AdditiveBlending,depthWrite:false}));palm.add(core);
+  for(let j=0;j<3;j++){const m=new THREE.Mesh(new THREE.TorusGeometry(.13+j*.025,.003,5,48),new THREE.MeshBasicMaterial({color:j===1?0xd6b5ff:0x2effdb,transparent:true,opacity:.7,blending:THREE.AdditiveBlending,depthWrite:false}));m.rotation.x=j*.8;m.rotation.y=j*.65;palm.add(m);}energyHands.push(palm);
+ }
+ const orbit=new THREE.Group();scene.add(orbit);
+ for(let layer=0;layer<3;layer++){const pts=[],colors=[];for(let i=0;i<220;i++){const u=i/219,a=u*Math.PI*5+layer*.07,r=1.04+Math.sin(u*Math.PI*2)*.12;pts.push(Math.cos(a)*r,.25+u*2.7,Math.sin(a)*r);const c=new THREE.Color().setHSL(.42+Math.sin(u*9+layer)*.18,.9,.56);colors.push(c.r,c.g,c.b);}const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(pts,3));g.setAttribute('color',new THREE.Float32BufferAttribute(colors,3));orbit.add(new THREE.Line(g,new THREE.LineBasicMaterial({vertexColors:true,transparent:true,opacity:layer===0?.72:.2,blending:THREE.AdditiveBlending,depthWrite:false})));}
  const scaffold=new THREE.SkeletonHelper(rig.mesh);scaffold.material.color.setHex(0x69f5ff);scaffold.material.transparent=true;scene.add(scaffold);
  const target=new THREE.WebGLRenderTarget(1,1,{depthBuffer:true});
  const postScene=new THREE.Scene(),postCamera=new THREE.OrthographicCamera(-1,1,1,-1,0,1);
@@ -141,7 +149,7 @@ export function startScene() {
  let quality='balanced',contextLost=false,introProgress=0,introElapsed=0,renderedFrames=0,lastIntroStage='',trailPrimed=false;
  let state='idle',theme='snake',introEnabled=true,reduced=false,paused=false,level=0,done=false,elapsed=0,last=0,fps=60,frames=0,windowStart=0;
  let yaw=0,pitch=.06,distance=6.7,drag=false,startX=0,startY=0,lastInput=0,pointers=new Map(),pinch=0;
- function applyTheme(name){theme=THEMES[name]?name:'snake';for(const [key,env] of Object.entries(environments))env.visible=key===theme;const [a,b,c]=THEMES[theme];rig.glow.color.setHex(a);rig.glow.emissive.setHex(a);key.color.setHex(a);rim.color.setHex(b);snake.material.color.setHex(b);snake.material.emissive.setHex(a);snake.material.emissiveIntensity=.2;particleMaterial.color.setHex(a);trail.material.color.setHex(a);scene.fog.color.setHex(0x01070b);renderer.setClearColor(0x01070b);}
+ function applyTheme(name){theme=THEMES[name]?name:'snake';for(const [key,env] of Object.entries(environments))env.visible=key===theme;const [a,b,c]=THEMES[theme];rig.glow.color.setHex(a);rig.glow.emissive.setHex(a);key.color.setHex(0xf1f5ff);rim.color.setHex(a);snake.material.color.setHex(0x28444b);snake.material.emissive.setHex(a);snake.material.emissiveIntensity=.13;snake.wire.material.color.setHex(a);particleMaterial.color.setHex(a);trail.material.color.setHex(a);scene.fog.color.setHex(0x01070b);renderer.setClearColor(0x01070b);}
  function screenBounds(object){
   const box=new THREE.Box3().setFromObject(object,true),min=[Infinity,Infinity],max=[-Infinity,-Infinity];
   for(const x of [box.min.x,box.max.x])for(const y of [box.min.y,box.max.y])for(const z of [box.min.z,box.max.z]){
@@ -159,7 +167,7 @@ export function startScene() {
   let intro=introEnabled&&!reduced?clamp(introElapsed/6.5,0,1):1;introProgress=intro;scaffold.visible=intro>.16&&intro<.65;scaffold.material.opacity=1-THREE.MathUtils.smoothstep(intro,.35,.65);if(intro===1&&!done){done=true;report({type:'introFinished'});}
   // Particle convergence is geometry motion, not a background crossfade.
   if(intro<.35){const p=particlesGeo.attributes.position;const collapse=1-Math.sin(clamp(intro/.3,0,1)*Math.PI)*.92;for(let i=0;i<p.count;i++){p.setXYZ(i,particles[i*3]*collapse,1.6+(particles[i*3+1]-1.6)*collapse,particles[i*3+2]*collapse);}p.needsUpdate=true;}
-  animateRig(rig,t,state,level,intro,dt);animateSnake(snake,t,intro);
+  animateRig(rig,t,state,level,intro,dt);animateSnake(snake,t,intro);orbit.visible=intro>.65;orbit.rotation.y=t*.16;energyHands.forEach((p,i)=>{p.visible=intro>.7;p.rotation.z=t*(i?-.8:.8);p.scale.setScalar(1+Math.sin(t*4+i)*.06+level*.1);});
   if(!reduced){points.rotation.y=t*.035;ring.rotation.z=t*.1;environments[theme].children.forEach((m,i)=>{m.rotation.y=t*(theme==='inferno'?2:.2)+i*.2;m.rotation.z=Math.sin(t*.4+i)*.3;});}
   if(now-lastInput>2800&&!pointers.size){yaw*=.97;pitch+=(.06-pitch)*.03;distance+=(6.7-distance)*.03;}
   const d=portraitCameraDistance(distance,camera.aspect)+(1-intro)*2;camera.position.set(Math.sin(yaw)*d,2+pitch*d,Math.cos(yaw)*d);camera.lookAt(0,1.7,0);

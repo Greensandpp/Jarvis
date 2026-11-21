@@ -1,0 +1,27 @@
+name: Reference visual review
+on:
+  push:
+    branches: [fix/reference-visual-and-brain-20261122]
+    paths: ['assets/hologram/**', 'scripts/hologram*', '.github/workflows/reference-visual-review.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  render:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '24'}
+      - run: npm install --no-save --prefix /tmp/visual-tools esbuild@0.27.0 playwright@1.62.1
+      - run: ESBUILD=/tmp/visual-tools/node_modules/.bin/esbuild bash scripts/build_hologram_bundle.sh && git diff --exit-code -- assets/hologram/scene.bundle.js
+      - run: node scripts/hologram_test.mjs
+      - run: /tmp/visual-tools/node_modules/.bin/playwright install --with-deps chromium
+      - run: NODE_PATH=/tmp/visual-tools/node_modules CHROMIUM_PATH=$(find /home/runner/.cache/ms-playwright -path '*/chrome-linux64/chrome' | head -1) node scripts/hologram_browser_test.cjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: REFERENCE-VISUAL-REVIEW
+          path: evidence/hologram/
+          retention-days: 7

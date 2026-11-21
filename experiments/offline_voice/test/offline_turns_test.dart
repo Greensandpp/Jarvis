@@ -64,4 +64,12 @@ void main() {
     await model.streams.single.close(); await run;
     expect(statuses.last, contains('no cloud fallback')); expect(spoken, isEmpty);
   });
+  test('wrong-script output is withheld and never spoken', () async {
+    final model = FakeModel(); final spoken = <String>[]; final statuses = <String>[];
+    final turns = OfflineTurns(model, stopAudio: () async {},
+      speak: (text, _) async { spoken.add(text); }, changed: (s, _) => statuses.add(s));
+    final run = turns.ask('saptiya', 'ta-IN', voice: true); await tick();
+    model.streams.single.add('सप्ती।'); await model.streams.single.close(); await run;
+    expect(spoken, isEmpty); expect(statuses.last, contains('reply withheld'));
+  });
 }

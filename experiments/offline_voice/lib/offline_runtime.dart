@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:llamadart/llamadart.dart';
+import 'language_contract.dart';
 
 abstract class LocalModel {
   Future<void> load(String path);
@@ -23,16 +24,17 @@ class PhoneModel implements LocalModel {
   Stream<String> reply(String text, String language) async* {
     // No tools, memory upload, hidden network fallback or automatic greeting.
     final messages = [
-      LlamaChatMessage.fromText(role: LlamaChatRole.system, text:
-        'You are GreenSoil JARVIS, an offline assistant. Reply briefly in '
-        '${language == 'ta-IN' ? 'Tamil' : 'English or Tanglish matching the user'}. '
-        'No phone, web, payment or trading tools are connected. Never claim '
-        'you performed actions or checked live information. Answer in 1-3 sentences.'),
+      LlamaChatMessage.fromText(role: LlamaChatRole.system,
+        text: OfflineLanguage.instruction(language)),
+      for (final example in OfflineLanguage.examples(language)) ...[
+        LlamaChatMessage.fromText(role: LlamaChatRole.user, text: example.$1),
+        LlamaChatMessage.fromText(role: LlamaChatRole.assistant, text: example.$2),
+      ],
       LlamaChatMessage.fromText(role: LlamaChatRole.user, text: text),
     ];
     await for (final chunk in _engine.create(messages,
       enableThinking: false,
-      params: const GenerationParams(maxTokens: 192, temp: 0.6),
+      params: const GenerationParams(maxTokens: 128, temp: 0.2, seed: 42),
     )) {
       if (chunk.text.isNotEmpty) yield chunk.text;
     }
@@ -90,12 +92,16 @@ class OfflineTurns {
       done.complete();
     }
     if (!foreground || epoch != _epoch) return;
+    if (!OfflineLanguage.acceptable(output, language)) {
+      changed('Model returned another writing system; reply withheld. Try English or Tamil script.', '');
+      return;
+    }
     changed('Local reply complete', output);
     if (voice && output.trim().isNotEmpty) {
       try {
         // Native channel serializes stop/speak; the epoch is checked again
         // after every inference wait. Background also stops native TTS.
-        await speak(output, language);
+        await speak(output, OfflineLanguage.speechLocale(language));
       } catch (_) {
         if (foreground && epoch == _epoch) changed('Text ready; installed offline voice unavailable', output);
       }

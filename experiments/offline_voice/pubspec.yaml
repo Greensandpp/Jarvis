@@ -1,7 +1,7 @@
 name: greensoil_livekit_voice_experiment
 description: Isolated GreenSoil phone-local voice lab; no cloud transport.
 publish_to: none
-version: 0.0.2+2
+version: 0.0.3+3
 environment:
   sdk: '>=3.10.7 <4.0.0'
 dependencies:

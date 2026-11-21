@@ -4,6 +4,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'offline_runtime.dart';
+import 'language_contract.dart';
 
 void main() => runApp(const OfflineApp());
 const bridge = MethodChannel('gs.jarvis.offline/bridge');
@@ -95,7 +96,7 @@ class _OfflineScreenState extends State<OfflineScreen> with WidgetsBindingObserv
     final epoch = ++_micEpoch;
     setState(() { _listening = true; _status = 'Checking installed on-device recognition'; });
     try {
-      final text = await bridge.invokeMethod<String>('listen', {'language': _language});
+      final text = await bridge.invokeMethod<String>('listen', {'language': OfflineLanguage.speechLocale(_language)});
       if (!mounted || epoch != _micEpoch || !_turns.foreground) return;
       if (text != null && text.trim().isNotEmpty) {
         _input.text = text;
@@ -128,12 +129,16 @@ class _OfflineScreenState extends State<OfflineScreen> with WidgetsBindingObserv
       FilledButton(onPressed: _loading || _ready ? null : () => _load(import: true), child: const Text('Import downloaded GGUF model')),
       OutlinedButton(onPressed: _loading || _ready ? null : () => _load(import: false), child: const Text('Load saved model')),
       DropdownButton<String>(value: _language, isExpanded: true, items: const [
-        DropdownMenuItem(value: 'ta-IN', child: Text('Tamil — installed offline speech required')),
-        DropdownMenuItem(value: 'en-IN', child: Text('English / Tanglish — accuracy may vary')),
+        DropdownMenuItem(value: 'ta-IN', child: Text('தமிழ் / Tamil replies')),
+        DropdownMenuItem(value: 'en-IN', child: Text('English replies')),
+        DropdownMenuItem(value: 'ta-Latn', child: Text('Tanglish — Latin letters')),
       ], onChanged: (value) { if (value != null) { unawaited(_stop()); setState(() => _language = value); } }),
       SwitchListTile(title: const Text('Read replies with installed offline voice'), value: _voice,
         onChanged: (value) { setState(() => _voice = value); if (!value) unawaited(_stop()); }),
-      Text('Installed offline voices: $_voices'),
+      const Text('Only installed offline voices are used. Voice gender/quality depends on Android.'),
+      ExpansionTile(title: const Text('Offline speech diagnostics'), children: [
+        Padding(padding: const EdgeInsets.all(8), child: Text(_voices)),
+      ]),
       const SizedBox(height: 12),
       TextField(controller: _input, maxLength: 1000, maxLines: 3, decoration: const InputDecoration(labelText: 'Message to local model', border: OutlineInputBorder())),
       FilledButton(onPressed: !_ready ? null : () { _micEpoch++; setState(() => _listening = false); unawaited(_turns.ask(_input.text, _language, voice: _voice)); }, child: const Text('Send locally')),
@@ -146,7 +151,7 @@ class _OfflineScreenState extends State<OfflineScreen> with WidgetsBindingObserv
       const SizedBox(height: 16),
       const Text('Foreground, push-to-talk only. No automatic wake word, background mic, tools or cloud fallback. '
         'Missing Tamil speech packs remain unavailable. Voice gender depends on the installed engine. '
-        'Replies are limited to 192 generated tokens for responsiveness; no 2-minute session or monthly timer.'),
+        'Replies are limited to 128 generated tokens for responsiveness; no 2-minute session or monthly timer.'),
     ]),
   );
 }

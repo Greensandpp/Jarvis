@@ -1,5 +1,6 @@
 """Offline admission/security checks for the opt-in network smoke test."""
 import json
+from types import SimpleNamespace
 import os
 import unittest
 from unittest.mock import MagicMock, patch
@@ -52,3 +53,14 @@ class RoomSmokeTests(unittest.TestCase):
             response.status = 200
             with self.assertRaises(ValueError):
                 smoke_room.fetch_token('x' * 43)
+
+    def test_silence_alone_cannot_pass_the_real_audio_check(self):
+        counters = dict(audio_frames=0, audio_seconds=0.0, peak_pcm=0, non_silent_frames=0)
+        silence = SimpleNamespace(samples_per_channel=480, sample_rate=48000, data=[0] * 480)
+        for _ in range(200):
+            self.assertFalse(smoke_room.count_frame(counters, silence))
+        voice = SimpleNamespace(samples_per_channel=480, sample_rate=48000, data=[-300, 500] * 240)
+        for _ in range(9):
+            self.assertFalse(smoke_room.count_frame(counters, voice))
+        self.assertTrue(smoke_room.count_frame(counters, voice))
+        self.assertEqual(counters['peak_pcm'], 500)

@@ -41,6 +41,18 @@ def build_session():
     )
 
 
+async def delete_room_if_present(ctx, room_name):
+    try:
+        await asyncio.wait_for(
+            ctx.api.room.delete_room(api.DeleteRoomRequest(room=room_name)), timeout=5
+        )
+    except api.TwirpError as error:
+        # RoomIO may already delete it on close. Only missing-room is success;
+        # permission, network and other failures must remain visible.
+        if error.code != "not_found" or error.status != 404:
+            raise
+
+
 async def serve_job(ctx):
     require_free_only_environment(agent=True)
     # rtc.Room.name is empty until connect; use the trusted job room envelope
@@ -77,9 +89,7 @@ async def serve_job(ctx):
             if session is not None:
                 await asyncio.wait_for(session.aclose(), timeout=5)
         finally:
-            await asyncio.wait_for(
-                ctx.api.room.delete_room(api.DeleteRoomRequest(room=room_name)), timeout=5
-            )
+            await delete_room_if_present(ctx, room_name)
 
 
 server = agents.AgentServer(

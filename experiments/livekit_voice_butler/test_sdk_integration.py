@@ -176,6 +176,21 @@ class SDKTests(unittest.TestCase):
             self.fail("Native SDK spawn initialization timed out")
         self.assertEqual(process.exitcode, 0)
 
+    def test_room_cleanup_ignores_only_an_already_deleted_room(self):
+        from types import SimpleNamespace
+        from livekit import api
+        async def check():
+            delete = AsyncMock(side_effect=api.TwirpError('not_found', 'gone', status=404))
+            ctx = SimpleNamespace(api=SimpleNamespace(room=SimpleNamespace(delete_room=delete)))
+            await voice_agent.delete_room_if_present(ctx, 'room')
+            delete.side_effect = api.TwirpError('permission_denied', 'denied', status=403)
+            with self.assertRaises(api.TwirpError):
+                await voice_agent.delete_room_if_present(ctx, 'room')
+            delete.side_effect = OSError('network unavailable')
+            with self.assertRaises(OSError):
+                await voice_agent.delete_room_if_present(ctx, 'room')
+        asyncio.run(check())
+
     def test_job_hard_deadline_closes_provider_and_deletes_room(self):
         async def check():
             from types import SimpleNamespace

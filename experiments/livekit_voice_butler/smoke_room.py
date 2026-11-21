@@ -17,6 +17,16 @@ from session_policy import require_free_only_environment
 TOKEN_ENDPOINT = "https://jarvis-livekit-token-staging-staging.up.railway.app/api/livekit-token"
 
 
+def count_frame(result, frame):
+    result["audio_frames"] += 1
+    result["audio_seconds"] += frame.samples_per_channel / frame.sample_rate
+    peak = max((abs(sample) for sample in frame.data), default=0)
+    result["peak_pcm"] = max(result["peak_pcm"], peak)
+    if peak >= 200:
+        result["non_silent_frames"] += 1
+    return result["audio_seconds"] >= 1.0 and result["non_silent_frames"] >= 10
+
+
 class NoRedirect(urllib.request.HTTPRedirectHandler):
     def redirect_request(self, req, fp, code, msg, headers, newurl):
         raise ValueError("Token endpoint redirects are forbidden")
@@ -73,6 +83,7 @@ async def run():
     audio = asyncio.Event()
     tasks = set()
     result = {"room_connected": False, "agent_ready": False, "audio_frames": 0,
+              "non_silent_frames": 0, "peak_pcm": 0,
               "audio_seconds": 0.0, "microphone_published": False,
               "phone_tested": False, "passed": False}
 
@@ -86,9 +97,7 @@ async def run():
         stream = rtc.AudioStream(track)
         try:
             async for event in stream:
-                result["audio_frames"] += 1
-                result["audio_seconds"] += event.frame.samples_per_channel / event.frame.sample_rate
-                if result["audio_frames"] >= 5:
+                if count_frame(result, event.frame):
                     audio.set()
         finally:
             await stream.aclose()

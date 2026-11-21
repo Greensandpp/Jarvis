@@ -89,3 +89,25 @@ endpoint and implement true cancellation + player-stop acknowledgments.
 Relevant SDK docs:
 https://docs.livekit.io/reference/client-sdk-flutter/livekit_client/Session/start.html
 https://docs.livekit.io/reference/client-sdk-flutter/livekit_client/LocalParticipant/setMicrophoneEnabled.html
+
+## Phase 11: own-backend agent response cancellation contract
+
+`AgentCancellationClient` is a client for a proposed private backend endpoint,
+**not** an official LiveKit API endpoint. It is deliberately unconfigured and
+is not wired to production or an active paid API.
+
+- HTTPS required.
+- Authorization bearer token is obtained per call via an injected secure provider.
+- POST JSON request: `{"room_id":"...","response_id":"...","generation":17}`.
+- A successful response must be HTTP 200 with matching `room_id`,
+  `response_id`, `generation`, plus `"cancelled":true`.
+- Fail closed on malformed/mismatched responses, auth failure and timeout.
+- The future backend MUST verify the requesting user's room membership, stop
+  generation and outbound audio for the exact response, and only then return
+  an acknowledgement. An HTTP response cannot prove native playback stopped:
+  the local audio transport needs its own confirmation too.
+- This schema is a design contract for a backend that does NOT yet exist.
+  Do not give this endpoint a publicly exposed URL without authentication,
+  replay protection, rate limits and ownership checks.
+- Seven mock-HTTP regression tests. No real backend or LiveKit integration;
+  Android/Tamil/device verification remain pending.

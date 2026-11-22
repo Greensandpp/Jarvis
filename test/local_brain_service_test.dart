@@ -54,6 +54,13 @@ void main() {
     await s.benchmark(); expect(s.ready, isFalse); expect(s.status, contains('ta-IN'));
     expect(engine.releases, 1); s.dispose();
   });
+  test('Tanglish has Roman Tamil subtitles and actual Tamil for the speech engine', () async {
+    final s = service(FakePhoneModel()); await s.benchmark();
+    final answer = await s.replyAnswer('un peru enna', 'ta-Latn');
+    expect(answer.display, isNot(contains('தினமும்')));
+    expect(answer.speech, contains('தினமும்'));
+    expect(answer.locale, 'ta-IN'); s.dispose();
+  });
   test('background cancels inference and never returns a stale reply for speech', () async {
     final engine = FakePhoneModel(); final s = service(engine); await s.benchmark();
     engine.pending = Completer<void>();

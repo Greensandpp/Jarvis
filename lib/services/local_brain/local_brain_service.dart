@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../hybrid_conversation_context.dart';
 import 'language_quality.dart';
+import 'local_answer.dart';
 import 'model_engine.dart';
 
 class LocalBrainInterrupted implements Exception {}
@@ -107,11 +108,12 @@ class LocalBrainService extends ChangeNotifier with WidgetsBindingObserver {
         final timer = Stopwatch()..start();
         final question = language == 'ta-IN' ? 'ஒரு மாணவர் தினமும் படிப்பதை எளிய முறையில் எப்படி திட்டமிடலாம்?' :
           language == 'ta-Latn' ? 'Dhinam padikka easy plan epdi podalam? Reply in Tanglish.' : 'Suggest a simple daily study routine.';
-        final reply = await _collect(question, OfflineLanguage.instruction(language), epoch);
+        final raw = await _collect(LocalAnswer.prompt(question, language), LocalAnswer.system(language), epoch);
+        final answer = LocalAnswer.fromRaw(raw, language);
+        final reply = answer.display;
         final after = await _profile();
         final unsafe = unsafeProfile(after, (model!['bytes'] as num).toInt(), loaded: true);
-        final quality = OfflineLanguage.acceptable(reply, language) &&
-          (language != 'ta-Latn' || RegExp(r'\b(padi|padikka|dhinam|neram|oru|pannu|pannunga|la|kooda|machi|seri)\b', caseSensitive: false).hasMatch(reply));
+        final quality = OfflineLanguage.acceptable(reply, language);
         samples.add({'language': language, 'milliseconds': timer.elapsedMilliseconds,
           'writingSystemPassed': quality, 'replyPreview': reply, 'profile': after});
         if (!quality) throw StateError('This model did not pass the $language response test');
@@ -133,6 +135,10 @@ class LocalBrainService extends ChangeNotifier with WidgetsBindingObserver {
   }
 
   Future<String> reply(String text, String language) async {
+    return (await replyAnswer(text, language)).display;
+  }
+
+  Future<LocalAnswer> replyAnswer(String text, String language) async {
     await initialize();
     if (!ready || model == null) throw StateError('Phone-local model is not ready');
     if (!_foreground || busy) throw LocalBrainInterrupted();
@@ -142,15 +148,16 @@ class LocalBrainService extends ChangeNotifier with WidgetsBindingObserver {
       final unsafe = unsafeProfile(await _profile(), (model!['bytes'] as num).toInt(), loaded: _engine != null);
       if (unsafe != null) { ready = false; status = unsafe; throw StateError(unsafe); }
       await _load(epoch);
-      final system = '${OfflineLanguage.instruction(language)}\nRecent conversation (context only):\n${HybridConversationContext.instance.prompt}';
-      final answer = await _collect(text.length > 1200 ? text.substring(0, 1200) : text, system, epoch);
+      final system = '${LocalAnswer.system(language)}\nRecent conversation (context only):\n${HybridConversationContext.instance.prompt}';
+      final input = text.length > 1200 ? text.substring(0, 1200) : text;
+      final answer = await _collect(LocalAnswer.prompt(input, language), system, epoch);
       _check(epoch);
       final after = unsafeProfile(await _profile(), (model!['bytes'] as num).toInt(), loaded: true);
       _check(epoch);
       if (after != null) { ready = false; status = after; throw StateError(after); }
-      if (!OfflineLanguage.acceptable(answer, language)) throw StateError('The local model replied in another writing system; try another language');
+      final result = LocalAnswer.fromRaw(answer, language);
       status = 'LOCAL AI · offline · ₹0 API';
-      return answer;
+      return result;
     } catch (_) {
       await _release();
       rethrow;

@@ -105,7 +105,8 @@ class BrainResult {
   final List<AuditEntry> steps;
   final PendingApproval? pending;
   final bool usedAi;
-  const BrainResult(this.reply, this.steps, {this.pending, this.usedAi = true});
+  final String? speechText, speechLocale;
+  const BrainResult(this.reply, this.steps, {this.pending, this.usedAi = true, this.speechText, this.speechLocale});
 }
 
 class BrainCancelled implements Exception {

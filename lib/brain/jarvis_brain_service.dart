@@ -74,8 +74,9 @@ class JarvisBrainService {
         ReplyLanguage.tamil => 'ta-IN', ReplyLanguage.tanglish => 'ta-Latn', _ => 'en-IN',
       };
       try {
-        final reply = await phone.reply(text, language);
-        return await _finish(text, BrainResult(reply, const [], usedAi: true));
+        final reply = await phone.replyAnswer(text, language);
+        return await _finish(text, BrainResult(reply.display, const [], usedAi: true,
+          speechText: reply.speech, speechLocale: reply.locale));
       } on LocalBrainInterrupted { throw BrainCancelled(); }
       catch (_) { return _finish(text, BrainResult('Phone-local AI could not complete this reply. ${phone.status}', const [], usedAi: false)); }
     }

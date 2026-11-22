@@ -3107,9 +3107,10 @@ Mastering the boundless road.
     notifyListeners();
     final lang = brain.lastLanguage;
     final s = SettingsService.instance;
-    await _voice.speakIn(r.reply,
-        languageTag: lang == ReplyLanguage.tamil ? 'ta-IN' : 'en-IN',
-        neuralVoice: neuralVoiceFor(lang, female: s.preferFemaleVoice, englishDefault: s.jarvisNeuralVoice),
+    final speechLanguage = r.speechLocale == 'ta-IN' ? ReplyLanguage.tamil : lang;
+    await _voice.speakIn(r.speechText ?? r.reply,
+        languageTag: r.speechLocale ?? (lang == ReplyLanguage.tamil ? 'ta-IN' : 'en-IN'),
+        neuralVoice: neuralVoiceFor(speechLanguage, female: s.preferFemaleVoice, englishDefault: s.jarvisNeuralVoice),
         female: s.preferFemaleVoice);
     await _startFollowUpListening();
   }

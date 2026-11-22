@@ -1,0 +1,56 @@
+name: Split verified private APK delivery
+on:
+  push:
+    branches: [delivery/private-apk-20261122]
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  split:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Verify exact successful source build
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const {data: r} = await github.rest.actions.getWorkflowRun({
+              owner: context.repo.owner, repo: context.repo.repo, run_id: 44972813899
+            });
+            if (r.status !== 'completed' || r.conclusion !== 'success' ||
+                r.head_sha !== '67e50aab7929b0e23c14d59dbacb5084dcef4c02' ||
+                r.path !== '.github/workflows/jarvis-holographic-private.yml') {
+              throw new Error('Source build gates or expected source revision do not match');
+            }
+      - uses: actions/download-artifact@v4
+        with:
+          name: JARVIS-ENCRYPTED-PRIVATE-DEVELOPMENT
+          run-id: 44972813899
+          github-token: ${{ github.token }}
+          path: private
+      - name: Verify preserved delivery metadata
+        run: |
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          p = Path('private')
+          expected = {m['name']: m for m in json.loads((p/'SHA256SUMS.json').read_text())}
+          for flavor in ['standard', 'full']:
+              name = 'JARVIS-' + flavor + '-debug.apk'
+              m = json.loads((p/(name+'.json')).read_text())
+              assert m['sha256'] == expected[name]['sha256']
+              assert m['bytes'] == expected[name]['bytes']
+              assert (p/(name+'.enc')).stat().st_size == m['bytes'] + 16
+              print(name, m['bytes'], m['sha256'])
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: JARVIS-VERIFIED-PRIVATE-STANDARD
+          path: private/JARVIS-standard-debug.apk.*
+          retention-days: 7
+      - uses: actions/upload-artifact@v4
+        with:
+          name: JARVIS-VERIFIED-PRIVATE-FULL
+          path: private/JARVIS-full-debug.apk.*
+          retention-days: 7

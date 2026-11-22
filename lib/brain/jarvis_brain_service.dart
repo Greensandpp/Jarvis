@@ -40,12 +40,14 @@ class JarvisBrainService {
   );
 
   ReplyLanguage lastLanguage = ReplyLanguage.english;
+  int _turnEpoch = 0;
 
   bool get hasPending => brain.pending != null;
-  void cancel() { brain.cancel(); LocalBrainService.instance.cancel(); }
+  void cancel() { ++_turnEpoch; brain.cancel(); LocalBrainService.instance.cancel(); }
 
   /// Main entry for voice and text. Returns the reply to speak/show.
   Future<BrainResult> handle(String text) async {
+    final turn = ++_turnEpoch;
     final settings = SettingsService.instance;
     lastLanguage = resolveReplyLanguage(settings.replyLanguage, text);
 
@@ -74,10 +76,14 @@ class JarvisBrainService {
         ReplyLanguage.tamil => 'ta-IN', ReplyLanguage.tanglish => 'ta-Latn', _ => 'en-IN',
       };
       try {
+        if (turn != _turnEpoch) throw BrainCancelled();
         final reply = await phone.replyAnswer(text, language);
-        return await _finish(text, BrainResult(reply.display, const [], usedAi: true,
+        final result = await _finish(text, BrainResult(reply.display, const [], usedAi: true,
           speechText: reply.speech, speechLocale: reply.locale));
+        if (turn != _turnEpoch) throw BrainCancelled();
+        return result;
       } on LocalBrainInterrupted { throw BrainCancelled(); }
+      on BrainCancelled { rethrow; }
       catch (_) { return _finish(text, BrainResult('Phone-local AI could not complete this reply. ${phone.status}', const [], usedAi: false)); }
     }
 

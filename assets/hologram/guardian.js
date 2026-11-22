@@ -4,9 +4,9 @@ import * as THREE from './three.module.js';
 export function buildGuardian(){
  const root=new THREE.Bone();root.name='pelvis';root.position.y=1.5;
  const bones=[root],named={pelvis:root},armour=[];
- const metal=new THREE.MeshStandardMaterial({color:0x677b89,metalness:.88,roughness:.27});
- const dark=new THREE.MeshStandardMaterial({color:0x08131e,metalness:.72,roughness:.4});
- const trim=new THREE.MeshStandardMaterial({color:0xd7a95e,metalness:.92,roughness:.25});
+ const metal=new THREE.MeshStandardMaterial({color:0xa1b1bc,metalness:.93,roughness:.21,envMapIntensity:1.65});
+ const dark=new THREE.MeshStandardMaterial({color:0x071016,metalness:.82,roughness:.29,envMapIntensity:1.3});
+ const trim=new THREE.MeshStandardMaterial({color:0xc8aa6b,metalness:.94,roughness:.2,envMapIntensity:1.45});
  const glow=new THREE.MeshStandardMaterial({color:0x59f4ff,emissive:0x25dfff,emissiveIntensity:2.4,metalness:.25,roughness:.18});
  const materials=[metal,dark,trim,glow];
  const add=(name,parent,pos)=>{const b=new THREE.Bone();b.name=name;b.position.set(...pos);parent.add(b);bones.push(b);named[name]=b;return b;};
@@ -18,17 +18,43 @@ export function buildGuardian(){
   const hip=add('hip'+side,root,[s*.185,-.1,0]),knee=add('knee'+side,hip,[s*.025,-.63,0]);add('ankle'+side,knee,[0,-.59,.015]);
  }
  for(const side of ['L','R'])named['finger'+side+'0'].rotation.z=side==='L'?-.75:.75;
+ head.scale.setScalar(.88);
  root.updateMatrixWorld(true);
  function part(b,g,pos=[0,0,0],mat=metal,scale=[1,1,1]){g.scale(...scale);g.translate(...pos);const m=new THREE.Mesh(g,mat);b.add(m);m.userData.rest=new THREE.Vector3();m.userData.bone=b;armour.push(m);return m;}
  const ell=(b,p,s,mat=metal)=>part(b,new THREE.SphereGeometry(1,20,12),p,mat,s);
  const tube=(b,p,r,h,mat=dark)=>part(b,new THREE.CapsuleGeometry(r,Math.max(.001,h-2*r),5,12),p,mat);
  function plate(b,outline,pos,depth=.035,mat=metal,bevel=.018){
-  const shape=new THREE.Shape();outline.forEach(([x,y],i)=>i?shape.lineTo(x,y):shape.moveTo(x,y));shape.closePath();
-  const g=new THREE.ExtrudeGeometry(shape,{depth,bevelEnabled:true,bevelSegments:3,steps:1,bevelSize:bevel,bevelThickness:bevel,curveSegments:8});
-  const p=g.attributes.position;for(let i=0;i<p.count;i++)p.setZ(i,p.getZ(i)+Math.max(0,1-Math.abs(p.getX(i))/.55)*.022);g.computeVertexNormals();return part(b,g,pos,mat);
+  // Rounded, convex armour shells. Concentric surface rings give the caps
+  // real curvature and continuous normals instead of flat extruded polygons.
+  const shape=new THREE.Shape();
+  for(let i=0;i<outline.length;i++){
+   const prev=outline[(i+outline.length-1)%outline.length],cur=outline[i],next=outline[(i+1)%outline.length];
+   const entry=[cur[0]*.8+prev[0]*.2,cur[1]*.8+prev[1]*.2],exit=[cur[0]*.8+next[0]*.2,cur[1]*.8+next[1]*.2];
+   if(i===0)shape.moveTo(...entry);else shape.lineTo(...entry);
+   shape.quadraticCurveTo(cur[0],cur[1],exit[0],exit[1]);
+  }
+  shape.closePath();const edge=shape.getSpacedPoints(48).slice(0,-1),N=edge.length;
+  let area=0;for(let i=0;i<N;i++)area+=edge[i].x*edge[(i+1)%N].y-edge[(i+1)%N].x*edge[i].y;if(area<0)edge.reverse();
+  const cx=edge.reduce((n,p)=>n+p.x,0)/N,cy=edge.reduce((n,p)=>n+p.y,0)/N;
+  const width=Math.max(...edge.map(p=>p.x))-Math.min(...edge.map(p=>p.x));
+  const bow=Math.min(.065,Math.max(.008,width*.15)),positions=[],indices=[],R=5;
+  positions.push(cx,cy,depth+bow);
+  for(let r=1;r<=R;r++)for(const p of edge){const u=r/R;positions.push(cx+(p.x-cx)*u,cy+(p.y-cy)*u,depth+bow*(1-u*u));}
+  for(let j=0;j<N;j++)indices.push(0,1+j,1+(j+1)%N);
+  for(let r=1;r<R;r++)for(let j=0;j<N;j++){const a=1+(r-1)*N+j,b=1+(r-1)*N+(j+1)%N,c=1+r*N+j,d=1+r*N+(j+1)%N;indices.push(a,c,b,b,c,d);}
+  const back=positions.length/3;for(const p of edge)positions.push(p.x,p.y,0);
+  const center=positions.length/3;positions.push(cx,cy,0);
+  for(let j=0;j<N;j++){const a=1+(R-1)*N+j,b=1+(R-1)*N+(j+1)%N,c=back+j,d=back+(j+1)%N;indices.push(a,b,c,b,d,c,center,d,c);}
+  const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(positions,3));g.setIndex(indices);g.computeVertexNormals();
+  const m=part(b,g,pos,mat);m.userData.surface='curved-shell';return m;
  }
  const shield=(w,h)=>[[-w*.85,h*.45],[-w,h*.1],[-w*.65,-h*.35],[0,-h*.55],[w*.65,-h*.35],[w,h*.1],[w*.85,h*.45],[0,h*.62]];
  const ring=(b,r,t,p,mat=trim)=>part(b,new THREE.TorusGeometry(r,t,8,40),p,mat);
+ // Continuous fitted under-armour prevents floating disconnected plates.
+ const torsoProfile=[[-.52,.19],[-.38,.205],[-.22,.235],[0,.32],[.18,.355],[.32,.3],[.43,.14]].map(([y,r])=>new THREE.Vector2(r,y));
+ part(chest,new THREE.LatheGeometry(torsoProfile,40),[0,0,0],dark,[1,1,.62]);
+ ell(head,[0,-.24,-.018],[.095,.14,.095],dark);
+ ell(chest,[0,-.29,.015],[.205,.25,.145],dark);
  ell(root,[0,0,0],[.255,.18,.16],dark);ell(chest,[0,.16,0],[.355,.29,.19],dark);
  for(let i=0;i<4;i++){
   ell(head,[0,-.26+i*.025,0],[.078,.018,.078],i%2?trim:dark);
@@ -76,6 +102,15 @@ export function buildGuardian(){
   plate(kn,[[-.08,.19],[.085,.19],[.105,.02],[.06,-.25],[0,-.29],[-.06,-.23],[-.095,.01]],[0,-.25,.075],.037);
   plate(kn,[[-.019,.14],[.018,.17],[.025,-.21],[0,-.25],[-.02,-.19]],[0,-.25,.13],.012,glow,.004);
   ell(an,[0,-.013,.065],[.115,.075,.22],dark);ell(an,[0,.018,.09],[.108,.06,.2]);for(let i=0;i<3;i++)ell(an,[0,.045-i*.008,.11+i*.04],[.095-i*.009,.025,.045],i===1?trim:metal);
+ }
+ for(const [s,side] of [[-1,'L'],[1,'R']]){
+  for(const [bone,rows,spacing,startY,baseZ] of [[named['hip'+side],6,.075,-.08,.143],[named['elbow'+side],4,.065,-.09,.116]]){
+   for(let row=0;row<rows;row++)for(let col=0;col<3;col++){
+    const w=rows===6?.034:.028,h=.049,x=(col-1)*w*1.65+(row%2?w*.35:0);
+    const leaf=plate(bone,[[-w,0],[-w*.65,h*.65],[0,h],[w*.65,h*.65],[w,0],[0,-h*.78]],[x,startY-row*spacing,baseZ-Math.abs(col-1)*.013],.006,(row+col)%7===0?trim:metal,.004);
+    leaf.rotation.z=s*(col-1)*.08;
+   }
+  }
  }
  const arrays={p:[],n:[],ix:[],w:[]},geometry=new THREE.BufferGeometry();let offset=0;
  for(let mi=0;mi<materials.length;mi++){

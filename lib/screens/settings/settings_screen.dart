@@ -13,6 +13,7 @@ import '../brain/ai_diagnostics_screen.dart';
 import '../brain/trading_ai_screen.dart';
 import '../brain/control_center_screen.dart';
 import 'jarvis_settings_screen.dart';
+import 'local_brain_screen.dart';
 import 'permissions_screen.dart';
 import '../home/home_screen.dart';
 import '../../core/build_profile.dart';
@@ -266,6 +267,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             child: ListView(
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 40),
               children: [
+                ListTile(leading: const Icon(Icons.offline_bolt), title: const Text('Phone-local AI'), subtitle: const Text('No API key · model import and device test'), onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const LocalBrainScreen()))),
                 ListTile(
                   leading: const Icon(Icons.smart_toy_outlined), title: const Text('Agents'),
                   subtitle: const Text('Private Agent / Phone Agent'),

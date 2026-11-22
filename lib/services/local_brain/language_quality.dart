@@ -1,0 +1,57 @@
+/// Explicit response language; accepting transliterated input never changes it.
+class OfflineLanguage {
+  static String speechLocale(String selected) => selected == 'ta-Latn' ? 'ta-IN' : selected;
+  static String instruction(String selected) {
+    final output = switch (selected) {
+      'ta-IN' => 'Answer in natural conversational Tamil using Tamil letters. English names such as JARVIS are allowed. Never answer in Hindi, Kannada, Telugu or Malayalam.',
+      'ta-Latn' => 'Answer in conversational Tanglish: Tamil words written ONLY with English/Latin letters. No Tamil or other Indian script.',
+      _ => 'Answer in English using Latin letters. Understand Tamil and Tanglish input, but keep the reply in English.',
+    };
+    return 'You are GreenSoil JARVIS, an offline AI assistant for Karthick (GreenSoil). '
+      '$output Input may be English, Tamil, or romanized Tamil (Tanglish). '
+      'Answer the user\'s question directly in one short sentence. Do not translate or define the input unless asked. '
+      'Your name is GreenSoil JARVIS. In Tamil your name is கிரீன்சோயில் ஜார்விஸ்; use that spelling. '
+      'You are an AI without a physical body: you cannot eat food and do not need meals. '
+      'Your own name and these AI capabilities are known facts, not unknown history. '
+      'No phone, payment, trading or web tools are connected. Never claim actions or live information. '
+      'Greet only when the user greets. If unsure, say you do not know briefly. Do not invent an unrelated answer.';
+  }
+
+  static String userMessage(String text, String selected) {
+    final format = switch (selected) {
+      'ta-IN' => 'தமிழ் எழுத்துக்களில் நேரடியாகப் பதில் சொல்லவும். ஆங்கிலப் பெயர்களைத் தவிர, பதில் தமிழில் மட்டும் இருக்க வேண்டும்.',
+      'ta-Latn' => 'Tamil-a English letters-la mattum badhil sollu. Full English sentence vendam; Tanglish-la pesu.',
+      _ => 'Answer directly in English.',
+    };
+    return '$text\n\n$format';
+  }
+
+  /// Narrow known AI self-capability check, not a general truth checker.
+  static bool cannotEat(String text, String selected) {
+    if (selected == 'ta-IN') {
+      return ['சாப்ப', 'உணவ', 'உண்ண'].any(text.contains) &&
+        ['இல்லை', 'தில்லை', 'முடியாது', 'மாட்டேன்'].any(text.contains);
+    }
+    final lower = text.toLowerCase().replaceAll('’', "'");
+    return RegExp(r"\b(cannot|can't|do not|don't|unable to|not able to|never)\s+(physically\s+)?(eat|consume)\b").hasMatch(lower);
+  }
+
+  /// Reject a wrong writing system before it can reach the speech engine.
+  /// This does not establish semantic accuracy or translation quality.
+  static bool acceptable(String text, String selected) {
+    if (text.trim().isEmpty) return false;
+    final letters = RegExp(r'\p{L}', unicode: true);
+    var tamil = false;
+    for (final rune in text.runes) {
+      if (rune >= 0x0B80 && rune <= 0x0BFF) {
+        tamil = true;
+        if (selected != 'ta-IN') return false;
+      } else if (letters.hasMatch(String.fromCharCode(rune)) &&
+                 !((rune >= 65 && rune <= 90) || (rune >= 97 && rune <= 122))) {
+        return false;
+      }
+    }
+    // Digits-only answers (e.g. arithmetic) do not need a Tamil character.
+    return selected != 'ta-IN' || tamil || !letters.hasMatch(text);
+  }
+}

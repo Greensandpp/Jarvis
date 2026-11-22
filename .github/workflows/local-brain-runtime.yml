@@ -1,0 +1,39 @@
+name: Phone-local adapter real model QA
+on:
+  push:
+    branches: [fix/reference-visual-and-brain-20261122]
+    paths: ['lib/services/local_brain/**', 'scripts/local_brain/**', 'pubspec.*', '.github/workflows/local-brain-runtime.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: local-runtime-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  real-model:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.50.1'
+          cache: true
+      - run: flutter pub get --enforce-lockfile
+      - name: Compile actual application adapter with native CPU runtime
+        run: dart build cli --target=scripts/local_brain/smoke.dart --output=/tmp/local-model
+      - name: Download checksum-pinned QA model (never bundled in APK)
+        run: python3 scripts/local_brain/download_model.py /tmp/qa-model.gguf
+      - name: Test genuine model inference with internet sockets denied
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p evidence
+          gcc -shared -fPIC -o /tmp/libdeny-net.so scripts/local_brain/deny_network.c -ldl
+          LD_PRELOAD=/tmp/libdeny-net.so timeout 600 /tmp/local-model/bundle/bin/smoke /tmp/qa-model.gguf 2>&1 | tee evidence/local-model.txt
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: LOCAL-BRAIN-REAL-MODEL-EVIDENCE
+          path: evidence/
+          retention-days: 7

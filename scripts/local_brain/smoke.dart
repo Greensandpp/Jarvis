@@ -31,7 +31,7 @@ Future<void> main(List<String> args) async {
       final generated = LocalAnswer.fromRaw(output.toString().trim(), language);
       final answer = generated.display;
       final semantic = language == 'en-IN' ? RegExp(r'\b(4|four)\b', caseSensitive: false).hasMatch(answer) :
-        answer.toLowerCase().contains('jarvis') || answer.contains('ஜார்விஸ்');
+        generated.speech.toLowerCase().contains('jarvis') || generated.speech.contains('ஜார்விஸ்');
       final result = <String, Object>{'language': language, 'input': question,
         'reply': answer, 'speech': generated.speech, 'speech_locale': generated.locale,
         'elapsed_ms': watch.elapsedMilliseconds,

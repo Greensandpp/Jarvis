@@ -159,7 +159,8 @@ class LocalBrainService extends ChangeNotifier with WidgetsBindingObserver {
       final result = LocalAnswer.fromRaw(answer, language);
       status = 'LOCAL AI · offline · ₹0 API';
       return result;
-    } catch (_) {
+    } catch (error) {
+      if (error is StateError) status = '${error.message}';
       await _release();
       rethrow;
     } finally { busy = false; done.complete(); _changed(); }

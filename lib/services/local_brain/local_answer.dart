@@ -6,6 +6,7 @@ import 'tamil_text.dart';
 class LocalAnswer {
   const LocalAnswer(this.display, this.speech, this.locale);
   final String display, speech, locale;
+  static String context(String history) => history.length <= 600 ? history : history.substring(history.length - 600);
   static String generationLanguage(String selected) => selected == 'ta-Latn' ? 'ta-IN' : selected;
   static String system(String selected) => OfflineLanguage.instruction(generationLanguage(selected));
   static String prompt(String input, String selected) => OfflineLanguage.userMessage(

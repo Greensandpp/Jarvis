@@ -13,7 +13,7 @@ class LlamaPhoneModel implements PhoneModelEngine {
   Future<void> load(String path) => _engine.setModel(
     LlamaModel(ModelSource.path(path)),
     params: const ModelParams(device: ComputeDevice.cpu, gpuLayers: 0,
-      contextSize: 1024, numberOfThreads: 2, numberOfThreadsBatch: 2),
+      contextSize: 2048, numberOfThreads: 2, numberOfThreadsBatch: 2),
   );
   @override
   Stream<String> reply(String prompt, String system) async* {

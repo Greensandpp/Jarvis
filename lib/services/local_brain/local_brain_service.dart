@@ -148,8 +148,9 @@ class LocalBrainService extends ChangeNotifier with WidgetsBindingObserver {
       final unsafe = unsafeProfile(await _profile(), (model!['bytes'] as num).toInt(), loaded: _engine != null);
       if (unsafe != null) { ready = false; status = unsafe; throw StateError(unsafe); }
       await _load(epoch);
-      final system = '${LocalAnswer.system(language)}\nRecent conversation (context only):\n${HybridConversationContext.instance.prompt}';
-      final input = text.length > 1200 ? text.substring(0, 1200) : text;
+      final system = '${LocalAnswer.system(language)}\nRecent conversation (context only):\n${LocalAnswer.context(HybridConversationContext.instance.prompt)}';
+      if (text.length > 600) throw StateError('Please shorten this local question to 600 characters');
+      final input = text;
       final answer = await _collect(LocalAnswer.prompt(input, language), system, epoch);
       _check(epoch);
       final after = unsafeProfile(await _profile(), (model!['bytes'] as num).toInt(), loaded: true);

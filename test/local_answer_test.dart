@@ -12,4 +12,10 @@ void main() {
     expect(() => LocalAnswer.fromRaw('नमस्ते', 'ta-Latn'), throwsStateError);
     expect(() => LocalAnswer.fromRaw('Hello', 'ta-Latn'), throwsStateError);
   });
+  test('local handoff keeps recent context within its small model budget', () {
+    final history = '${List.filled(900, 'old').join()}recent question';
+    expect(LocalAnswer.context(history), hasLength(600));
+    expect(LocalAnswer.context(history), endsWith('recent question'));
+    expect(LocalAnswer.context('short history'), 'short history');
+  });
 }
